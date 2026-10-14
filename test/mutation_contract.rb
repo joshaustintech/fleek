@@ -54,6 +54,26 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "column = 1",
   "location attribution",
   "original byte location changed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "scope->occurrence_count++;",
+  "scope->occurrence_count += 0;",
+  "missing ClassVariable finding",
+  "finding status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "line, (int) scope.class_name_length",
+  "line + 1, (int) scope.class_name_length",
+  "wrong ClassVariable location",
+  "finding context/message/location missing")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (scope.occurrence_count == 1)",
+  "if (scope.occurrence_count >= 0)",
+  "false-positive ClassVariable finding",
+  "clean status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "    2\n  end\n\n  def self.print_class_variable_completion",
+  "    0\n  end\n\n  def self.print_class_variable_completion",
+  "wrong ClassVariable findings status",
+  "finding status differs from Reek")).run
 
 process_id = Process.spawn("make", "-B", "test", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

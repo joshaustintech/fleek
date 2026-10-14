@@ -13,6 +13,104 @@ class Fleek
     #include <stdio.h>
 
     static char fleek_parse_message_buffer[512];
+    static char fleek_finding_buffer[512];
+    static const uint8_t *fleek_source;
+    static int fleek_class_count;
+    static int fleek_module_count;
+    static int fleek_finding_count;
+    static int fleek_unsupported;
+    static const pm_class_node_t *fleek_only_class;
+
+    typedef struct {
+      pm_parser_t *parser;
+      const char *class_name;
+      size_t class_name_length;
+      pm_node_t *body;
+      size_t occurrence_count;
+      const char *variable_name;
+      size_t variable_name_length;
+      const uint8_t *location;
+    } fleek_class_t;
+
+    static bool fleek_collect_classes(const pm_node_t *node, void *data) {
+      (void) data;
+      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE)) { fleek_class_count++; fleek_only_class = (const pm_class_node_t *) node; }
+      if (PM_NODE_TYPE_P(node, PM_MODULE_NODE)) fleek_module_count++;
+      return true;
+    }
+
+    static bool fleek_top_level_variables(const pm_node_t *node, void *data) {
+      (void) data;
+      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE) || PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
+      if (node->type >= PM_CLASS_VARIABLE_AND_WRITE_NODE && node->type <= PM_CLASS_VARIABLE_WRITE_NODE) fleek_unsupported = 1;
+      return true;
+    }
+
+    static bool fleek_class_variables(const pm_node_t *node, void *data) {
+      fleek_class_t *scope = (fleek_class_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_SINGLETON_CLASS_NODE)) { fleek_unsupported = 1; return false; }
+      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE) || PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
+      if (node->type < PM_CLASS_VARIABLE_AND_WRITE_NODE || node->type > PM_CLASS_VARIABLE_WRITE_NODE) return true;
+      if (node->type != PM_CLASS_VARIABLE_READ_NODE && node->type != PM_CLASS_VARIABLE_WRITE_NODE && node->type != PM_CLASS_VARIABLE_TARGET_NODE) {
+        fleek_unsupported = 1;
+        return true;
+      }
+      pm_constant_id_t id = node->type == PM_CLASS_VARIABLE_READ_NODE ? ((pm_class_variable_read_node_t *) node)->name :
+        node->type == PM_CLASS_VARIABLE_WRITE_NODE ? ((pm_class_variable_write_node_t *) node)->name : ((pm_class_variable_target_node_t *) node)->name;
+      pm_constant_t *constant = pm_constant_pool_id_to_constant(&scope->parser->constant_pool, id);
+      scope->occurrence_count++;
+      scope->variable_name = (const char *) constant->start;
+      scope->variable_name_length = constant->length;
+      scope->location = node->location.start;
+      return true;
+    }
+
+    int fleek_class_variable(const char *source, size_t length) {
+      fleek_finding_buffer[0] = 0;
+      fleek_class_count = fleek_module_count = fleek_finding_count = fleek_unsupported = 0;
+      fleek_only_class = NULL;
+      if (memchr(source, 0, length) != NULL) return -2;
+      fleek_source = (const uint8_t *) source;
+      pm_options_t options = {0};
+      options.line = 1;
+      options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
+      pm_parser_t parser;
+      pm_parser_init(&parser, (const uint8_t *) source, length, &options);
+      pm_node_t *root = pm_parse(&parser);
+      if (parser.error_list.head != NULL) {
+        pm_node_destroy(&parser, root);
+        pm_parser_free(&parser);
+        pm_options_free(&options);
+        return -1;
+      }
+      pm_visit_node(root, fleek_collect_classes, NULL);
+      pm_visit_node(root, fleek_top_level_variables, NULL);
+      if (fleek_class_count != 1 || fleek_module_count != 0 || fleek_unsupported) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+      }
+      const pm_class_node_t *class_node = fleek_only_class;
+      if (class_node == NULL || class_node->superclass != NULL || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE)) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+      }
+      pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((pm_constant_read_node_t *) class_node->constant_path)->name);
+      fleek_class_t scope = { &parser, (const char *) class_name->start, class_name->length, class_node->body, 0, NULL, 0, NULL };
+      if (scope.body != NULL) pm_visit_node(scope.body, fleek_class_variables, &scope);
+      if (scope.occurrence_count > 1 || fleek_unsupported) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+      }
+      if (scope.occurrence_count == 1) {
+        int line = 1;
+        for (const uint8_t *cursor = fleek_source; cursor < scope.location; cursor++) if (*cursor == '\\n') line++;
+        snprintf(fleek_finding_buffer, sizeof(fleek_finding_buffer), "%d\t%.*s\t%.*s", line, (int) scope.class_name_length, scope.class_name, (int) scope.variable_name_length, scope.variable_name);
+        fleek_finding_count = 1;
+      }
+      pm_node_destroy(&parser, root);
+      pm_parser_free(&parser);
+      pm_options_free(&options);
+      return fleek_finding_count;
+    }
+
+    const char *fleek_class_variable_finding(void) { return fleek_finding_buffer; }
 
     int fleek_parse_ruby4(const char *source, size_t length) {
       fleek_parse_message_buffer[0] = 0;
@@ -44,14 +142,21 @@ class Fleek
 
     ffi_func :fleek_parse_ruby4, [:str, :size_t], :int
     ffi_func :fleek_parse_message, [], :str
+    ffi_func :fleek_class_variable, [:str, :size_t], :int
+    ffi_func :fleek_class_variable_finding, [], :str
   end
 
   def self.print_help
     puts "Usage: fleek [--help | --version]"
-    puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
-    puts "Fleek #{VERSION} is a native Ruby analysis CLI. Checks are not available yet."
+    print_analysis_usage
+    puts "Fleek #{VERSION} is a native Ruby analysis CLI."
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}."
     puts "Compiler: Spinel #{SPINEL_RELEASE}."
+  end
+
+  def self.print_analysis_usage
+    puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
+    puts "       fleek --checks reek:ClassVariable SOURCE"
   end
 
   def self.help_requested?(arguments)
@@ -105,6 +210,71 @@ class Fleek
     arguments.length == 2 && arguments[0] == "--parse-ruby4"
   end
 
+  def self.class_variable_requested?(arguments)
+    arguments.length == 3 && arguments[0] == "--checks" && arguments[1] == "reek:ClassVariable"
+  end
+
+  def self.run_class_variable(path)
+    return 1 unless readable_source?(path)
+    source = File.binread(path)
+    analyze_class_variable_source(path, source)
+  end
+
+  def self.readable_source?(path)
+    unless File.file?(path) && File.readable?(path)
+      warn "ERROR: Cannot read source file: #{path}"
+      return false
+    end
+    true
+  end
+
+  def self.analyze_class_variable_source(path, source)
+    result = NativePrism.fleek_class_variable(source, source.bytesize)
+    return report_unsupported_class if result == -4
+    return report_invalid_class_source(path, source) if result < 0
+    print_class_variable_result_for_source(path)
+  end
+
+  def self.report_unsupported_class
+    warn "ERROR: ClassVariable supports one simple class without inheritance or nested scopes."
+    1
+  end
+
+  def self.report_invalid_class_source(path, source)
+    offset = NativePrism.fleek_parse_ruby4(source, source.bytesize)
+    report_parse_failure(path, source, offset)
+  end
+
+  def self.print_class_variable_result_for_source(path)
+    print_class_variable_result(path)
+  end
+
+  def self.print_class_variable_result(path)
+    if NativePrism.fleek_class_variable_finding.empty?
+      return print_clean_class_variable(path)
+    end
+    print_class_variable_finding(path)
+  end
+
+  def self.print_clean_class_variable(path)
+    puts "#{path} -- 0 warnings"
+    print_class_variable_completion("complete")
+    0
+  end
+
+  def self.print_class_variable_finding(path)
+    line, context, variable = NativePrism.fleek_class_variable_finding.split("\t")
+    puts "#{path} -- 1 warning:"
+    puts "  [#{line}]:ClassVariable: #{context} declares the class variable '#{variable}' [https://github.com/troessner/reek/blob/v6.6.0/docs/Class-Variable.md]"
+    print_class_variable_completion("findings")
+    2
+  end
+
+  def self.print_class_variable_completion(state)
+    puts "Checks: reek:ClassVariable"
+    puts "Status: #{state}"
+  end
+
   def self.parse_ruby4_file(path)
     unless File.file?(path) && File.readable?(path)
       warn "ERROR: Cannot read source file: #{path}"
@@ -151,6 +321,7 @@ class Fleek
 
   def self.run(arguments)
     return parse_ruby4_file(arguments[1]) if parse_ruby4_requested?(arguments)
+    return run_class_variable(arguments[2]) if class_variable_requested?(arguments)
     return 0 if print_help_if_requested(arguments)
     return 0 if print_version_if_requested(arguments)
 
