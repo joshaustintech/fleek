@@ -22,6 +22,7 @@ test: verify-spinel $(FLEEK)
 	$(SPINEL) -E test/analysis_runner.rb
 	$(SPINEL) -E test/analysis_stdin_contract.rb
 	$(SPINEL) -E test/analysis_inputs_contract.rb
+	$(SPINEL) -E test/configuration_contract.rb
 
 mutation: verify-spinel $(FLEEK)
 	$(SPINEL) -E test/mutation_contract.rb

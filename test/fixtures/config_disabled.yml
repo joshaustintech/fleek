@@ -1,0 +1,3 @@
+detectors:
+  ClassVariable:
+    enabled: false

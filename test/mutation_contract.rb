@@ -65,7 +65,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "wrong ClassVariable location",
   "finding context/message/location missing")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if NativePrism.fleek_class_variable_finding.empty?",
+  "if findings.empty?",
   "if false",
   "false-positive ClassVariable finding",
   "clean status differs from Reek")).run
@@ -115,23 +115,23 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "unsupported source path diagnostic",
   "unsupported source not identified")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'return run_class_variable_with_stdin(inputs) if inputs[0] == "--stdin"',
+  'return run_class_variable_with_stdin(source_inputs, configuration) if source_inputs[0] == "--stdin"',
   'return 0 if inputs[0] == "--stdin"',
   "stdin origin requirement",
   "stdin origin was not required")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'analyze_class_variable_source(origin, $stdin.read)',
-  'analyze_class_variable_source("wrong.rb", $stdin.read)',
+  'analyze_class_variable_source(origin, $stdin.read, configuration)',
+  'analyze_class_variable_source("wrong.rb", $stdin.read, configuration)',
   "stdin source origin",
   "named stdin differs from file")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'results.unshift(stdin_result)',
+  'results.unshift(analyze_stdin_source(origin, configuration))',
   'results.unshift(0)',
   "stdin findings status",
   "named stdin differs from file")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "def self.discover_additional_sources(paths)\n    collect_sources(paths)\n  end",
-  "def self.discover_additional_sources(paths)\n    files, errors = collect_sources(paths)\n    add_empty_scan_error(files, errors)\n    [files, errors]\n  end",
+  "def self.discover_additional_sources(paths, configuration)\n    collect_sources(paths, configuration)\n  end",
+  "def self.discover_additional_sources(paths, configuration)\n    files, errors = collect_sources(paths, configuration)\n    add_empty_scan_error(files, errors)\n    [files, errors]\n  end",
   "empty stdin source fallback",
   "named stdin differs from file")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -139,6 +139,42 @@ MutationCase.new(MutationCase::Configuration.new(source,
   '[]',
   "mixed stdin path omission",
   "mixed stdin and path lost analysis")).run
+
+MutationCase.new(MutationCase::Configuration.new(source,
+  'path = explicit_path.empty? ? discovered_path : explicit_path',
+  'path = discovered_path',
+  "explicit configuration precedence",
+  "explicit config precedence status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'fail_config(number, "malformed YAML mapping")',
+  'nil',
+  "malformed configuration mapping",
+  "malformed YAML mapping was not rejected before analysis")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'value.include?(": ")',
+  'false',
+  "malformed YAML list mapping",
+  "malformed YAML list mapping was not rejected before analysis")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'if (fleek_suppressed) {',
+  'if (false) {',
+  "suppression comment handling",
+  "suppression status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  '@enabled == false',
+  'false',
+  "disabled selected check handling",
+  "disabled check implied success")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'configuration.excluded_context?(path, context)',
+  'false',
+  "ClassVariable context exclusions",
+  "context exclusion status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'configuration.excluded_path?(path) ? 0 : analyze_class_variable_file(path, configuration)',
+  'analyze_class_variable_file(path, configuration)',
+  "Reek path exclusions",
+  "explicit exclusion implied successful analysis")).run
 
 process_id = Process.spawn("make", "-B", "test", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

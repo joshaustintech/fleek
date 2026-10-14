@@ -11,6 +11,7 @@ class Fleek
     #include "prism.h"
     #include <stdint.h>
     #include <stdio.h>
+    #include <ctype.h>
 
     static char fleek_parse_message_buffer[512];
     static char fleek_finding_buffer[4096];
@@ -18,8 +19,49 @@ class Fleek
     static int fleek_module_count;
     static int fleek_finding_count;
     static int fleek_unsupported;
+    static int fleek_suppressed;
+    static int fleek_bad_suppression;
     static const pm_class_node_t *fleek_only_class;
     static const uint8_t *fleek_source_start;
+
+    static bool fleek_only_comments_between(const uint8_t *start, const uint8_t *end) {
+      const uint8_t *cursor = start;
+      while (cursor < end) {
+        if (isspace(*cursor)) { cursor++; continue; }
+        if (*cursor == '#') {
+          while (cursor < end && *cursor != '\\n') cursor++;
+          continue;
+        }
+        return false;
+      }
+      return true;
+    }
+
+    static int fleek_comment_suppression(const pm_comment_t *comment) {
+      const char *needle = ":reek:ClassVariable";
+      size_t needle_length = strlen(needle);
+      const uint8_t *directive = NULL;
+      for (const uint8_t *cursor = comment->location.start; cursor + needle_length <= comment->location.end; cursor++) {
+        if (memcmp(cursor, needle, needle_length) == 0) { directive = cursor + needle_length; break; }
+      }
+      if (directive == NULL) return 0;
+      while (directive < comment->location.end && isspace(*directive)) directive++;
+      if (directive == comment->location.end || *directive != '{') return 1;
+      directive++;
+      while (directive < comment->location.end && isspace(*directive)) directive++;
+      if (comment->location.end - directive < 7 || memcmp(directive, "enabled", 7) != 0) return -1;
+      directive += 7;
+      while (directive < comment->location.end && isspace(*directive)) directive++;
+      if (directive == comment->location.end || *directive++ != ':') return -1;
+      while (directive < comment->location.end && isspace(*directive)) directive++;
+      int enabled = 0;
+      if (comment->location.end - directive >= 5 && memcmp(directive, "false", 5) == 0) directive += 5;
+      else if (comment->location.end - directive >= 4 && memcmp(directive, "true", 4) == 0) { directive += 4; enabled = 1; }
+      else return -1;
+      while (directive < comment->location.end && isspace(*directive)) directive++;
+      if (directive == comment->location.end || *directive != '}') return -1;
+      return enabled ? 2 : 1;
+    }
 
     typedef struct {
       const uint8_t *name;
@@ -96,6 +138,7 @@ class Fleek
     int fleek_class_variable(const char *source, size_t length) {
       fleek_finding_buffer[0] = 0;
       fleek_class_count = fleek_module_count = fleek_finding_count = fleek_unsupported = 0;
+      fleek_suppressed = fleek_bad_suppression = 0;
       fleek_group_count = 0;
       fleek_only_class = NULL;
       if (memchr(source, 0, length) != NULL) return -2;
@@ -125,6 +168,24 @@ class Fleek
       }
       pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((pm_constant_read_node_t *) class_node->constant_path)->name);
       fleek_class_t scope = { &parser, (const char *) class_name->start, class_name->length, 0 };
+      pm_list_node_t *comment_node = parser.comment_list.head;
+      while (comment_node != NULL) {
+        pm_comment_t *comment = (pm_comment_t *) comment_node;
+        int suppression = fleek_comment_suppression(comment);
+        if (comment->location.end <= class_node->class_keyword_loc.start && suppression != 0) {
+          if (fleek_only_comments_between(comment->location.end, class_node->class_keyword_loc.start)) {
+            if (suppression < 0) fleek_bad_suppression = 1;
+            if (suppression == 1) fleek_suppressed = 1;
+          }
+        }
+        comment_node = comment_node->next;
+      }
+      if (fleek_bad_suppression) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -5;
+      }
+      if (fleek_suppressed) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
+      }
       if (class_node->body != NULL) pm_visit_node(class_node->body, fleek_class_variables, &scope);
       if (fleek_unsupported) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
@@ -173,6 +234,266 @@ class Fleek
     ffi_func :fleek_class_variable_finding, [], :str
   end
 
+  # Imports the deliberately bounded Reek YAML subset used by this check.
+  # :reek:ControlParameter
+  # :reek:DataClump
+  # :reek:DuplicateMethodCall
+  # :reek:FeatureEnvy
+  # :reek:InstanceVariableAssumption
+  # :reek:LongParameterList
+  # :reek:RepeatedConditional
+  # :reek:TooManyInstanceVariables
+  # :reek:TooManyMethods
+  # :reek:TooManyStatements
+  # :reek:UnusedParameters
+  # :reek:UtilityFunction
+  class ReekConfiguration
+    def initialize
+      @error = ""
+      @enabled = true
+      @excludes = []
+      @exclude_paths = []
+      @scope_paths = []
+      @scope_enabled = []
+      @scope_excludes = []
+    end
+
+    def self.load(explicit_path)
+      path = explicit_path.empty? ? discovered_path : explicit_path
+      configuration = ReekConfiguration.new
+      configuration.read(path) unless path.empty?
+      configuration
+    end
+
+    def self.discovered_path
+      directory = Dir.pwd
+      loop do
+        candidate = "#{directory}/.reek.yml"
+        return candidate if File.file?(candidate)
+        parent = File.dirname(directory)
+        break if parent == directory
+        directory = parent
+      end
+      home = File.expand_path("~/.reek.yml")
+      File.file?(home) ? home : ""
+    end
+
+    def error
+      @error
+    end
+
+    def read(path)
+      @path = path
+      source = File.read(path)
+      parse(source)
+    rescue SystemCallError
+      @error = "file cannot be read: #{path}"
+    end
+
+    def parse(source)
+      @section = ""
+      @global_detector = false
+      @scope_detector = false
+      @scope_index = -1
+      @list_target = ""
+      source.lines.each_with_index { |line, index| parse_line(line, index + 1) }
+    end
+
+    def parse_line(line, number)
+      return unless @error.empty?
+      content = line.strip
+      return if content.empty? || content.start_with?("#") || content == "---" || content == "..."
+
+      indentation = line.length - line.lstrip.length
+      @current_indentation = indentation
+      return parse_list_item(content, indentation, number) if content.start_with?("-")
+
+      key, value = mapping_entry(content, number)
+      return if key.empty?
+      @list_target = ""
+      return parse_root(key, value, number) if indentation == 0
+      return parse_detector_field(key, value, number) if @section == "detectors"
+      return parse_directory_field(key, value, number) if @section == "directories"
+      return parse_exclude_path(key, value, indentation, number) if @section == "exclude_paths"
+
+      fail_config(number, "unexpected indentation or key #{key}")
+    end
+
+    def parse_root(key, value, number)
+      unless ["detectors", "directories", "exclude_paths"].include?(key) && value.empty?
+        fail_config(number, "unsupported Reek YAML key #{key}")
+        return
+      end
+      @section = key
+      @list_target = "exclude_paths" if key == "exclude_paths"
+    end
+
+    def parse_detector_field(key, value, number)
+      indentation = line_indentation
+      if indentation == 2 && key == "ClassVariable" && value.empty?
+        @global_detector = true
+        @list_target = ""
+      elsif indentation == 2
+        fail_config(number, "unsupported enabled detector #{key}")
+      elsif @global_detector && indentation == 4
+        parse_options(key, value, number, false)
+      elsif @global_detector && indentation == 6 && @list_target == "global_excludes"
+        append_list_item(value, number)
+      else
+        fail_config(number, "unsupported detector setting #{key}")
+      end
+    end
+
+    def parse_directory_field(key, value, number)
+      indentation = line_indentation
+      if indentation == 2
+        return fail_config(number, "directory scope must use a mapping") unless value.empty?
+        @scope_paths << scalar(key, number)
+        @scope_enabled << ""
+      @scope_excludes << ""
+        @scope_index = @scope_paths.length - 1
+        @scope_detector = false
+      elsif indentation == 4 && key == "ClassVariable" && value.empty? && @scope_index >= 0
+        @scope_detector = true
+      elsif indentation == 4
+        fail_config(number, "unsupported enabled directory detector #{key}")
+      elsif indentation == 6 && @scope_detector
+        parse_options(key, value, number, true)
+      elsif indentation == 8 && @scope_detector && @list_target == "scope_excludes"
+        append_list_item(value, number)
+      else
+        fail_config(number, "unsupported directory setting #{key}")
+      end
+    end
+
+    def parse_exclude_path(key, value, indentation, number)
+      fail_config(number, "exclude_paths accepts a YAML list; unexpected key #{key}")
+    end
+
+    def parse_options(key, value, number, scoped)
+      if key == "enabled" && ["true", "false"].include?(value)
+        if scoped
+          @scope_enabled[@scope_index] = value
+        else
+          @enabled = value == "true"
+        end
+      elsif key == "exclude" && value.empty?
+        if scoped
+          @scope_excludes[@scope_index] = ""
+        else
+          @excludes = []
+        end
+        @list_target = scoped ? "scope_excludes" : "global_excludes"
+      elsif key == "exclude" && value == "[]"
+        if scoped
+          @scope_excludes[@scope_index] = ""
+        else
+          @excludes = []
+        end
+      else
+        fail_config(number, "unsupported ClassVariable setting #{key}")
+      end
+    end
+
+    def parse_list_item(content, indentation, number)
+      expected = if @list_target == "exclude_paths"
+                   2
+                 elsif @list_target == "global_excludes"
+                   6
+                 elsif @list_target == "scope_excludes"
+                   8
+                 else
+                   -1
+                 end
+      return fail_config(number, "unexpected YAML list item") if indentation != expected
+
+      append_list_item(content[1..].strip, number)
+    end
+
+    def append_list_item(value, number)
+      item = scalar(value, number)
+      if @list_target == "exclude_paths"
+        @exclude_paths << item
+      elsif @list_target == "global_excludes"
+        @excludes << item
+      elsif @list_target == "scope_excludes"
+        @scope_excludes[@scope_index] = "#{@scope_excludes[@scope_index]}#{item}\n"
+      else
+        fail_config(number, "unexpected YAML list item")
+      end
+    end
+
+    def mapping_entry(content, number)
+      separator = content.index(":")
+      unless separator
+        fail_config(number, "malformed YAML mapping")
+        return ["", ""]
+      end
+      key = content[0...separator].strip
+      value = content[(separator + 1)..].strip
+      [scalar(key, number), clean_value(value)]
+    end
+
+    def clean_value(value)
+      comment = value.index(" #")
+      comment ? value[0...comment].strip : value
+    end
+
+    def scalar(value, number)
+      value = value.strip
+      if value.start_with?("'", '"')
+        quote = value[0]
+        unless value.end_with?(quote) && value.length >= 2 && !value[1...-1].include?("\\")
+          fail_config(number, "unsupported quoted scalar")
+          return ""
+        end
+        value[1...-1]
+      elsif value.empty? || value.include?("[") || value.include?(",") || value.include?("{") || value.include?("}") || value.include?(": ") || value.end_with?(":")
+        fail_config(number, "unsupported YAML scalar")
+        ""
+      else
+        value
+      end
+    end
+
+    def line_indentation
+      @current_indentation
+    end
+
+    def fail_config(number, message)
+      @error = "#{@path}:#{number}: #{message}" if @error.empty?
+    end
+
+    def disabled_for?(path)
+      index = best_scope(path)
+      index >= 0 ? @scope_enabled[index] == "false" : @enabled == false
+    end
+
+    def excluded_context?(path, context)
+      index = best_scope(path)
+      exclusions = index >= 0 ? @scope_excludes[index].split("\n") : @excludes
+      exclusions.any? { |excluded| context.include?(excluded) }
+    end
+
+    def excluded_path?(path)
+      actual = File.expand_path(path)
+      @exclude_paths.any? do |pattern|
+        File.fnmatch?(File.expand_path(pattern), actual) || actual.start_with?("#{File.expand_path(pattern)}/")
+      end
+    end
+
+    def best_scope(path)
+      directory = File.expand_path(File.dirname(path))
+      selected = -1
+      @scope_paths.each_with_index do |pattern, index|
+        expanded = File.expand_path(pattern)
+        matches = directory == expanded || directory.start_with?("#{expanded}/") || File.fnmatch?(expanded, directory)
+        selected = index if matches && (selected < 0 || pattern.length > @scope_paths[selected].length)
+      end
+      selected
+    end
+  end
+
   def self.print_help
     puts "Usage: fleek [--help | --version]"
     print_analysis_usage
@@ -183,8 +504,8 @@ class Fleek
 
   def self.print_analysis_usage
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
-    puts "       fleek --checks reek:ClassVariable SOURCE"
-    puts "       fleek --checks reek:ClassVariable --stdin SOURCE [PATH...]"
+    puts "       fleek --checks reek:ClassVariable [--reek-config FILE] SOURCE"
+    puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
   end
 
   def self.help_requested?(arguments)
@@ -242,30 +563,54 @@ class Fleek
     arguments.length >= 3 && arguments[0] == "--checks" && arguments[1] == "reek:ClassVariable"
   end
 
+  # :reek:TooManyStatements
   def self.run_class_variable(inputs)
-    return run_class_variable_with_stdin(inputs) if inputs[0] == "--stdin"
+    config_path, source_inputs, option_error = extract_reek_configuration(inputs)
+    return report_configuration_error(option_error) unless option_error.empty?
+    configuration = ReekConfiguration.load(config_path)
+    configuration_error = configuration.error
+    return report_configuration_error(configuration_error) unless configuration_error.empty?
+    return run_class_variable_with_stdin(source_inputs, configuration) if source_inputs[0] == "--stdin"
 
-    files, errors = discover_sources(inputs)
+    files, errors = discover_sources(source_inputs, configuration)
     report_input_errors(errors)
-    summarize_class_variable_inputs(files, errors)
+    summarize_class_variable_inputs(files, errors, configuration)
   end
 
-  def self.run_class_variable_with_stdin(inputs)
+  # :reek:TooManyStatements
+  def self.extract_reek_configuration(inputs)
+    remaining = inputs.dup
+    option_index = remaining.index("--reek-config")
+    return ["", remaining, ""] unless option_index
+    option = remaining.slice!(option_index, 2)
+    return ["", [], "--reek-config requires a file."] unless option.length == 2
+    config_path = option[1]
+    return ["", [], "--reek-config requires a non-empty file path."] if config_path.empty?
+    return ["", [], "--reek-config may appear only once."] if remaining.include?("--reek-config")
+    [config_path, remaining, ""]
+  end
+
+  def self.report_configuration_error(message)
+    warn "ERROR: Reek configuration #{message}"
+    1
+  end
+
+  def self.run_class_variable_with_stdin(inputs, configuration)
     input_count = inputs.length
     origin = inputs[1]
     return report_missing_stdin_origin if input_count < 2 || origin.empty?
 
-    run_named_stdin(origin, inputs[2, input_count - 2])
+    run_named_stdin(origin, inputs[2, input_count - 2], configuration)
   end
 
-  def self.run_named_stdin(origin, paths)
-    files, errors = discover_additional_sources(paths)
+  def self.run_named_stdin(origin, paths, configuration)
+    files, errors = discover_additional_sources(paths, configuration)
     report_input_errors(errors)
-    summarize_class_variable_inputs_with_stdin(files, errors, analyze_stdin_source(origin))
+    summarize_class_variable_inputs_with_stdin(files, errors, origin, configuration)
   end
 
-  def self.analyze_stdin_source(origin)
-    analyze_class_variable_source(origin, $stdin.read)
+  def self.analyze_stdin_source(origin, configuration)
+    analyze_class_variable_source(origin, $stdin.read, configuration)
   rescue SystemCallError
     warn "ERROR: Cannot read standard input: #{origin}"
     1
@@ -276,25 +621,26 @@ class Fleek
     1
   end
 
-  def self.discover_sources(paths)
-    files, errors = collect_sources(paths)
+  def self.discover_sources(paths, configuration)
+    files, errors = collect_sources(paths, configuration)
     add_empty_scan_error(files, errors)
     [files, errors]
   end
 
-  def self.discover_additional_sources(paths)
-    collect_sources(paths)
+  def self.discover_additional_sources(paths, configuration)
+    collect_sources(paths, configuration)
   end
 
-  def self.collect_sources(paths)
+  def self.collect_sources(paths, configuration)
     files = []
     errors = []
-    collect_requested_sources(paths, files, errors)
+    collect_requested_sources(paths, files, errors, configuration)
     [files, errors]
   end
 
-  def self.collect_requested_sources(paths, files, errors)
-    paths.each { |path| discover_requested_path(path, files, errors) }
+  # :reek:LongParameterList
+  def self.collect_requested_sources(paths, files, errors, configuration)
+    paths.each { |path| discover_requested_path(path, files, errors, configuration) }
   end
 
   def self.add_empty_scan_error(files, errors)
@@ -305,20 +651,22 @@ class Fleek
     errors.each { |message| warn message }
   end
 
-  def self.discover_requested_path(path, files, errors)
+  # :reek:LongParameterList
+  def self.discover_requested_path(path, files, errors, configuration)
     symlink = File.symlink?(path)
     directory = File.directory?(path)
     if symlink && directory
       errors << "ERROR: Directory symlinks are not followed: #{path}"
     elsif directory
-      discover_directory(path, files, errors)
+      discover_directory(path, files, errors, configuration)
     else
       add_explicit_source(path, files, errors)
     end
   end
 
-  def self.discover_directory(path, files, errors)
-    directory_entries(path, errors).each { |entry| discover_directory_entry("#{path}/#{entry}", files, errors) }
+  # :reek:LongParameterList
+  def self.discover_directory(path, files, errors, configuration)
+    directory_entries(path, errors).each { |entry| discover_directory_entry("#{path}/#{entry}", files, errors, configuration) }
   end
 
   def self.directory_entries(path, errors)
@@ -328,13 +676,21 @@ class Fleek
     []
   end
 
-  def self.discover_directory_entry(path, files, errors)
+  # :reek:LongParameterList
+  def self.discover_directory_entry(path, files, errors, configuration)
     return if skipped_directory_entry?(path)
     if File.directory?(path)
-      discover_directory(path, files, errors)
+      discover_directory(path, files, errors, configuration)
     elsif ruby_source_path?(path)
-      add_explicit_source(path, files, errors)
+      add_discovered_source(path, files, errors, configuration)
     end
+  end
+
+  # :reek:LongParameterList
+  def self.add_discovered_source(path, files, errors, configuration)
+    return if configuration.excluded_path?(path)
+
+    add_explicit_source(path, files, errors)
   end
 
   def self.skipped_directory_entry?(path)
@@ -363,24 +719,54 @@ class Fleek
     path.end_with?(".rb")
   end
 
-  def self.summarize_class_variable_inputs(files, errors)
-    summarize_class_variable_results(class_variable_input_results(files, errors), files.length)
+  def self.summarize_class_variable_inputs(files, errors, configuration)
+    return report_disabled_check(files + errors, configuration) if disabled_input?(files, configuration)
+
+    excluded = excluded_input_count(files, configuration)
+    summarize_class_variable_results(class_variable_input_results(files, errors, configuration), files.length - excluded, excluded)
   end
 
-  def self.summarize_class_variable_inputs_with_stdin(files, errors, stdin_result)
-    results = class_variable_input_results(files, errors)
-    results.unshift(stdin_result)
-    summarize_class_variable_results(results, files.length + 1)
+  # :reek:LongParameterList
+  def self.summarize_class_variable_inputs_with_stdin(files, errors, origin, configuration)
+    return report_disabled_check(files + [origin] + errors, configuration) if configuration.disabled_for?(origin) || disabled_input?(files, configuration)
+
+    results = class_variable_input_results(files, errors, configuration)
+    results.unshift(analyze_stdin_source(origin, configuration))
+    excluded = excluded_input_count(files, configuration)
+    summarize_class_variable_results(results, files.length + 1 - excluded, excluded)
   end
 
-  def self.summarize_class_variable_results(results, analyzed)
+  def self.disabled_input?(files, configuration)
+    files.any? { |path| configuration.disabled_for?(path) }
+  end
+
+  def self.report_disabled_check(inputs, configuration)
+    path = inputs.find { |input| configuration.disabled_for?(input) }
+    warn "ERROR: Reek ClassVariable is disabled for #{path}; no analysis ran."
+    1
+  end
+
+  def self.excluded_input_count(files, configuration)
+    files.count { |path| configuration.excluded_path?(path) }
+  end
+
+  # :reek:TooManyStatements
+  def self.summarize_class_variable_results(results, analyzed, excluded)
     status = class_variable_input_status(results)
-    report_input_summary(analyzed, results.count(1), status == 1 ? "incomplete" : "complete")
+    completion = status == 1 ? "incomplete" : "complete"
+    if status == 0 && analyzed == 0 && excluded > 0
+      warn "ERROR: Reek exclusions removed every selected source; no analysis ran."
+      status = 1
+      completion = "incomplete"
+    end
+    report_input_summary(analyzed, excluded, results.count(1), completion)
     status
   end
 
-  def self.class_variable_input_results(files, errors)
-    files.map { |path| analyze_class_variable_file(path) } + Array.new(errors.length, 1)
+  def self.class_variable_input_results(files, errors, configuration)
+    files.map do |path|
+      configuration.excluded_path?(path) ? 0 : analyze_class_variable_file(path, configuration)
+    end + Array.new(errors.length, 1)
   end
 
   def self.class_variable_input_status(results)
@@ -388,28 +774,36 @@ class Fleek
     combined == 3 ? 1 : combined
   end
 
-  def self.report_input_summary(analyzed, failures, completion)
-    puts "Coverage: #{analyzed} analyzed; #{failures} failed"
+  # :reek:LongParameterList
+  def self.report_input_summary(analyzed, excluded, failures, completion)
+    suffix = excluded > 0 ? "; #{excluded} excluded" : ""
+    puts "Coverage: #{analyzed} analyzed; #{failures} failed#{suffix}"
     puts "Status: #{completion}"
   end
 
-  def self.analyze_class_variable_file(path)
+  def self.analyze_class_variable_file(path, configuration)
     source = File.binread(path)
-    analyze_class_variable_source(path, source)
+    analyze_class_variable_source(path, source, configuration)
   rescue SystemCallError
       warn "ERROR: Cannot read source file: #{path}"
       1
   end
 
-  def self.analyze_class_variable_source(path, source)
+  def self.analyze_class_variable_source(path, source, configuration)
     result = NativePrism.fleek_class_variable(source, source.bytesize)
     return report_unsupported_class(path) if result == -4
+    return report_unsupported_suppression(path) if result == -5
     return report_invalid_class_source(path, source) if result < 0
-    print_class_variable_result_for_source(path)
+    print_class_variable_result_for_source(path, configuration)
   end
 
   def self.report_unsupported_class(path)
     warn "ERROR: #{path}: ClassVariable supports one simple class without inheritance or nested classes or modules."
+    1
+  end
+
+  def self.report_unsupported_suppression(path)
+    warn "ERROR: #{path}: unsupported Reek ClassVariable suppression settings."
     1
   end
 
@@ -418,15 +812,20 @@ class Fleek
     report_parse_failure(path, source, offset)
   end
 
-  def self.print_class_variable_result_for_source(path)
-    print_class_variable_result(path)
+  def self.print_class_variable_result_for_source(path, configuration)
+    findings = NativePrism.fleek_class_variable_finding.split("\n")
+    findings.reject! do |finding|
+      _lines, context, _variable = finding.split("\t")
+      configuration.excluded_context?(path, context)
+    end
+    print_class_variable_result(path, findings)
   end
 
-  def self.print_class_variable_result(path)
-    if NativePrism.fleek_class_variable_finding.empty?
+  def self.print_class_variable_result(path, findings)
+    if findings.empty?
       return print_clean_class_variable(path)
     end
-    print_class_variable_finding(path)
+    print_class_variable_finding(path, findings)
   end
 
   def self.print_clean_class_variable(path)
@@ -435,8 +834,7 @@ class Fleek
     0
   end
 
-  def self.print_class_variable_finding(path)
-    findings = NativePrism.fleek_class_variable_finding.split("\n")
+  def self.print_class_variable_finding(path, findings)
     print_class_variable_header(path, findings.length)
     print_class_variable_findings(findings)
     2

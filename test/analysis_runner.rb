@@ -28,7 +28,17 @@ class AnalysisRunner
 
   def self.assert_reference(actual, reference, label)
     assert_status(actual, reference, label)
-    reports = [actual, reference].map { |result| finding_lines(result[1]) }
+    assert_findings(actual, reference, label)
+  end
+
+  def self.assert_same_report(actual, reference, label)
+    raise "#{label} status differs from Reek" unless actual[0] == reference[0]
+    assert_findings(actual, reference, label)
+    actual
+  end
+
+  def self.assert_findings(actual, reference, label)
+    reports = [actual, reference].map { |result| warning_lines(result[1]) }
     raise "#{label} findings differ from Reek" unless reports[0] == reports[1]
   end
 
@@ -39,5 +49,9 @@ class AnalysisRunner
 
   def self.finding_lines(output)
     output.lines.select { |line| / -- |ClassVariable:/.match?(line) }
+  end
+
+  def self.warning_lines(output)
+    output.lines.select { |line| line.include?("ClassVariable:") }
   end
 end

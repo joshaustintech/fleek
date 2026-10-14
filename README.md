@@ -2,6 +2,8 @@
 
 Fleek is a native Ruby analysis CLI implemented in Spinel. Its first analysis check reproduces Reek's `ClassVariable` smell for a bounded Ruby source subset. Unsupported checks and source contexts fail explicitly.
 
+Pass Reek settings with `--reek-config FILE`; otherwise Fleek discovers `.reek.yml` from the current directory upward, then from the home directory. Supported YAML is bounded to `detectors`, `directories`, and `exclude_paths`, with ClassVariable `enabled` and `exclude` settings. Unsupported YAML constructs, settings, and detectors fail before source analysis. Suppression comments support `:reek:ClassVariable` and `enabled: false|true`. If exclusions remove every source, Fleek reports zero analyzed and exits 1; Reek exits 0 in that case. See [ADR 0013](docs/adr/0013-reek-configuration-and-suppression.md) for exact limits.
+
 Build and verify with the pinned Spinel executable and locked reference tools:
 
 ```sh

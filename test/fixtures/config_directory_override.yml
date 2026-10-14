@@ -1,0 +1,7 @@
+detectors:
+  ClassVariable:
+    enabled: false
+directories:
+  test/fixtures/config_scope:
+    ClassVariable:
+      enabled: true

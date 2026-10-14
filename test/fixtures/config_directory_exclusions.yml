@@ -1,0 +1,9 @@
+detectors:
+  ClassVariable:
+    exclude:
+      - Counter
+directories:
+  test/fixtures/config_scope:
+    ClassVariable:
+      exclude:
+        - Other

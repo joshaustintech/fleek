@@ -32,6 +32,7 @@ raise "help status" unless help_result[0] == 0
 raise "help usage" unless help_result[1].include?("Usage:")
 raise "help parser prototype" unless help_result[1].include?("--parse-ruby4 SOURCE")
 raise "help named stdin" unless help_result[1].include?("--stdin SOURCE [PATH...]")
+raise "help Reek config" unless help_result[1].include?("--reek-config FILE")
 raise "help stderr" unless help_result[2] == ""
 
 usage_result = cli_process.without_arguments
@@ -46,5 +47,6 @@ raise "version references" unless version_result[1].include?("Flay 2.14.4")
 unsupported_result = cli_process.with_unknown_check
 raise "unsupported check status" unless unsupported_result[0] == 1
 raise "unsupported check diagnostic" unless unsupported_result[2].include?("unsupported")
+
 
 puts "CLI contract: pass"

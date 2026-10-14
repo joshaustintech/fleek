@@ -4,17 +4,25 @@
 
 **Blocked by:** 04 ClassVariable scope and occurrence parity; 06 Named stdin analysis.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] Import supported Reek YAML with reference-equivalent explicit-file, discovery, precedence, detector, and directory-scope behavior; select/verify any native YAML solution through real pinned-compiler execution.
-- [ ] ClassVariable enablement, supported exclusions, and suppression comments produce unchanged-reference-equivalent findings on shared syntax.
-- [ ] Named stdin uses the supplied origin for source scope; explicit-file and directory exclusion behavior matches the supported reference policy.
-- [ ] Malformed/unsupported settings and unsupported enabled/default checks fail before any analysis, identifying the offending capability. No unified configuration format is introduced.
-- [ ] Reek exclusions affect smell analysis only; preserve their scope for the later combined mode.
-- [ ] Precedence, suppression, enablement, and exclusion mutations are detected; full native and zero-finding quality gates pass.
+- [x] Import the documented Reek YAML subset with reference-equivalent explicit-file, discovery, precedence, detector, and directory-scope behavior; verify through pinned-compiler execution.
+- [x] ClassVariable enablement, supported exclusions, and suppression comments produce reference-equivalent findings on shared syntax.
+- [x] Named stdin uses the supplied origin for source scope; filesystem exclusion behavior matches Reek, and stdin path exclusions remain unapplied as in Reek.
+- [x] Malformed/unsupported settings fail with capability diagnostics before source analysis. No unified configuration format is introduced.
+- [x] Reek exclusions affect smell analysis only; preserve their scope for the later combined mode.
+- [x] Precedence, malformed mapping/list, suppression, enablement, and exclusion mutants are detected; full native and zero-finding quality gates pass.
+
+## Answer
+
+Implemented bounded Reek YAML import, discovery/precedence, ClassVariable enablement and context exclusions, directory scopes, filesystem path exclusions, and class suppression comments. The pinned Spinel build has no YAML library, so the accepted single-document block-YAML subset and workarounds are documented in ADR 0013.
+
+Locked Reek 6.6.0 comparisons pass for findings and status wherever Fleek runs analysis. Inline class declaration comments do not suppress, matching Reek. Malformed mapping lines and list mappings fail before analysis. Fleek intentionally exits 1 when the selected check is disabled or every source is excluded, even where Reek exits 0, so success cannot imply that analysis ran. Reek does not apply exclude_paths to named stdin.
+
+Project make check passed: 27 mutants caught, fixture/project Flay score 0, and project Reek warnings 0. Full pinned Spinel check passed: 3,596 tests; alloc report, inference, and spin-e2e all green. Configuration and status differences are recorded in ADR 0013.
 
 ## Comments
 
