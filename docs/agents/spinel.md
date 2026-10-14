@@ -4,11 +4,24 @@
 
 - Release: `2026.09.12`
 - Repository: <https://github.com/matz/spinel>
-- Tag commit: `00ce35bb96e489620358ffbc48791001a73778a5`
+- Annotated tag object: `00ce35bb96e489620358ffbc48791001a73778a5`
+- Peeled release source commit: `112bae85c1a25fc5399009a849f805bfe691426b`
 - Build Spinel from that tag and verify `spinel --version` identifies the pinned release and commit before using it. Do not build from `master` or follow an unpinned installer.
+- GitHub marks this ref as an annotated tag object, not a commit. Resolve and verify both the expected object and peeled commit before building.
 - Change this pin only as a planned, reviewed harness update. Recheck the new release's `docs/limitations.md`, then compile and run every existing end-to-end test before changing the version here.
 
-The source archive for a release includes vendored parsers, so the compiler can be built reproducibly without fetching dependencies during the build.
+The 2026.09.12 Git tag has no tracked `vendor/` tree; its Makefile can fetch Prism 1.9.0 with `make deps`. Record the exact Prism source and build identity so this fetch does not silently change the parser.
+
+## Verified Apple Silicon build
+
+- Host: macOS arm64, Apple clang 21.0.0 (`clang-2100.3.34.2`).
+- Compiler output: `spinel 112bae85c1a2 (2026.09.12) [Apple clang version 21.0.0 (clang-2100.3.34.2)]`.
+- Parser: Prism 1.9.0, fetched from its RubyGems artifact; SHA-256 `7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85`.
+- `make test` checks the vendored Prism version header and locked gem checksum. It does not hash the expanded vendor tree against the gem archive.
+- A Fleek executable compiled by that compiler had SHA-256 `d8dea81e63c1e336620792a753c60439ea207fd73df355ec1686d9e4e9a2a519`.
+- The fetched RBS 4.0.1 dependency supplies signature data and extraction support; it is not Fleek's analyzed-source parser.
+- In `/private/tmp`, the inherited `ruby` resolves to macOS System Ruby 2.6. Upstream `tools/spin.rb` launches `ruby` for its CRuby parity check, so use `/Users/josh/.local/share/mise/installs/ruby/3.4.9/bin` first in `PATH` when running Spinel's full `make check` there.
+- The pack e2e generates a Makefile requiring newer syntax than Apple's GNU Make 3.81. GNU Make 4.4.1 was installed with Homebrew and placed first in `PATH` for `tools/spin_e2e.sh`; the upstream helper remained unchanged.
 
 ## Ruby practices for this version
 

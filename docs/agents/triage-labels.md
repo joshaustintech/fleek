@@ -1,14 +1,15 @@
 # Triage Labels
 
-The skills speak in terms of four canonical triage roles. This file maps those roles to the actual label strings used in this repo's issue tracker.
+Each triaged issue has one category role and one triage-state role. `Status` (`open`, `claimed`, `resolved`) is the separate local workflow lifecycle.
 
-| Label in mattpocock/skills | Label in our tracker | Meaning                                  |
-| -------------------------- | -------------------- | ---------------------------------------- |
-| `needs-triage`             | `needs-triage`       | Maintainer needs to evaluate this issue  |
-| `needs-info`               | `needs-info`         | Waiting on reporter for more information |
-| `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for an AFK agent  |
-| `wontfix`                  | `wontfix`            | Will not be actioned                     |
+| Role | Tracker string | Meaning |
+| --- | --- | --- |
+| `bug` category | `bug` | Something is broken |
+| `enhancement` category | `enhancement` | New feature or improvement |
+| `needs-triage` state | `needs-triage` | Maintainer needs to evaluate |
+| `needs-info` state | `needs-info` | Waiting for reporter information |
+| `ready-for-agent` state | `ready-for-agent` | Fully specified, agent can work |
+| `ready-for-human` state | `ready-for-human` | Needs human judgment or work |
+| `wontfix` state | `wontfix` | Will not be actioned |
 
-The `ready-for-human` role has no label: plans should define work clearly enough for agent implementation, with edge cases addressed during grill-with-docs sessions.
-
-When a skill mentions one of the four roles, use the corresponding label string from this table.
+Each triaged issue has exactly one category and one state role. Write the corresponding string when a skill assigns a role.
