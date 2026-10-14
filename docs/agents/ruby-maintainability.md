@@ -13,7 +13,7 @@ Guidance synthesized from DHH, Noel Rappin, Sam Ruby, and Dave Thomas. These are
 | Broad rescue-and-continue behavior that hides bad input or analyzer bugs. | Handle expected user errors at the CLI boundary with useful diagnostics and status codes; let unexpected faults remain visible during development. |
 | Adding layers, options, or extension points “for later.” | Ship the smallest coherent design that serves a demonstrated use case; revise when real pressure appears. |
 
-Make each lint finding name a concrete risk and concise repair. Enforce only explicit repo style choices; omit checks that make harmless code longer or force abstractions without evidence.
+Preserve supported upstream checks and let users choose which checks to enable, as decided in `../adr/0001-compatible-native-replacement.md`. For deliberately introduced checks, make each finding name a concrete risk and concise repair; enforce only explicit repo style choices and avoid forcing abstractions without evidence.
 
 ## Source basis
 

@@ -1,0 +1,15 @@
+# 09: Structural duplication groups
+
+**What to build:** A developer selects default duplication analysis and receives genuine Flay structural groups on a narrowly declared supported subset. Parent specification: Structural duplication and combined analysis.
+
+**Blocked by:** 07 Reek configuration and suppression. This follows the confirmed rollout of ClassVariable before structural duplication.
+
+**Status:** open
+**Publication:** draft; proposed triage ready-for-agent after review.
+
+- [ ] Use the actual AST adapter and Flay structural semantics, not text equality, token counts, or source length.
+- [ ] On the initial declared subset, renamed identifiers/changed literals group as in unchanged Flay; genuinely different shapes do not.
+- [ ] Each supported result includes reference-equivalent locations and the applicable default-threshold score. Fixtures are chosen so all semantics needed for their result are implemented.
+- [ ] Detect and reject candidate structures or group forms whose threshold/scoring/pruning semantics are not yet implemented; do not claim default analysis succeeded while omitting eligible groups.
+- [ ] Explicit unsupported fuzzy/liberal/diff/plugin requests fail. Clean/finding/error results follow the agreed status contract.
+- [ ] Executed reference comparison and mutations detect broken structural grouping; required gates pass.
