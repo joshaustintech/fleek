@@ -114,6 +114,31 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'warn "ERROR: ClassVariable supports one simple class without inheritance or nested classes or modules."',
   "unsupported source path diagnostic",
   "unsupported source not identified")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'return run_class_variable_with_stdin(inputs) if inputs[0] == "--stdin"',
+  'return 0 if inputs[0] == "--stdin"',
+  "stdin origin requirement",
+  "stdin origin was not required")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'analyze_class_variable_source(origin, $stdin.read)',
+  'analyze_class_variable_source("wrong.rb", $stdin.read)',
+  "stdin source origin",
+  "named stdin differs from file")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'results.unshift(stdin_result)',
+  'results.unshift(0)',
+  "stdin findings status",
+  "named stdin differs from file")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "def self.discover_additional_sources(paths)\n    collect_sources(paths)\n  end",
+  "def self.discover_additional_sources(paths)\n    files, errors = collect_sources(paths)\n    add_empty_scan_error(files, errors)\n    [files, errors]\n  end",
+  "empty stdin source fallback",
+  "named stdin differs from file")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'inputs[2, input_count - 2]',
+  '[]',
+  "mixed stdin path omission",
+  "mixed stdin and path lost analysis")).run
 
 process_id = Process.spawn("make", "-B", "test", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

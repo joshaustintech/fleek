@@ -184,6 +184,7 @@ class Fleek
   def self.print_analysis_usage
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
     puts "       fleek --checks reek:ClassVariable SOURCE"
+    puts "       fleek --checks reek:ClassVariable --stdin SOURCE [PATH...]"
   end
 
   def self.help_requested?(arguments)
@@ -241,17 +242,54 @@ class Fleek
     arguments.length >= 3 && arguments[0] == "--checks" && arguments[1] == "reek:ClassVariable"
   end
 
-  def self.run_class_variable(paths)
-    files, errors = discover_sources(paths)
+  def self.run_class_variable(inputs)
+    return run_class_variable_with_stdin(inputs) if inputs[0] == "--stdin"
+
+    files, errors = discover_sources(inputs)
     report_input_errors(errors)
     summarize_class_variable_inputs(files, errors)
   end
 
+  def self.run_class_variable_with_stdin(inputs)
+    input_count = inputs.length
+    origin = inputs[1]
+    return report_missing_stdin_origin if input_count < 2 || origin.empty?
+
+    run_named_stdin(origin, inputs[2, input_count - 2])
+  end
+
+  def self.run_named_stdin(origin, paths)
+    files, errors = discover_additional_sources(paths)
+    report_input_errors(errors)
+    summarize_class_variable_inputs_with_stdin(files, errors, analyze_stdin_source(origin))
+  end
+
+  def self.analyze_stdin_source(origin)
+    analyze_class_variable_source(origin, $stdin.read)
+  rescue SystemCallError
+    warn "ERROR: Cannot read standard input: #{origin}"
+    1
+  end
+
+  def self.report_missing_stdin_origin
+    warn "ERROR: --stdin requires a source filename."
+    1
+  end
+
   def self.discover_sources(paths)
+    files, errors = collect_sources(paths)
+    add_empty_scan_error(files, errors)
+    [files, errors]
+  end
+
+  def self.discover_additional_sources(paths)
+    collect_sources(paths)
+  end
+
+  def self.collect_sources(paths)
     files = []
     errors = []
     collect_requested_sources(paths, files, errors)
-    add_empty_scan_error(files, errors)
     [files, errors]
   end
 
@@ -326,14 +364,19 @@ class Fleek
   end
 
   def self.summarize_class_variable_inputs(files, errors)
-    results, status = class_variable_input_state(files, errors)
-    report_input_summary(files.length, results.count(1), status == 1 ? "incomplete" : "complete")
-    status
+    summarize_class_variable_results(class_variable_input_results(files, errors), files.length)
   end
 
-  def self.class_variable_input_state(files, errors)
+  def self.summarize_class_variable_inputs_with_stdin(files, errors, stdin_result)
     results = class_variable_input_results(files, errors)
-    [results, class_variable_input_status(results)]
+    results.unshift(stdin_result)
+    summarize_class_variable_results(results, files.length + 1)
+  end
+
+  def self.summarize_class_variable_results(results, analyzed)
+    status = class_variable_input_status(results)
+    report_input_summary(analyzed, results.count(1), status == 1 ? "incomplete" : "complete")
+    status
   end
 
   def self.class_variable_input_results(files, errors)

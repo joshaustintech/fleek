@@ -6,7 +6,7 @@
 - One local Markdown issue per ticket in `issues/`, numbered globally in dependency order.
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
-- Tickets 01–05 resolved and pushed in order; continue one passing ticket per commit.
+- Tickets 01–06 resolved and pushed in order; continue one passing ticket per commit.
 
 ## Decisions-so-far
 
@@ -58,3 +58,9 @@
 - ADR 0011 documents sorted recursive discovery, hidden-directory exclusion, directory-symlink exclusion, file-symlink inclusion, repeated paths, and the intentional explicit directory-symlink error that prevents empty-success ambiguity.
 - Explicit invalid/missing inputs fail. Mixed valid and invalid inputs retain valid findings and report incomplete coverage with failed paths and exit 1; empty scans fail.
 - Reek 6.6.0 reference comparisons cover directory and repeated-path behavior. Five additional mutants cover hidden folders, directory symlinks, repeated paths, empty scans, and error precedence; all 15 project mutants are caught.
+
+## Ticket 06 receipt
+
+- ADR 0012 records `--stdin SOURCE [PATH...]`, required origin, valid empty source semantics, mixed-input behavior, and the no-current-directory fallback rule.
+- Named stdin uses the supplied origin for findings and parse diagnostics, and its output matches file analysis for the same source and origin. Mixed stdin/path checks both sources; empty stdin reports one complete clean source.
+- Mutation checks cover missing origin, wrong origin attribution, skipped stdin findings status, accidental empty-input fallback, and dropped path inputs.

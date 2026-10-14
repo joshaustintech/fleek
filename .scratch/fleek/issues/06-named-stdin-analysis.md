@@ -4,16 +4,16 @@
 
 **Blocked by:** 05 Explicit files and directory scans.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] Explicit stdin requires a source filename; missing origin fails before analysis with exit 1.
-- [ ] The same supported source through a file and named stdin produces equivalent findings, locations, and completion status.
-- [ ] Invalid stdin source produces a diagnostic attributed to its supplied origin and exits 1.
-- [ ] Empty stdin and mixed stdin/path invocation have documented, tested behavior; neither falls back to a directory scan.
-- [ ] Origin is available for later configuration scoping without loading or executing source. Origin/status mutations are detected and required gates pass.
+- [x] Explicit stdin requires a source filename; missing origin fails before analysis with exit 1.
+- [x] The same supported source through a file and named stdin produces equivalent findings, locations, and completion status.
+- [x] Invalid stdin source produces a diagnostic attributed to its supplied origin and exits 1.
+- [x] Empty stdin and mixed stdin/path invocation have documented, tested behavior; neither falls back to a directory scan.
+- [x] Origin is available for later configuration scoping without loading or executing source. Origin/status mutations are detected and required gates pass.
 
 ## Comments
 
