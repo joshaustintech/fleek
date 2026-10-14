@@ -4,16 +4,16 @@
 
 **Blocked by:** 03 First ClassVariable finding.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] Reads and assignments contribute the exact reference occurrence lines; repeated use emits one finding per name/context, and different names remain separate.
-- [ ] Nested classes/modules do not leak occurrences into their enclosing context.
-- [ ] Execute and record reference behavior for method use, top-level use, reopening, and singleton contexts before claiming support; implement supported cases or reject remaining contexts explicitly.
-- [ ] CLI findings preserve reference names, messages, contexts, ordering, and locations over these shared-syntax fixtures.
-- [ ] Scope/grouping mutations are detected, and all required gates remain passing.
+- [x] Reads and assignments contribute the exact reference occurrence lines; repeated use emits one finding per name/context, and different names remain separate.
+- [x] Nested classes/modules do not leak occurrences into their enclosing context; those shapes fail clearly until qualified scopes are supported.
+- [x] Execute and record reference behavior for method use, top-level use, reopening, and singleton contexts before claiming support; implement supported cases or reject remaining contexts explicitly.
+- [x] CLI findings preserve reference names, messages, contexts, ordering, and locations over these shared-syntax fixtures.
+- [x] Scope/grouping mutations are detected, and all required gates remain passing.
 
 ## Comments
 
@@ -31,3 +31,5 @@
 **Acceptance criteria:** Execute reference cases; reject unimplemented contexts explicitly.
 
 **Out of scope:** Other smell detectors.
+
+**Resolution:** ADR 0010 records pinned Reek behavior and the deliberate boundary for nested/reopened declarations. Identical fixture comparisons cover repeated writes/reads, method use, top-level-only source, and singleton contexts; nested and reopened declarations return an unsupported error.

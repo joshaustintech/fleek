@@ -60,20 +60,30 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "missing ClassVariable finding",
   "finding status differs from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "line, (int) scope.class_name_length",
-  "line + 1, (int) scope.class_name_length",
+  "group->lines[group->line_count++] = line;",
+  "group->lines[group->line_count++] = line + 1;",
   "wrong ClassVariable location",
   "finding context/message/location missing")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (scope.occurrence_count == 1)",
-  "if (scope.occurrence_count >= 0)",
+  "if NativePrism.fleek_class_variable_finding.empty?",
+  "if false",
   "false-positive ClassVariable finding",
   "clean status differs from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "    2\n  end\n\n  def self.print_class_variable_completion",
-  "    0\n  end\n\n  def self.print_class_variable_completion",
+  "    2\n  end",
+  "    0\n  end",
   "wrong ClassVariable findings status",
   "finding status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "fleek_groups[group_index].name_length != constant->length || memcmp(fleek_groups[group_index].name, constant->start, constant->length) != 0",
+  "false",
+  "ClassVariable occurrence grouping",
+  "ClassVariable findings differ")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "fleek_class_count != 1 || fleek_module_count != 0 || fleek_unsupported",
+  "fleek_unsupported",
+  "ClassVariable nested scope isolation",
+  "nested scopes were silently reported")).run
 
 process_id = Process.spawn("make", "-B", "test", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

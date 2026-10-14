@@ -6,7 +6,7 @@
 - One local Markdown issue per ticket in `issues/`, numbered globally in dependency order.
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
-- Tickets 01–03 resolved and pushed in order; continue one passing ticket per commit.
+- Tickets 01–03 resolved and pushed in order; ticket 04 resolved locally and awaiting commit. Continue one passing ticket per commit.
 
 ## Decisions-so-far
 
@@ -17,7 +17,7 @@
 
 ## Fog
 
-- Native analyzer coverage starts with ticket 03's explicitly bounded ClassVariable slice; broad parity remains open.
+- Native analyzer coverage starts with tickets 03–04's bounded ClassVariable slice; broader parity remains open.
 - Flay/Reek repository/tag identity and locked Ruby are established; future output-parity evidence remains open.
 - Ticket 02 proved only its named Ruby 4 newline-`&&` form and Spinel FFI declaration syntax. AST fidelity, broad grammar, and analyzer parity remain open.
 - Real Rails corpus and release signing/runtime environment are undecided.
@@ -45,3 +45,10 @@
 - `--checks reek:ClassVariable` reports one plain read/write/target occurrence using the pinned Reek 6.6.0 name, context, message, line, URL, and status 2. Clean results return 0; missing selection, syntax errors, NUL, and unsupported forms return 1.
 - Native tests compare identical finding and clean fixtures against unchanged Reek 6.6.0. Comments and strings containing `@@` remain clean.
 - Project `make check` passes: all native CLI contracts, eight behavior mutants, fixture/project Flay score 0, and Reek 0 warnings. Full pinned Spinel `make check` passes: 3,596 tests, zero failures/errors, alloc-report, inference, and spin-e2e all green. Socket-dependent upstream tests required the approved network-enabled run; the sandboxed run was blocked by local socket restrictions.
+
+## Ticket 04 receipt
+
+- ADR 0010 records Reek's grouping and scope behavior plus the explicit limit for nested and reopened class/module declarations.
+- Reek 6.6.0 confirmed method-body and singleton-class occurrences join the enclosing class; top-level-only class variables are ignored; nested contexts qualify names; reopenings produce separate findings.
+- Native reports group reads and class-variable writes by name, retain all source lines, and sort names to match Reek. Plain, `+=`, `||=`, `&&=`, destructuring, method, and singleton-context fixtures match Reek; top-level-only source matches its clean status.
+- Nested class/module scopes and reopenings remain unsupported and fail explicitly. Project `make check` passes with ten caught mutants, Flay score 0, and Reek 0 warnings.
