@@ -58,6 +58,7 @@ class Fleek
         if (fleek_group_count == 64) { fleek_unsupported = 1; return true; }
         fleek_groups[group_index].name = constant->start;
         fleek_groups[group_index].name_length = constant->length;
+        fleek_groups[group_index].line_count = 0;
         fleek_group_count++;
       }
       fleek_group_t *group = &fleek_groups[group_index];
@@ -237,32 +238,135 @@ class Fleek
   end
 
   def self.class_variable_requested?(arguments)
-    arguments.length == 3 && arguments[0] == "--checks" && arguments[1] == "reek:ClassVariable"
+    arguments.length >= 3 && arguments[0] == "--checks" && arguments[1] == "reek:ClassVariable"
   end
 
-  def self.run_class_variable(path)
-    return 1 unless readable_source?(path)
+  def self.run_class_variable(paths)
+    files, errors = discover_sources(paths)
+    report_input_errors(errors)
+    summarize_class_variable_inputs(files, errors)
+  end
+
+  def self.discover_sources(paths)
+    files = []
+    errors = []
+    collect_requested_sources(paths, files, errors)
+    add_empty_scan_error(files, errors)
+    [files, errors]
+  end
+
+  def self.collect_requested_sources(paths, files, errors)
+    paths.each { |path| discover_requested_path(path, files, errors) }
+  end
+
+  def self.add_empty_scan_error(files, errors)
+    errors << "ERROR: No Ruby source files discovered from the requested inputs." if files.empty? && errors.empty?
+  end
+
+  def self.report_input_errors(errors)
+    errors.each { |message| warn message }
+  end
+
+  def self.discover_requested_path(path, files, errors)
+    symlink = File.symlink?(path)
+    directory = File.directory?(path)
+    if symlink && directory
+      errors << "ERROR: Directory symlinks are not followed: #{path}"
+    elsif directory
+      discover_directory(path, files, errors)
+    else
+      add_explicit_source(path, files, errors)
+    end
+  end
+
+  def self.discover_directory(path, files, errors)
+    directory_entries(path, errors).each { |entry| discover_directory_entry("#{path}/#{entry}", files, errors) }
+  end
+
+  def self.directory_entries(path, errors)
+    Dir.children(path).sort
+  rescue SystemCallError
+    errors << "ERROR: Cannot scan directory: #{path}"
+    []
+  end
+
+  def self.discover_directory_entry(path, files, errors)
+    return if skipped_directory_entry?(path)
+    if File.directory?(path)
+      discover_directory(path, files, errors)
+    elsif ruby_source_path?(path)
+      add_explicit_source(path, files, errors)
+    end
+  end
+
+  def self.skipped_directory_entry?(path)
+    directory = File.directory?(path)
+    return true if File.symlink?(path) && directory
+    directory && File.basename(path).start_with?(".")
+  end
+
+  def self.add_explicit_source(path, files, errors)
+    unless readable_file?(path)
+      errors << "ERROR: Cannot read source file: #{path}"
+      return
+    end
+    unless ruby_source_path?(path)
+      errors << "ERROR: Expected Ruby source (.rb): #{path}"
+      return
+    end
+    files << path
+  end
+
+  def self.readable_file?(path)
+    File.file?(path) && File.readable?(path)
+  end
+
+  def self.ruby_source_path?(path)
+    path.end_with?(".rb")
+  end
+
+  def self.summarize_class_variable_inputs(files, errors)
+    results, status = class_variable_input_state(files, errors)
+    report_input_summary(files.length, results.count(1), status == 1 ? "incomplete" : "complete")
+    status
+  end
+
+  def self.class_variable_input_state(files, errors)
+    results = class_variable_input_results(files, errors)
+    [results, class_variable_input_status(results)]
+  end
+
+  def self.class_variable_input_results(files, errors)
+    files.map { |path| analyze_class_variable_file(path) } + Array.new(errors.length, 1)
+  end
+
+  def self.class_variable_input_status(results)
+    combined = results.inject(0) { |current, result| current | result }
+    combined == 3 ? 1 : combined
+  end
+
+  def self.report_input_summary(analyzed, failures, completion)
+    puts "Coverage: #{analyzed} analyzed; #{failures} failed"
+    puts "Status: #{completion}"
+  end
+
+  def self.analyze_class_variable_file(path)
     source = File.binread(path)
     analyze_class_variable_source(path, source)
-  end
-
-  def self.readable_source?(path)
-    unless File.file?(path) && File.readable?(path)
+  rescue SystemCallError
       warn "ERROR: Cannot read source file: #{path}"
-      return false
-    end
-    true
+      1
   end
 
   def self.analyze_class_variable_source(path, source)
     result = NativePrism.fleek_class_variable(source, source.bytesize)
-    return report_unsupported_class if result == -4
+    return report_unsupported_class(path) if result == -4
     return report_invalid_class_source(path, source) if result < 0
     print_class_variable_result_for_source(path)
   end
 
-  def self.report_unsupported_class
-    warn "ERROR: ClassVariable supports one simple class without inheritance or nested classes or modules."
+  def self.report_unsupported_class(path)
+    warn "ERROR: #{path}: ClassVariable supports one simple class without inheritance or nested classes or modules."
     1
   end
 
@@ -316,7 +420,7 @@ class Fleek
   end
 
   def self.parse_ruby4_file(path)
-    unless File.file?(path) && File.readable?(path)
+    unless readable_file?(path)
       warn "ERROR: Cannot read source file: #{path}"
       return 1
     end
@@ -361,7 +465,7 @@ class Fleek
 
   def self.run(arguments)
     return parse_ruby4_file(arguments[1]) if parse_ruby4_requested?(arguments)
-    return run_class_variable(arguments[2]) if class_variable_requested?(arguments)
+    return run_class_variable(arguments[2, arguments.length - 2]) if class_variable_requested?(arguments)
     return 0 if print_help_if_requested(arguments)
     return 0 if print_version_if_requested(arguments)
 

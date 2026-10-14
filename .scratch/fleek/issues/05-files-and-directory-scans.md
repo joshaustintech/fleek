@@ -4,16 +4,16 @@
 
 **Blocked by:** 03 First ClassVariable finding.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] Discover Ruby source recursively from directory arguments; skip hidden directories and do not follow directory symlinks. Document file/symlink and repeated-path handling before claiming a stable discovery contract.
-- [ ] Explicit non-Ruby inputs and missing/unreadable requested inputs produce clear errors rather than disappearing from the report.
-- [ ] Good files still produce findings when another file fails; overall completion is incomplete with exit 1 and failed sources identified.
-- [ ] Define and test empty-source-set behavior so no discovered files is distinguishable from analyzed clean files; do not invent successful coverage.
-- [ ] Findings preserve deterministic source locations, and discovery/error-precedence mutations are detected with required gates passing.
+- [x] Discover Ruby source recursively from directory arguments; skip hidden directories and do not follow directory symlinks. Document file/symlink and repeated-path handling before claiming a stable discovery contract.
+- [x] Explicit non-Ruby inputs and missing/unreadable requested inputs produce clear errors rather than disappearing from the report.
+- [x] Good files still produce findings when another file fails; overall completion is incomplete with exit 1 and failed sources identified.
+- [x] Define and test empty-source-set behavior so no discovered files is distinguishable from analyzed clean files; do not invent successful coverage.
+- [x] Findings preserve deterministic source locations, and discovery/error-precedence mutations are detected with required gates passing.
 
 ## Comments
 

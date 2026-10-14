@@ -84,6 +84,36 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "fleek_unsupported",
   "ClassVariable nested scope isolation",
   "nested scopes were silently reported")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "directory && File.basename(path).start_with?(\".\")",
+  "false",
+  "hidden directory discovery",
+  "directory scan findings differ from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "return true if File.symlink?(path) && directory",
+  "return false if File.symlink?(path) && directory",
+  "directory symlink traversal",
+  "directory scan findings differ from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "files << path",
+  "files << path unless files.include?(path)",
+  "repeated input suppression",
+  "repeated paths findings differ from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if files.empty? && errors.empty?",
+  "if false",
+  "empty scan success",
+  "empty discovery was successful")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "combined == 3 ? 1 : combined",
+  "combined",
+  "partial input error precedence",
+  "partial analysis status missing")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'warn "ERROR: #{path}: ClassVariable supports one simple class without inheritance or nested classes or modules."',
+  'warn "ERROR: ClassVariable supports one simple class without inheritance or nested classes or modules."',
+  "unsupported source path diagnostic",
+  "unsupported source not identified")).run
 
 process_id = Process.spawn("make", "-B", "test", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

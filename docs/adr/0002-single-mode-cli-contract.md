@@ -12,7 +12,7 @@ Import existing Reek YAML and `.flayignore` before introducing a unified Fleek c
 
 Use `--checks flay:default,reek:ClassVariable` to select supported analysis. Unknown or unsupported selections fail; omitting selection must not silently narrow upstream defaults.
 
-Directory scans recursively include `.rb` files, skip hidden directories, and do not follow directory symlinks. Explicit non-Ruby files fail. These discovery boundaries are documented CLI behavior rather than a promise of identical upstream path expansion.
+Directory scans recursively include `.rb` files, skip hidden directories, and do not follow directory symlinks. Explicit non-Ruby files fail. These discovery boundaries are documented CLI behavior rather than a promise of identical upstream path expansion; detailed file-symlink, repeated-path, empty-scan, and partial-failure rules live in ADR 0011.
 
 Invalid options or configuration fail before analysis. If a requested file cannot be analyzed, continue checking other files, retain useful findings, identify failed files, mark the report incomplete, and exit 1.
 
