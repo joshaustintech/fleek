@@ -1,5 +1,6 @@
 SPINEL ?= spinel
 SPINEL_ROOT ?= $(dir $(SPINEL))..
+export SPINEL SPINEL_ROOT
 FLEEK = build/fleek
 
 .PHONY: all test verify-spinel mutation reference flay reek check
@@ -8,17 +9,17 @@ all: verify-spinel $(FLEEK)
 
 $(FLEEK): bin/fleek.rb
 	mkdir -p build
-	$(SPINEL) $< -o $@
+	CPATH=$(SPINEL_ROOT)/vendor/prism/include $(SPINEL) $< -o $@ --link $(SPINEL_ROOT)/build/libprism.a
 
 verify-spinel:
 	$(SPINEL) -E test/spinel_version_contract.rb $(SPINEL) $(SPINEL_ROOT)
 
 test: verify-spinel $(FLEEK)
 	$(SPINEL) -E test/cli_contract.rb
+	$(SPINEL) -E test/native_parser_contract.rb
 
 mutation: verify-spinel $(FLEEK)
 	$(SPINEL) -E test/mutation_contract.rb
-	$(SPINEL) bin/fleek.rb -o $(FLEEK)
 	$(SPINEL) -E test/cli_contract.rb
 
 reference:

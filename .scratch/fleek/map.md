@@ -6,7 +6,7 @@
 - One local Markdown issue per ticket in `issues/`, numbered globally in dependency order.
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
-- Only first ticket is claimed. Implement/push one passing ticket at a time.
+- Ticket 01 resolved and pushed. Ticket 02 resolved with bounded parser evidence and explicit limits. Implement/push one passing ticket at a time.
 
 ## Decisions-so-far
 
@@ -19,7 +19,7 @@
 
 - Native analyzer parity/grammar work has not started; the parser probe is ticket 02.
 - Flay/Reek repository/tag identity and locked Ruby are established; future output-parity evidence remains open.
-- Parser API/ownership, Ruby 4 and Spinel grammar behavior, and linkage require execution.
+- Ticket 02 proved only its named Ruby 4 newline-`&&` form and Spinel FFI declaration syntax. AST fidelity, broad grammar, and analyzer parity remain open.
 - Real Rails corpus and release signing/runtime environment are undecided.
 
 ## Ticket 01 receipt
@@ -31,3 +31,10 @@
 - An initial manual mutation changed the no-argument return from 1 to 0; the CLI contract failed on `empty invocation status`, then passed after restore.
 - Pinned Spinel `make check` passed: 3,596 tests, zero failures/errors; alloc-report, inference, and spin-e2e passed. Use Homebrew GNU Make 4.4.1 and mise Ruby 3.4.9 on PATH for its packaging and CRuby parity checks.
 - Both code-review axes passed after resolving ticket metadata, accurate help text, compiler/Prism identity enforcement, and executable verifier root configuration.
+
+## Ticket 02 receipt
+
+- Native Prism 1.9.0 adapter compiled with pinned Spinel and selected `PM_OPTIONS_VERSION_CRUBY_4_0`; ADR 0008 records the decision and narrow syntax boundary.
+- Native CLI tests verify Ruby 4 newline-leading `&&`, Spinel `ffi_func` source, comments, inert `require`, side-effect non-execution, deterministic parsing, Prism's original diagnostic and byte offset/line/byte-column, missing input errors, and explicit NUL rejection.
+- Binary runs with `PATH=/usr/bin:/bin`; `otool -L build/fleek` shows only macOS `libSystem`.
+- Mutation gates caught usage status, NUL acceptance, Ruby 3.3 grammar downgrade, and incorrect location attribution. `make check` passes with Flay score 0 and Reek warnings 0.

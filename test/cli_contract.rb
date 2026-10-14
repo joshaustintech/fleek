@@ -30,6 +30,7 @@ cli_process = CliProcess.new
 help_result = cli_process.with_argument("--help")
 raise "help status" unless help_result[0] == 0
 raise "help usage" unless help_result[1].include?("Usage:")
+raise "help parser prototype" unless help_result[1].include?("--parse-ruby4 SOURCE")
 raise "help stderr" unless help_result[2] == ""
 
 usage_result = cli_process.without_arguments

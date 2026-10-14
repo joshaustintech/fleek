@@ -4,17 +4,21 @@
 
 **Blocked by:** 01 Native CLI and reference harness.
 
-**Status:** open
-**Type:** task
+**Status:** resolved
+**Type:** prototype
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] Select a candidate native parser from verified versioned API, grammar, and license evidence; compile a minimal adapter under the pinned compiler without changing its pin.
-- [ ] Prove explicit Ruby 4.0 grammar selection and representative documented Spinel extensions; invalid or unsupported examples fail honestly. Record the exact demonstrated syntax boundary.
-- [ ] Verify original byte offsets/lines, comments, length handling, ownership/destruction, and deterministic repeated parsing with actual native execution.
-- [ ] Source containing requires, FFI declarations, or executable side effects is inspected without loading dependencies or executing it.
-- [ ] Native linkage and a runtime without Ruby/original tools demonstrate independence; the probe reports parsing only, never that an analysis check passed.
-- [ ] Record compiled/runtime evidence and parser choice; a failed experiment remains unresolved. Preserve test-first and required quality/mutation gates.
+- [x] Select Prism 1.9.0 from the pinned Spinel 2026.09.12 checkout; compile a minimal adapter under the unchanged compiler pin. Prism API/version and MIT license are recorded in ADR 0008 and the Spinel toolchain guide.
+- [x] Set `PM_OPTIONS_VERSION_CRUBY_4_0` explicitly. The Ruby 4 fixture's newline-leading `&&` form parses in 4.0 mode, and a mutation to 3.3 is caught. A Spinel fixture with a comment, inert `require`, and `ffi_func` declaration parses. This is the demonstrated syntax boundary, not general Ruby 4/Spinel compatibility.
+- [x] Verify Prism's first syntax diagnostic, byte offset (`31`), line (`2`), byte-column (`17`), comment retention, explicit input length via embedded-NUL rejection, parser/options destruction, and deterministic repeated parsing through the compiled executable.
+- [x] Parse `require`, FFI, and side-effect source as inert bytes; no dependency is loaded or source executed.
+- [x] `otool -L build/fleek` lists only `/usr/lib/libSystem.B.dylib`; native parser test runs with `PATH=/usr/bin:/bin`. Parse success says `PARSE OK ... no checks ran`.
+- [x] `make check` passes with zero Flay/Reek findings; mutations catch usage status, NUL acceptance, Ruby grammar downgrade, and wrong location attribution. Pinned Spinel's complete `make check` passes with the host/network permissions required for its socket tests.
+
+## Answer
+
+Prism is viable for this bounded native parser probe. It accepts the tested Ruby 4.0 newline-leading logical-operator syntax and documented Spinel FFI declaration syntax, while preserving Prism's original diagnostic, source byte locations, and comments. It rejects malformed input and embedded NUL explicitly, handles missing paths with status 1, does not execute input, and links into a standalone Apple Silicon executable. The probe does not expose ASTs or establish Flay/Reek behavior, detector parity, or broad syntax coverage; those remain downstream gates. See [ADR 0008](../../../docs/adr/0008-native-parser-prototype.md).
 
 ## Comments
 
