@@ -29,6 +29,7 @@
 - ADR 0028 adds bounded `unless` branch support in class methods, with Flay 2.14.4 parity at mass/score 62 and ordered lines. Class-level DSL calls and other unsupported Rails forms still prevent complete 25-file coverage.
 - ADR 0029 adds bounded conditional `return false` support in class methods, with Flay parity at mass/score 44 and lines 2/10. The exact manifest still needs complete Flay analysis before ticket 19 can close.
 - Post-ADR 0029 corpus receipt: Flay matches score 48 at `UsersController:51,58`; Fleek still correctly reports incomplete because all 25 Flay sources remain partial. Reek remains complete and clean.
+- ADR 0030 adds local-variable assignments in class methods and preserves Flay's similar-versus-identical distinction when assigned names differ. Compound writes and class-level Rails declarations remain unsupported; the 25-file Flay gate stays open.
 - Latest pinned 25-file run: Flay reference still score 48 at `UsersController:51,58`; Reek reference clean. Fleek Reek covers 25/25, Flay covers 0/25 and exits incomplete. See current receipt in `docs/research/rails-project-parity.md`.
 
 ## Fog

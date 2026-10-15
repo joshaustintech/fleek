@@ -118,6 +118,12 @@ The class-method AST grammar now accepts Prism `ReturnNode` and `FalseNode`, inc
 
 The exact 25-file comparison was rerun after conditional-return support. Flay remains score 48 at `users_controller.rb:51,58`; Fleek retains the matching group, reports Reek clean on all 25 files, and reports Flay coverage 0/25 fully analyzed with 25 partial sources. Combined status remains incomplete with exit 1; this slice does not alter the release gate.
 
+## Ticket 19 local-assignment slice
+
+Ordinary local-variable assignment nodes are now supported in class-method trees. Flay 2.14.4 and Fleek match similar `:defn` groups at mass/score 38 on ordered lines 2/10. A cross-class fixture with the same method name and otherwise matching bodies but different assigned variable names also matches as similar at mass/score 42 on lines 2/20, protecting Flay's identical-code classification. Mutations cover candidate support and name comparison. Compound assignments remain unsupported; ADR 0030 records the boundary.
+
+The exact 25-file Rails manifest was rerun after this slice with the same selected Flay and Reek checks. Flay 2.14.4 reports total score 48 and one similar `:defn` group at `users_controller.rb:51,58`. Fleek reports the same group, locations, mass, and score; Reek analyzes all 25 files with no findings. Fleek reports Flay coverage as 25 selected, 0 analyzed, and 25 partial, overall status incomplete, and exit 1. The local-assignment slice does not change the manifest result; class-level Rails DSL and other AST forms remain uncovered, so ticket 19 stays open.
+
 ## Decision and next work
 
 The real project is locked as the parity corpus, but this receipt does not prove full parity. Keep release and cold-runtime claims blocked until Fleek can analyze all relevant upstream Flay structures in ordinary Rails classes, then compare all findings, locations, grouping, score, order, and statuses on this exact manifest. Ticket 19 tracks the remaining gap; ticket 18 closes the ClassVariable namespace gap. See [ADR 0020](../adr/0020-rails-parity-corpus-and-release-gate.md).
