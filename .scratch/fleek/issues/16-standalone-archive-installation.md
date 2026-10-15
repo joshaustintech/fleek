@@ -27,7 +27,7 @@
 **Category:** enhancement
 **Summary:** Run the arm64 archive without Ruby or original tools.
 
-**Current behavior:** No installable release exists.
+**Current behavior at triage:** No installable release existed.
 
 **Desired behavior:** Extracted native archive passes representative CLI behavior independently.
 
