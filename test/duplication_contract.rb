@@ -78,6 +78,13 @@ class DuplicationProcess
     verify(observation[0] == expectation.status, message)
     expectation.fields.each { |field| verify(observation[1].include?(field), message) }
   end
+
+  def self.verify_class_method_pair(path, second_line, description)
+    actual = run(Input.new(path, "fleek", ""))
+    reference = run(Input.new(path, "flay", ""))
+    verify_output(reference, OutputExpectation.new(0, ["Similar code found in :defn (mass = 32)", "#{path}:2", "#{path}:#{second_line}"], "#{description} Flay reference changed"))
+    verify_output(actual, OutputExpectation.new(2, ["Status: findings", "#{path}:2,#{path}:#{second_line}", "mass=32 score=32"], "#{description} candidates were not analyzed"))
+  end
 end
 
 similar_path = "test/fixtures/duplication_methods.rb"
@@ -157,10 +164,11 @@ DuplicationProcess.verify_output(nested, nested_fleek_expectation)
 DuplicationProcess.verify(nested[2].include?("unsupported Flay candidate syntax"), "nested Flay candidates were silently omitted")
 
 class_methods_path = "test/fixtures/duplication_class_methods.rb"
-class_methods = DuplicationProcess.run(DuplicationProcess::Input.new(class_methods_path, "fleek", ""))
-class_methods_reference = DuplicationProcess.run(DuplicationProcess::Input.new(class_methods_path, "flay", ""))
-class_methods_reference_valid = class_methods_reference[0] == 0 && DuplicationProcess.includes_all?(class_methods_reference[1], ["Similar code found in :defn (mass = 32)", "#{class_methods_path}:2", "#{class_methods_path}:19"])
-DuplicationProcess.verify(class_methods_reference_valid, "class method Flay reference changed")
-DuplicationProcess.verify(class_methods[0] == 2 && class_methods[1].include?("Status: findings") && class_methods[1].include?("#{class_methods_path}:2,#{class_methods_path}:19") && class_methods[1].include?("mass=32 score=32"), "class method candidates were not analyzed")
+class_methods_with_helper_path = "test/fixtures/duplication_class_methods_with_helper.rb"
+DuplicationProcess.verify_class_method_pair(class_methods_path, 19, "class method")
+DuplicationProcess.verify_class_method_pair(class_methods_with_helper_path, 19, "class helper")
+
+ambiguous_class_methods = DuplicationProcess.run(DuplicationProcess::Input.new("test/fixtures/duplication_class_methods_ambiguous.rb", "fleek", ""))
+DuplicationProcess.verify_output(ambiguous_class_methods, DuplicationProcess::OutputExpectation.new(1, ["Status: incomplete"], "ambiguous class method groups were reported as complete"))
 
 puts "Duplication contract: pass"

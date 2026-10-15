@@ -83,7 +83,7 @@ The output matches Reek's clean ClassVariable result. The combined run remains i
 
 ## Ticket 19 implementation slice
 
-The Flay adapter now recognizes exactly two direct, parameterless methods in one simple class when both bodies use the existing bounded statement grammar. A synthetic public CLI contract matches Flay 2.14.4's similar `:defn` group, mass, score, and source lines. On the pinned 25-file manifest, Flay still reports one score-48 group at `users_controller.rb:51,58`, while Fleek reports all 25 files incomplete. This slice does not close the corpus or release gate; unsupported shapes remain explicit. See [ADR 0022](../adr/0022-flay-class-method-candidate-boundary.md).
+The Flay adapter now recognizes one simple class with 2–64 direct, parameterless methods when all bodies use the existing bounded statement grammar. It reports a single unique eligible pair and fails closed when multiple pairs would require unsupported multi-group output. Public CLI contracts match Flay 2.14.4's similar `:defn` group, mass, score, and source lines for a pair with a sub-threshold helper. On the pinned 25-file manifest, Flay still reports one score-48 group at `users_controller.rb:51,58`, while Fleek reports all 25 files incomplete. This slice does not close the corpus or release gate; unsupported shapes remain explicit. See [ADR 0022](../adr/0022-flay-class-method-candidate-boundary.md).
 
 ## Decision and next work
 

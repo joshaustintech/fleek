@@ -10,12 +10,12 @@ The pinned Rails corpus reports a similar Flay `:defn` group for methods nested 
 
 ## Decision
 
-Extend the bounded Flay adapter to accept exactly one simple class containing exactly two direct parameterless methods, using the existing supported method-body statement grammar. Continue rejecting other class contents, class nesting, additional methods, parameters, and unsupported statements. Do not execute source or infer that omitted candidates were analyzed.
+Extend the bounded Flay adapter to accept exactly one simple class containing 2–64 direct parameterless methods, using the existing supported method-body statement grammar. Analyze every method, report one eligible matching pair, and fail closed if multiple pairs would require multi-group output. Continue rejecting other class contents, class nesting, parameters, and unsupported statements. Do not execute source or infer that omitted candidates were analyzed.
 
 ## Consequences
 
-The class-method seam now matches unchanged Flay 2.14.4 at its default mass on a public CLI fixture, including node mass and source lines. This is only an implementation slice: the complete 25-file Rails manifest remains the release gate, and unsupported source shapes continue to report incomplete. Further AST support requires its own reference-backed contracts and mutations.
+The class-method seam now matches unchanged Flay 2.14.4 at its default mass on public CLI fixtures with two matching methods and a third sub-threshold helper, including node mass and source lines. This is only an implementation slice: the complete 25-file Rails manifest remains the release gate, and unsupported source shapes continue to report incomplete. Further AST support requires its own reference-backed contracts and mutations.
 
 ## Evidence
 
-`test/duplication_contract.rb` compares a direct class with two methods against locked Flay 2.14.4 at the default mass threshold. A mutation disabling class-method candidate collection is required to fail that public CLI contract.
+`test/duplication_contract.rb` compares direct classes with two methods and with a third sub-threshold helper against locked Flay 2.14.4 at the default mass threshold. A mutation disabling class-method candidate collection is required to fail that public CLI contract.

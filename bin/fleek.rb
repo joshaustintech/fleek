@@ -330,15 +330,43 @@ class Fleek
       return true;
     }
 
-    static bool fleek_duplication_class_methods(const pm_node_t *node, const uint8_t *source, const pm_def_node_t **methods, fleek_duplication_method_t *first, fleek_duplication_method_t *second) {
+    static bool fleek_duplication_class_methods(const pm_node_t *node, const uint8_t *source, int mass_threshold, const pm_def_node_t **selected_methods, fleek_duplication_method_t *selected_first, fleek_duplication_method_t *selected_second) {
       if (!PM_NODE_TYPE_P(node, PM_CLASS_NODE)) return false;
       const pm_class_node_t *class_node = (const pm_class_node_t *) node;
       if (class_node->constant_path == NULL || class_node->body == NULL || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) || !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE)) return false;
       const pm_statements_node_t *body = (const pm_statements_node_t *) class_node->body;
-      if (body->body.size != 2 || !PM_NODE_TYPE_P(body->body.nodes[0], PM_DEF_NODE) || !PM_NODE_TYPE_P(body->body.nodes[1], PM_DEF_NODE)) return false;
-      if (!fleek_duplication_method(body->body.nodes[0], source, first) || !fleek_duplication_method(body->body.nodes[1], source, second)) return false;
-      methods[0] = (const pm_def_node_t *) body->body.nodes[0];
-      methods[1] = (const pm_def_node_t *) body->body.nodes[1];
+      if (body->body.size < 2 || body->body.size > 64) return false;
+      const pm_def_node_t *methods[64] = { NULL };
+      fleek_duplication_method_t candidates[64] = {0};
+      for (size_t index = 0; index < body->body.size; index++) {
+        if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE) || !fleek_duplication_method(body->body.nodes[index], source, &candidates[index])) return false;
+        methods[index] = (const pm_def_node_t *) body->body.nodes[index];
+      }
+      size_t matching_pairs = 0;
+      for (size_t left = 0; left < body->body.size; left++) {
+        for (size_t right = left + 1; right < body->body.size; right++) {
+          if (candidates[left].shape_count != candidates[right].shape_count) continue;
+          bool same_shape = true;
+          size_t mass = 2 + candidates[left].shape_count;
+          for (size_t statement = 0; statement < candidates[left].shape_count; statement++) {
+            same_shape = same_shape && candidates[left].shapes[statement] == candidates[right].shapes[statement];
+            if (candidates[left].shapes[statement] == FLEEK_DUPLICATION_RUBY4_AND_STATEMENT) mass += 2;
+          }
+          if (!same_shape || mass < (size_t) mass_threshold) continue;
+          matching_pairs++;
+          *selected_first = candidates[left];
+          *selected_second = candidates[right];
+          selected_methods[0] = methods[left];
+          selected_methods[1] = methods[right];
+        }
+      }
+      if (matching_pairs > 1) return false;
+      if (matching_pairs == 0) {
+        *selected_first = candidates[0];
+        *selected_second = candidates[1];
+        selected_methods[0] = methods[0];
+        selected_methods[1] = methods[1];
+      }
       return true;
     }
 
@@ -408,7 +436,7 @@ class Fleek
       for (size_t index = 0; index < program->statements->body.size; index++) {
         pm_node_t *statement = program->statements->body.nodes[index];
         if (PM_NODE_TYPE_P(statement, PM_CLASS_NODE)) {
-          if (class_count != 0 || method_count != 0 || ffi_module_count != 0 || !fleek_duplication_class_methods(statement, (const uint8_t *) source, methods, &first_method, &second_method)) {
+          if (class_count != 0 || method_count != 0 || ffi_module_count != 0 || !fleek_duplication_class_methods(statement, (const uint8_t *) source, mass_threshold, methods, &first_method, &second_method)) {
             pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
           }
           class_count++;
@@ -1009,7 +1037,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must contain exactly two total parameterless methods, either top-level or direct in one simple class, with bare calls or integer literal statements."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods or one simple class with 2-64 direct parameterless methods and exactly one eligible pair, using supported body statements."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -1092,7 +1120,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: exactly two parameterless methods across selected Ruby files, either top-level or direct in one simple class; bare calls, integer literals, Ruby 4 integer && true, and one simple ffi_func module; Flay mass #{mass_threshold}."
+    puts "Scope limits: exactly two top-level parameterless methods or one simple class with 2-64 direct parameterless methods and at most one eligible pair; bare calls, integer literals, Ruby 4 integer && true, and one simple ffi_func module; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter

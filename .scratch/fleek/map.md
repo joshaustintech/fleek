@@ -20,8 +20,8 @@
 - Ticket 10 supports validated `--mass MASS`, and ticket 11 adds deterministic two-method cross-file groups and partial-input status; see ADR 0017 for the shared grammar, pruning boundary, and per-file score allocation.
 - Ticket 12 combines explicitly selected Flay and Reek checks with independent exclusions and one incomplete/finding/complete outcome; see ADR 0018 for syntax boundaries, equivalent-reference parity, and deliberate exit-status normalization.
 - Ticket 13 proves bounded Ruby 4 and pinned Spinel analysis, inert source processing, and reference-backed Flay extension parity; see ADR 0019 for the supported integer-`&&`/`ffi_func` shapes and separate Flay node-mass/group-score reporting.
-- Ticket 14 pins the real Rails corpus and records exact initial parity; see ADR 0020. Ticket 18 closes namespaced ClassVariable parity (ADR 0021). Ticket 19 is claimed for Flay class-method parity; it still gates release/runtime work.
-- Ticket 19 first working slice: a direct two-method class fixture matches Flay 2.14.4 at mass, score, and locations; see ADR 0022. The pinned 25-file Flay run remains incomplete (25 failed), so parity and release gates stay open.
+- Ticket 14 pins the real Rails corpus and records exact initial parity; see ADR 0020. Ticket 18 closes namespaced ClassVariable parity (ADR 0021). Ticket 19 is claimed for ongoing Flay class-method parity work; it still gates release/runtime work.
+- Ticket 19 supports one simple class with 2–64 direct parameterless methods in the existing bounded body grammar, reports only a unique eligible pair, and rejects ambiguous groups. Reference contracts cover a sub-threshold helper and ambiguity; see ADR 0022. The pinned 25-file Flay run remains incomplete (25 failed), so parity and release gates stay open.
 
 ## Fog
 
