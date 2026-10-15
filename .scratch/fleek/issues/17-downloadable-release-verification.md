@@ -15,6 +15,10 @@
 - [x] Final evidence names exact release, artifact, source commit, remote/main push result, supported scope, and any remaining limitation.
 - [x] The release asset is downloadable, installation passed, accepted runtime targets are met, and downloaded runtime proof is recorded; the ticket is complete.
 
+## Answer
+
+Published and retrieved GitHub release `v0.1.0` from source commit `f5380ebad9e07958f659a1820d03060622d58b97`. The uploaded 470236-byte arm64 archive and checksum sidecar match the local verified artifact; the archive SHA-256 is `025449a33a9028a87c7e26b7618cca72077ecfaffc6a5911a0e75fa478e19ef3`. The retrieved archive passes extracted help/version and clean/finding/incomplete cases with an empty child `PATH`. It supports explicit Flay StructuralDuplication and Reek ClassVariable selection over bounded Ruby 4 syntax. It does not claim full Rails Flay parity: ticket 19 remains open. The binary is ad hoc signed and not notarized. See the [native archive and downloaded release receipt](../../docs/research/native-archive-0.1.0.md) and [runtime evidence](../../docs/research/cold-runtime-2026-10-15.md).
+
 ## Verification
 
 - Release: [Fleek 0.1.0](https://github.com/joshaustintech/fleek/releases/tag/v0.1.0), tag `v0.1.0`, source commit `f5380ebad9e07958f659a1820d03060622d58b97`.
@@ -35,7 +39,7 @@
 **Category:** enhancement
 **Summary:** Verify users can download and run the proven release.
 
-**Current behavior:** No release asset exists.
+**Current behavior at triage:** No release asset existed.
 
 **Desired behavior:** The published artifact matches tested identity and supported behavior.
 

@@ -6,7 +6,7 @@
 - One local Markdown issue per ticket in `issues/`, numbered globally in dependency order.
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
-- Tickets 01–14, 16, and 18 resolved and pushed. Ticket 19 gates full Rails Flay parity; ticket 15 records bounded runtime evidence using complete supported workloads, while ticket 17 still tracks external release verification.
+- Tickets 01–18 resolved and pushed. Ticket 19 gates full Rails Flay parity; tickets 15 and 17 record bounded runtime evidence and verified downloadable release evidence.
 - Ticket 19's pinned-controller contract now proves matching Flay findings while returning incomplete status; the exact Rails 25-file parity gate remains open.
 
 ## Decisions-so-far
@@ -15,6 +15,7 @@
 - Primary test seam: compiled CLI process. Parser feasibility uses a temporary real native probe.
 - Ticket sequence and dependencies in issue bodies; summary: 01 compiler/reference harness → 02 parser → 03–08 smell/input/config/text → 09–12 duplication/combined report → 13–14 language/Rails parity → 18–19 Rails coverage → 15–17 runtime/release.
 - Research notes and ADRs link from `spec.md` and project documentation.
+- Ticket 17 verifies GitHub release `v0.1.0` and its retrieved arm64 archive; see [issue 17](issues/17-downloadable-release-verification.md), [ADR 0034](../../docs/adr/0034-publish-bounded-native-first-release.md), and the [release receipt](../../docs/research/native-archive-0.1.0.md). Ticket 19 remains the full Rails Flay parity gate.
 - Ticket 07 imports a bounded Reek YAML subset without a YAML library; see ADR 0013 for supported keys and deliberate no-analysis exit differences.
 - Ticket 08 defines stable text report v1 and explicit coverage/status fields; see ADR 0014 for layout, escaping, stream, and unsupported-format behavior.
 - Ticket 09 adds bounded, separately selectable default Flay structural groups; see ADR 0016. Threshold boundaries and combined reporting remain tickets 10 and 12.
@@ -38,7 +39,7 @@
 - Native analyzer coverage starts with tickets 03–04's bounded ClassVariable slice; broader parity remains open.
 - Flay/Reek repository/tag identity and locked Ruby are established; future output-parity evidence remains open.
 - Ticket 02 proved only its named Ruby 4 newline-`&&` form and Spinel FFI declaration syntax; ticket 13 adds bounded ClassVariable/Flay behavior and reference parity, while broader grammar remains open.
-- Real Rails corpus is pinned by ticket 14. Ticket 18 makes ClassVariable complete on all 25 Ruby files; Flay still has 25 partial files and needs ticket 19. The native archive and bounded runtime evidence are verified; Developer ID signing, notarization, and external downloadable release remain open under ticket 17.
+- Real Rails corpus is pinned by ticket 14. Ticket 18 makes ClassVariable complete on all 25 Ruby files; Flay still has 25 partial files and needs ticket 19. The native archive, bounded runtime evidence, and external v0.1.0 release are verified; Developer ID signing and notarization remain out of scope.
 
 ## Ticket 01 receipt
 
