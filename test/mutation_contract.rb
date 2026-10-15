@@ -32,6 +32,7 @@ class MutationCase
     "ClassVariable context exclusions" => "test/configuration_contract.rb",
     "Reek path exclusions" => "test/configuration_contract.rb",
     "named stdin path exclusions" => "test/configuration_contract.rb",
+    "Flay structural equality" => "test/duplication_contract.rb",
     "text report newline escaping" => "test/text_report_contract.rb",
     "text report source ordering" => "test/text_report_contract.rb",
     "text report section ordering" => "test/text_report_contract.rb",
@@ -280,6 +281,11 @@ MutationCase.new(MutationCase::Configuration.new(source,
   '"complete"',
   "text report completion state",
   "finding result missing")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "bool same_shape = first_method.shape_count == second_method.shape_count;",
+  "bool same_shape = false;",
+  "Flay structural equality",
+  "similar method group report differed")).run
 
 process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

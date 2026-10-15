@@ -4,17 +4,23 @@
 
 **Blocked by:** 07 Reek configuration and suppression. This follows the confirmed rollout of ClassVariable before structural duplication.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] Use the actual AST adapter and Flay structural semantics, not text equality, token counts, or source length.
-- [ ] On the initial declared subset, renamed identifiers/changed literals group as in unchanged Flay; genuinely different shapes do not.
-- [ ] Each supported result includes reference-equivalent locations and the applicable default-threshold score. Fixtures are chosen so all semantics needed for their result are implemented.
-- [ ] Detect and reject candidate structures or group forms whose threshold/scoring/pruning semantics are not yet implemented; do not claim default analysis succeeded while omitting eligible groups.
-- [ ] Explicit unsupported fuzzy/liberal/diff/plugin requests fail. Clean/finding/error results follow the agreed status contract.
-- [ ] Executed reference comparison and mutations detect broken structural grouping; required gates pass.
+- [x] Use the actual AST adapter and Flay structural semantics, not text equality, token counts, or source length.
+- [x] On the initial declared subset, renamed identifiers/changed literals group as in unchanged Flay; genuinely different shapes do not.
+- [x] Each supported result includes reference-equivalent locations and the applicable default-threshold score. Fixtures are chosen so all semantics needed for their result are implemented.
+- [x] Detect and reject candidate structures or group forms whose threshold/scoring/pruning semantics are not yet implemented; do not claim default analysis succeeded while omitting eligible groups.
+- [x] Explicit unsupported fuzzy/liberal/diff/plugin requests fail. Clean/finding/error results follow the agreed status contract.
+- [x] Executed reference comparison and mutations detect broken structural grouping; required gates pass.
+
+## Answer
+
+Implemented the bounded default-Flay group slice described in [ADR 0016](../../../docs/adr/0016-bounded-flay-structural-groups.md). Reference comparisons cover similar, identical, structurally different, and unsupported input; 36 project mutations were caught across the complete and focused mutation runs. Project build/contracts, Flay, and Reek gates pass. The pinned Spinel upstream suite remains subject to the host socket failures recorded in [ADR 0015](../../../docs/adr/0015-pinned-spinel-host-test-limit.md).
+
+This ticket adds the duplication check as a separately selectable analyzer. Combined selection and its two-section report remain Ticket 12; below/at/above mass boundaries and configurable thresholds remain Ticket 10; multi-file grouping and pruning remain Ticket 11. The reference contract here proves the exact default-threshold cases used by this bounded grammar, not those later capabilities.
 
 ## Comments
 

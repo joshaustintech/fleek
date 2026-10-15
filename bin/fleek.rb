@@ -1,6 +1,7 @@
 # Fleek exposes native CLI usage and reference identities.
 class Fleek
   VERSION = "0.1.0"
+  DUPLICATION_UNSUPPORTED_SOURCE = -4
   # Retains source identity alongside its diagnostic for the text report.
   SourceFailure = Struct.new(:path, :message, :kind)
   FLAY_REFERENCE = "2.14.4"
@@ -17,6 +18,7 @@ class Fleek
 
     static char fleek_parse_message_buffer[512];
     static char fleek_finding_buffer[4096];
+    static char fleek_duplication_buffer[128];
     static int fleek_class_count;
     static int fleek_module_count;
     static int fleek_finding_count;
@@ -74,6 +76,9 @@ class Fleek
 
     static fleek_group_t fleek_groups[64];
     static size_t fleek_group_count;
+    enum { FLEEK_DUPLICATION_PARSE_ERROR = -1, FLEEK_DUPLICATION_NUL_SOURCE = -2, FLEEK_DUPLICATION_UNSUPPORTED_SOURCE = -4 };
+
+    typedef struct { int shapes[128]; size_t shape_count; int line; } fleek_duplication_method_t;
 
     typedef struct {
       pm_parser_t *parser;
@@ -202,6 +207,98 @@ class Fleek
 
     const char *fleek_class_variable_finding(void) { return fleek_finding_buffer; }
 
+    enum { FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT = 0, FLEEK_DUPLICATION_CALL_STATEMENT = 1, FLEEK_DUPLICATION_INTEGER_STATEMENT = 2 };
+
+    static int fleek_duplication_statement_tag(const pm_node_t *node) {
+      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
+        const pm_call_node_t *call = (const pm_call_node_t *) node;
+        if (call->receiver != NULL || call->block != NULL || (call->arguments != NULL && call->arguments->arguments.size != 0)) return FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT;
+        return FLEEK_DUPLICATION_CALL_STATEMENT;
+      }
+      if (PM_NODE_TYPE_P(node, PM_INTEGER_NODE)) return FLEEK_DUPLICATION_INTEGER_STATEMENT;
+      return FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT;
+    }
+
+    static bool fleek_duplication_method(const pm_node_t *node, const uint8_t *source, fleek_duplication_method_t *result) {
+      if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      if (method->receiver != NULL || method->parameters != NULL || method->body == NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
+      const pm_statements_node_t *body = (const pm_statements_node_t *) method->body;
+      if (body->body.size > 128) return false;
+      result->shape_count = body->body.size;
+      result->line = 1;
+      for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') result->line++;
+      for (size_t statement = 0; statement < body->body.size; statement++) {
+        int tag = fleek_duplication_statement_tag(body->body.nodes[statement]);
+        if (tag == FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT) return false;
+        result->shapes[statement] = tag;
+      }
+      return true;
+    }
+
+    static bool fleek_constants_equal(pm_parser_t *parser, pm_constant_id_t left, pm_constant_id_t right) {
+      pm_constant_t *left_constant = pm_constant_pool_id_to_constant(&parser->constant_pool, left);
+      pm_constant_t *right_constant = pm_constant_pool_id_to_constant(&parser->constant_pool, right);
+      return left_constant->length == right_constant->length && memcmp(left_constant->start, right_constant->start, left_constant->length) == 0;
+    }
+
+    static bool fleek_duplication_methods_identical(pm_parser_t *parser, const pm_def_node_t *left, const pm_def_node_t *right) {
+      if (!fleek_constants_equal(parser, left->name, right->name)) return false;
+      const pm_statements_node_t *left_body = (const pm_statements_node_t *) left->body;
+      const pm_statements_node_t *right_body = (const pm_statements_node_t *) right->body;
+      for (size_t index = 0; index < left_body->body.size; index++) {
+        const pm_node_t *left_statement = left_body->body.nodes[index];
+        const pm_node_t *right_statement = right_body->body.nodes[index];
+        if (PM_NODE_TYPE_P(left_statement, PM_CALL_NODE) && PM_NODE_TYPE_P(right_statement, PM_CALL_NODE)) {
+          if (!fleek_constants_equal(parser, ((const pm_call_node_t *) left_statement)->name, ((const pm_call_node_t *) right_statement)->name)) return false;
+        } else if (PM_NODE_TYPE_P(left_statement, PM_INTEGER_NODE) && PM_NODE_TYPE_P(right_statement, PM_INTEGER_NODE)) {
+          if (pm_integer_compare(&((const pm_integer_node_t *) left_statement)->value, &((const pm_integer_node_t *) right_statement)->value) != 0) return false;
+        } else {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    int fleek_structural_duplication(const char *source, size_t length) {
+      fleek_duplication_buffer[0] = 0;
+      if (memchr(source, 0, length) != NULL) return FLEEK_DUPLICATION_NUL_SOURCE;
+      pm_options_t options = {0};
+      options.line = 1;
+      options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
+      pm_parser_t parser;
+      pm_parser_init(&parser, (const uint8_t *) source, length, &options);
+      pm_node_t *root = pm_parse(&parser);
+      if (parser.error_list.head != NULL) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_PARSE_ERROR;
+      }
+      if (!PM_NODE_TYPE_P(root, PM_PROGRAM_NODE)) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
+      }
+      const pm_program_node_t *program = (const pm_program_node_t *) root;
+      if (program->statements == NULL || program->statements->body.size != 2) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
+      }
+      fleek_duplication_method_t first_method = {0}, second_method = {0};
+      if (!fleek_duplication_method(program->statements->body.nodes[0], (const uint8_t *) source, &first_method) || !fleek_duplication_method(program->statements->body.nodes[1], (const uint8_t *) source, &second_method)) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
+      }
+      const pm_def_node_t *first = (const pm_def_node_t *) program->statements->body.nodes[0];
+      const pm_def_node_t *second = (const pm_def_node_t *) program->statements->body.nodes[1];
+      size_t mass = 2 + first_method.shape_count;
+      bool same_shape = first_method.shape_count == second_method.shape_count;
+      for (size_t index = 0; same_shape && index < first_method.shape_count; index++) same_shape = first_method.shapes[index] == second_method.shapes[index];
+      bool identical = same_shape && fleek_duplication_methods_identical(&parser, first, second);
+      int score = same_shape && mass >= 16 ? (int) mass * 2 * (identical ? 2 : 1) : 0;
+      if (score > 0) snprintf(fleek_duplication_buffer, sizeof(fleek_duplication_buffer), "%d\t%d\t%zu\t%d\t%s", first_method.line, second_method.line, mass, score, identical ? "identical" : "similar");
+      pm_node_destroy(&parser, root);
+      pm_parser_free(&parser);
+      pm_options_free(&options);
+      return score;
+    }
+
+    const char *fleek_structural_duplication_finding(void) { return fleek_duplication_buffer; }
+
     int fleek_parse_ruby4(const char *source, size_t length) {
       fleek_parse_message_buffer[0] = 0;
       const uint8_t *nul = (const uint8_t *) memchr(source, 0, length);
@@ -234,6 +331,8 @@ class Fleek
     ffi_func :fleek_parse_message, [], :str
     ffi_func :fleek_class_variable, [:str, :size_t], :int
     ffi_func :fleek_class_variable_finding, [], :str
+    ffi_func :fleek_structural_duplication, [:str, :size_t], :int
+    ffi_func :fleek_structural_duplication_finding, [], :str
   end
 
   # Imports the deliberately bounded Reek YAML subset used by this check.
@@ -510,7 +609,7 @@ class Fleek
   end
 
   def self.print_help_reporting
-    puts "Supported checks: reek:ClassVariable only; other checks and machine formats are unsupported."
+    puts "Supported checks: reek:ClassVariable and flay:StructuralDuplication; other checks and machine formats are unsupported."
     puts "Analysis requires --checks; selected and run checks are shown separately."
     puts "Report: stable text v1; diagnostics on stderr; uncovered checks are reported as not run."
   end
@@ -519,6 +618,7 @@ class Fleek
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] SOURCE"
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
+    puts "       fleek --checks flay:StructuralDuplication SOURCE"
   end
 
   def self.help_requested?(arguments)
@@ -532,7 +632,7 @@ class Fleek
   end
 
   def self.print_version
-    puts "Fleek #{VERSION} (Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}; supported check: reek:ClassVariable; report: text v1)"
+    puts "Fleek #{VERSION} (Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}; supported checks: reek:ClassVariable, flay:StructuralDuplication; report: text v1)"
     puts "Analysis requires explicit --checks selection; unsupported checks and machine formats are rejected."
     0
   end
@@ -582,8 +682,96 @@ class Fleek
     arguments.length == 2 && arguments[0] == "--parse-ruby4"
   end
 
-  def self.class_variable_requested?(arguments)
-    arguments.length >= 3 && arguments[0] == "--checks" && arguments[1] == "reek:ClassVariable"
+  def self.run_structural_duplication(inputs)
+    input_error = structural_duplication_input_error(inputs)
+    return report_duplication_input_failure(input_error) unless input_error.empty?
+    read_and_analyze_duplication(inputs[0])
+  end
+
+  def self.structural_duplication_input_error(inputs)
+    unsupported_option = inputs.find { |input| input.start_with?("-") }
+    return "Unsupported Flay option: #{quote_text(unsupported_option)}" if unsupported_option
+    return "flay:StructuralDuplication requires exactly one Ruby source file." unless inputs.length == 1
+    duplication_path_error(inputs[0])
+  end
+
+  def self.duplication_path_error(path)
+    quoted_path = quote_text(path)
+    return "Expected Ruby source (.rb): #{quoted_path}" unless path.end_with?(".rb")
+    return "Cannot read source file: #{quoted_path}" unless File.file?(path) && File.readable?(path)
+    ""
+  end
+
+  def self.read_and_analyze_duplication(path)
+    analyze_structural_duplication(path, File.binread(path))
+  rescue SystemCallError
+    report_duplication_input_failure("Cannot read source file: #{quote_text(path)}")
+  end
+
+  def self.analyze_structural_duplication(path, source)
+    result = NativePrism.fleek_structural_duplication(source, source.bytesize)
+    return report_invalid_duplication_source(path, source, result) if result < 0
+    print_duplication_report(path, result)
+  end
+
+  def self.report_invalid_duplication_source(path, source, result)
+    return report_unsupported_duplication_source(path) if result == DUPLICATION_UNSUPPORTED_SOURCE
+
+    print_duplication_header(path)
+    report_parse_failure(path, source, result)
+    report_input_summary(1, 0, 1, 0, "incomplete")
+    1
+  end
+
+  def self.report_duplication_input_failure(message)
+    warn "ERROR: #{message}"
+    1
+  end
+
+  def self.report_unsupported_duplication_source(path)
+    print_duplication_header(path)
+    warn "ERROR: #{quote_text(path)}: unsupported Flay candidate syntax; only two parameterless top-level methods with bare calls or integer literal statements are supported."
+    report_input_summary(1, 0, 1, 0, "incomplete")
+    1
+  end
+
+  def self.print_duplication_header(path)
+    print_duplication_metadata
+    puts "Sources:"
+    puts "  Source: #{quote_text(path)} scope=included"
+    puts "Duplication:"
+  end
+
+  def self.print_duplication_metadata
+    puts "Fleek report v1"
+    puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
+    puts "Checks selected: flay:StructuralDuplication"
+    puts "Checks run: flay:StructuralDuplication"
+    puts "Scope limits: one Ruby file; two parameterless methods; bare calls and integer literals; Flay mass 16."
+  end
+
+  def self.print_duplication_report(path, score)
+    print_duplication_header(path)
+    print_duplication_results(path, score)
+    print_duplication_status(score)
+  end
+
+  # :reek:ControlParameter
+  def self.print_duplication_status(score)
+    status = score == 0 ? 0 : 2
+    report_input_summary(1, 1, 0, 0, report_state(status))
+    status
+  end
+
+  def self.print_duplication_results(path, score)
+    print_duplication_group(path) if score > 0
+    puts "Total duplication score: #{score}"
+  end
+
+  def self.print_duplication_group(path)
+    first_line, second_line, _node_mass, group_score, kind = NativePrism.fleek_structural_duplication_finding.split("\t")
+    locations = "#{path}:#{first_line},#{path}:#{second_line}"
+    puts "  Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=#{quote_text(kind)} locations=#{quote_text(locations)} mass=#{group_score} score=#{group_score}"
   end
 
   # :reek:TooManyStatements
@@ -1007,10 +1195,18 @@ class Fleek
 
   def self.run_without_unsupported_format(arguments)
     return parse_ruby4_file(arguments[1]) if parse_ruby4_requested?(arguments)
-    return run_class_variable(arguments[2, arguments.length - 2]) if class_variable_requested?(arguments)
+    return run_selected_checks(arguments) if arguments.length >= 3 && arguments[0] == "--checks"
     return 0 if print_help_if_requested(arguments)
     return 0 if print_version_if_requested(arguments)
 
+    print_usage_error(input_error(arguments))
+  end
+
+  def self.run_selected_checks(arguments)
+    inputs = arguments[2..]
+    check = arguments[1]
+    return run_class_variable(inputs) if check == "reek:ClassVariable"
+    return run_structural_duplication(inputs) if check == "flay:StructuralDuplication"
     print_usage_error(input_error(arguments))
   end
 end

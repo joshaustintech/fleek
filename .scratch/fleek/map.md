@@ -16,6 +16,7 @@
 - Research notes and ADRs link from `spec.md` and project documentation.
 - Ticket 07 imports a bounded Reek YAML subset without a YAML library; see ADR 0013 for supported keys and deliberate no-analysis exit differences.
 - Ticket 08 defines stable text report v1 and explicit coverage/status fields; see ADR 0014 for layout, escaping, stream, and unsupported-format behavior.
+- Ticket 09 adds bounded, separately selectable default Flay structural groups; see ADR 0016. Threshold boundaries and combined reporting remain tickets 10 and 12.
 
 ## Fog
 
@@ -72,6 +73,13 @@
 - ADR 0013 records the YAML-library blocker, supported block subset, discovery and scope behavior, source suppressions, exclusions, and deliberate no-analysis status differences.
 - Reference contracts cover explicit/discovered precedence, enablement, directory scope and globs, context/path exclusions, suppression comments, malformed mapping/list rejection, and stdin origin. All 27 mutants were caught; project Reek warnings and Flay score were zero.
 - Pinned Spinel 2026.09.12 full check passed: 3,596 tests, alloc report, inference, and spin-e2e.
+
+## Ticket 09 receipt
+
+- ADR 0016 records the exact single-file/two-method grammar, Flay structural equality, default-mass scoring, deliberate exit-status difference, and explicit unsupported cases. The ticket is groundwork for combined reporting, not its completion.
+- Locked Flay 2.14.4 comparisons cover renamed/changed-literal similar groups, identical groups, different structure, unsupported syntax, score and locations. Threshold boundary expansion and combined selection are tracked by tickets 10 and 12.
+- Native intermediate method shapes and locations are per-analysis locals; the existing native report buffer remains the adapter's output channel. Named constants describe supported statement tags and error results.
+- All project build/contracts and Flay/Reek checks pass; 36 mutations were caught across complete and focused runs. Pinned Spinel's host socket limitation remains documented in ADR 0015.
 
 ## Ticket 08 receipt
 
