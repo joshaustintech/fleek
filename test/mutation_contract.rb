@@ -44,6 +44,9 @@ class MutationCase
     "Flay total score" => "test/duplication_contract.rb",
     "Flay cross-file method collection" => "test/duplication_contract.rb",
     "Flay class method candidate collection" => "test/duplication_contract.rb",
+    "Flay multiple class declarations" => "test/duplication_contract.rb",
+    "Flay cross-class class group rejection" => "test/duplication_contract.rb",
+    "Flay namespace class method collection" => "test/duplication_contract.rb",
     "Flay additional class method rejection" => "test/duplication_contract.rb",
     "Flay class method tree topology" => "test/duplication_contract.rb",
     "Flay class method partial subtree" => "test/duplication_contract.rb",
@@ -379,17 +382,32 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method candidate collection",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (candidate_count == 16 || !fleek_duplication_class_method(child, source, &candidates[candidate_count])) { fleek_duplication_partial = 1; continue; }",
-  "if (candidate_count == 2 || !fleek_duplication_class_method(child, source, &candidates[candidate_count])) { fleek_duplication_partial = 1; continue; }",
+  "if (set->count == 16 || !fleek_duplication_class_method(child, source, &set->candidates[set->count])) { fleek_duplication_partial = 1; continue; }",
+  "if (set->count == 1 || !fleek_duplication_class_method(child, source, &set->candidates[set->count])) { fleek_duplication_partial = 1; continue; }",
   "Flay additional class method rejection",
-  "class helper candidates were not analyzed")).run
+  "Rails-shaped class method parity differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (method_count != 0 || ffi_module_count != 0 || !fleek_duplication_collect_class_methods(statement, (const uint8_t *) source, &class_candidates)) {",
+  "if (class_count != 0 || method_count != 0 || ffi_module_count != 0 || !fleek_duplication_collect_class_methods(statement, (const uint8_t *) source, &class_candidates)) {",
+  "Flay multiple class declarations",
+  "class methods across classes were not compared")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (same_shape && set->class_body_counts[left] == set->class_body_counts[right] && mass + 2 >= (size_t) mass_threshold) return false;",
+  "if (false) return false;",
+  "Flay cross-class class group rejection",
+  "unsupported cross-class Flay group was reported as a defn group or complete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "else if (!fleek_duplication_collect_namespace_classes(statement, (const uint8_t *) source, &class_candidates)) {",
+  "else if (true) {",
+  "Flay namespace class method collection",
+  "simple namespace class methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (left->shape_count != right->shape_count || left->data.ast.tree_count != right->data.ast.tree_count) return false;\n      for (size_t index = 0; index < left->data.ast.tree_count; index++) if (left->data.ast.tree[index] != right->data.ast.tree[index]) return false;\n      return true;",
   "return left->shape_count == right->shape_count;",
   "Flay class method tree topology",
   "different class method tree topology was grouped")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (fleek_duplication_class_subtree_mass(&candidates[left], left_node) >= (size_t) mass_threshold &&\n                    fleek_duplication_class_subtree_mass(&candidates[left], left_node) == fleek_duplication_class_subtree_mass(&candidates[right], right_node) &&\n                    fleek_duplication_class_subtrees_equal(&candidates[left], left_node, &candidates[right], right_node)) return false;",
+  "if (fleek_duplication_class_subtree_mass(&set->candidates[left], left_node) >= (size_t) mass_threshold &&\n                    fleek_duplication_class_subtree_mass(&set->candidates[left], left_node) == fleek_duplication_class_subtree_mass(&set->candidates[right], right_node) &&\n                    fleek_duplication_class_subtrees_equal(&set->candidates[left], left_node, &set->candidates[right], right_node)) return false;",
   "if (false) return false;",
   "Flay class method partial subtree",
   "partial class-method duplicate was silently skipped")).run
@@ -404,8 +422,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method original locations",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "*selected_first = candidates[left];\n          *selected_second = candidates[right];",
-  "*selected_first = candidates[right];\n          *selected_second = candidates[left];",
+  "*selected_first = set->candidates[left];\n          *selected_second = set->candidates[right];",
+  "*selected_first = set->candidates[right];\n          *selected_second = set->candidates[left];",
   "Flay class method pair ordering",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -469,8 +487,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Ruby 4 operator final-position boundary",
   "non-final Ruby 4 logical-and was not rejected as incomplete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "ffi_module_count != 0 || method_count != 0 || !fleek_ffi_declaration_module(statement, &parser)",
-  "ffi_module_count != 0 || false || !fleek_ffi_declaration_module(statement, &parser)",
+  "if (method_count != 0 || ffi_module_count != 0) {",
+  "if (ffi_module_count != 0) {",
   "Spinel FFI module ordering",
   "Spinel FFI module after methods was not rejected as incomplete")).run
 

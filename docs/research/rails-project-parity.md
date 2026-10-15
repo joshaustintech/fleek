@@ -92,6 +92,12 @@ The current implementation also retains supported findings when a class contains
 
 The exact 25-file parity/release gate remains open. These findings and synthetic fixtures do not stand in for full manifest comparison; unsupported shapes remain incomplete. See [ADR 0022](../adr/0022-flay-class-method-candidate-boundary.md) and [ADR 0023](../adr/0023-partial-flay-findings.md).
 
+## Ticket 19 cross-class and namespace slice
+
+ADRs 0024–0025 add bounded candidate collection across multiple simple classes and one-level module wrappers. Public CLI contracts match Flay 2.14.4 for a `:defn` pair spanning classes and for a pair inside one namespace-wrapped class. A separate reference case reports Flay's cross-class `:class` group; Fleek returns incomplete instead of relabeling it as `:defn`.
+
+The pinned 25-file manifest was rerun after these changes with the same default settings. Flay 2.14.4 still reports score 48 and the similar `:defn` group at `users_controller.rb:51,58`; Reek 6.6.0 reports zero ClassVariable warnings. Fleek reports Reek coverage complete for all 25 files, but Flay coverage is `25 selected; 0 analyzed; 25 failed`, with no Flay group; combined status is incomplete. Parameterized methods and common Rails body forms remain unsupported. This slice improves bounded class traversal but does not establish full-manifest parity or release readiness.
+
 ## Decision and next work
 
 The real project is locked as the parity corpus, but this receipt does not prove full parity. Keep release and cold-runtime claims blocked until Fleek can analyze the upstream Flay structural shapes found in ordinary Rails classes, then compare all findings, locations, grouping, score, order, and statuses on this exact manifest. Ticket 19 tracks the remaining gap; ticket 18 closes the ClassVariable namespace gap. See [ADR 0020](../adr/0020-rails-parity-corpus-and-release-gate.md).

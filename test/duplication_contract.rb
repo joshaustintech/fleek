@@ -198,6 +198,30 @@ class_methods_with_helper_path = "test/fixtures/duplication_class_methods_with_h
 rails_pair_path = "test/fixtures/duplication_class_methods_rails_pair.rb"
 DuplicationProcess.verify_class_method_parity(rails_pair_path, :rails_pair)
 
+multiple_classes_path = "test/fixtures/duplication_class_methods_across_classes.rb"
+multiple_classes_actual = DuplicationProcess.run(DuplicationProcess::Input.new(multiple_classes_path, "fleek", ""))
+multiple_classes_reference = DuplicationProcess.run(DuplicationProcess::Input.new(multiple_classes_path, "flay", ""))
+multiple_classes_fields = ["kind=\"similar\"", "locations=\"#{multiple_classes_path}:8,#{multiple_classes_path}:17\"", "mass=48 score=48", "Total duplication score: 48", "Status: findings"]
+DuplicationProcess.verify_output(multiple_classes_actual, DuplicationProcess::OutputExpectation.new(2, multiple_classes_fields, "class methods across classes were not compared"))
+multiple_classes_reference_fields = ["Similar code found in :defn (mass = 48)", "#{multiple_classes_path}:8", "#{multiple_classes_path}:17", "Total score (lower is better) = 48"]
+DuplicationProcess.verify_output(multiple_classes_reference, DuplicationProcess::OutputExpectation.new(0, multiple_classes_reference_fields, "Flay class-method group across classes changed"))
+
+cross_class_group_path = "test/fixtures/duplication_class_methods_cross_class_group.rb"
+cross_class_group_actual = DuplicationProcess.run(DuplicationProcess::Input.new(cross_class_group_path, "fleek", ""))
+cross_class_group_reference = DuplicationProcess.run(DuplicationProcess::Input.new(cross_class_group_path, "flay", ""))
+cross_class_group_reference_fields = ["Similar code found in :class (mass = 50)", "#{cross_class_group_path}:1", "#{cross_class_group_path}:10", "Total score (lower is better) = 50"]
+DuplicationProcess.verify_output(cross_class_group_reference, DuplicationProcess::OutputExpectation.new(0, cross_class_group_reference_fields, "cross-class Flay group changed"))
+cross_class_group_actual_fields = ["Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(cross_class_group_actual, DuplicationProcess::OutputExpectation.new(1, cross_class_group_actual_fields, "unsupported cross-class Flay group was reported as a defn group or complete"))
+
+namespace_class_path = "test/fixtures/duplication_class_methods_namespace.rb"
+namespace_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(namespace_class_path, "fleek", ""))
+namespace_class_reference = DuplicationProcess.run(DuplicationProcess::Input.new(namespace_class_path, "flay", ""))
+namespace_class_actual_fields = ["kind=\"similar\"", "locations=\"#{namespace_class_path}:3,#{namespace_class_path}:10\"", "mass=48 score=48", "Total duplication score: 48", "Status: findings"]
+DuplicationProcess.verify_output(namespace_class_actual, DuplicationProcess::OutputExpectation.new(2, namespace_class_actual_fields, "simple namespace class methods were not analyzed"))
+namespace_class_reference_fields = ["Similar code found in :defn (mass = 48)", "#{namespace_class_path}:3", "#{namespace_class_path}:10", "Total score (lower is better) = 48"]
+DuplicationProcess.verify_output(namespace_class_reference, DuplicationProcess::OutputExpectation.new(0, namespace_class_reference_fields, "Flay namespace class-method group changed"))
+
 partial_rails_path = "test/fixtures/duplication_class_methods_partial_rails.rb"
 partial_rails_actual = DuplicationProcess.run(DuplicationProcess::Input.new(partial_rails_path, "fleek", ""))
 partial_rails_reference = DuplicationProcess.run(DuplicationProcess::Input.new(partial_rails_path, "flay", ""))
