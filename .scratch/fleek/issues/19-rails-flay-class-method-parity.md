@@ -14,3 +14,7 @@
 - [ ] The full 25-file Rails Ruby manifest has no unexplained difference across both selected checks; all project gates and both code-review axes pass.
 
 **Release gate:** Ticket 14's pinned Rails 8 corpus currently has 25 Flay failures. Do not claim full parity until this exact input is complete.
+
+## Comments
+
+- 2026-10-15: Added bounded Prism tree fingerprints for direct parameterless methods in simple classes. Locked Flay fixtures prove a Rails-shaped similar group (mass/score 48 and ordered lines), an identical group (score 64), clean handling of same-preorder/different-tree call nesting, and fail-closed handling of qualifying partial subtrees. Mutations cover tree topology, partial groups, score, original lines, candidate collection, and method-count boundary. ADR 0022 records the AST and Flay keyword-hash mass mapping decision. The real 25-file corpus remains incomplete: actual `UsersController` includes class-level callbacks and additional method shapes not accepted by this slice. Ticket remains claimed; no release parity claim.

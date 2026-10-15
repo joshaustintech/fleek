@@ -21,7 +21,7 @@
 - Ticket 12 combines explicitly selected Flay and Reek checks with independent exclusions and one incomplete/finding/complete outcome; see ADR 0018 for syntax boundaries, equivalent-reference parity, and deliberate exit-status normalization.
 - Ticket 13 proves bounded Ruby 4 and pinned Spinel analysis, inert source processing, and reference-backed Flay extension parity; see ADR 0019 for the supported integer-`&&`/`ffi_func` shapes and separate Flay node-mass/group-score reporting.
 - Ticket 14 pins the real Rails corpus and records exact initial parity; see ADR 0020. Ticket 18 closes namespaced ClassVariable parity (ADR 0021). Ticket 19 is claimed for ongoing Flay class-method parity work; it still gates release/runtime work.
-- Ticket 19 supports one simple class with 2–64 direct parameterless methods in the existing bounded body grammar, reports only a unique eligible pair, and rejects ambiguous groups. Reference contracts cover a sub-threshold helper and ambiguity; see ADR 0022. The pinned 25-file Flay run remains incomplete (25 failed), so parity and release gates stay open.
+- Ticket 19 supports one simple class with 2–16 direct parameterless methods and bounded AST forms. Structural fingerprints retain tree nesting; qualifying unsupported partial-subtree matches fail incomplete. Contracts cover topology differences, partial subtrees, Rails-shaped similar methods, and identical methods against Flay 2.14.4. See ADR 0022. Class-level statements and the actual 25-file Rails run remain incomplete; parity and release gates stay open.
 
 ## Fog
 

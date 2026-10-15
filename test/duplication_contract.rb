@@ -6,6 +6,12 @@ class DuplicationProcess
   Input = Struct.new(:path, :tool, :option, :value)
   # Describes the expected output status and required fields.
   OutputExpectation = Struct.new(:status, :fields, :message)
+  # Carries scalar paired CLI/reference expectations for class-method fixtures.
+  ClassMethodExpectation = Struct.new(:kind, :score, :mass, :second_line, :reference_group, :message)
+  CLASS_METHOD_EXPECTATIONS = {
+    rails_pair: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "Rails-shaped class method parity differed"),
+    identical: ClassMethodExpectation.new("identical", 64, 32, 19, "IDENTICAL code found in :defn (mass*2 = 64)", "identical class method group changed")
+  }
 
   def self.run(input)
     path, tool, option, value = input.to_a
@@ -84,6 +90,29 @@ class DuplicationProcess
     reference = run(Input.new(path, "flay", ""))
     verify_output(reference, OutputExpectation.new(0, ["Similar code found in :defn (mass = 32)", "#{path}:2", "#{path}:#{second_line}"], "#{description} Flay reference changed"))
     verify_output(actual, OutputExpectation.new(2, ["Status: findings", "#{path}:2,#{path}:#{second_line}", "mass=32 score=32"], "#{description} candidates were not analyzed"))
+  end
+
+  def self.class_method_actual_expectation(path, expectation)
+    kind = expectation.kind
+    score = expectation.score
+    mass = expectation.mass
+    line = expectation.second_line
+    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:2,#{path}:#{line}\"", "mass=#{mass} score=#{score}", "Total duplication score: #{score}"], expectation.message)
+  end
+
+  def self.class_method_reference_expectation(path, expectation)
+    line = expectation.second_line
+    score = expectation.score
+    fields = [expectation.reference_group, "#{path}:2", "#{path}:#{line}", "Total score (lower is better) = #{score}"]
+    OutputExpectation.new(0, fields, expectation.message)
+  end
+
+  def self.verify_class_method_parity(path, expectation_name)
+    expectation = CLASS_METHOD_EXPECTATIONS.fetch(expectation_name)
+    actual = run(Input.new(path, "fleek", ""))
+    reference = run(Input.new(path, "flay", ""))
+    verify_output(actual, class_method_actual_expectation(path, expectation))
+    verify_output(reference, class_method_reference_expectation(path, expectation))
   end
 end
 
@@ -165,8 +194,30 @@ DuplicationProcess.verify(nested[2].include?("unsupported Flay candidate syntax"
 
 class_methods_path = "test/fixtures/duplication_class_methods.rb"
 class_methods_with_helper_path = "test/fixtures/duplication_class_methods_with_helper.rb"
+
+rails_pair_path = "test/fixtures/duplication_class_methods_rails_pair.rb"
+DuplicationProcess.verify_class_method_parity(rails_pair_path, :rails_pair)
+
 DuplicationProcess.verify_class_method_pair(class_methods_path, 19, "class method")
 DuplicationProcess.verify_class_method_pair(class_methods_with_helper_path, 19, "class helper")
+
+topology_path = "test/fixtures/duplication_class_methods_topology.rb"
+topology_actual = DuplicationProcess.run(DuplicationProcess::Input.new(topology_path, "fleek", ""))
+topology_reference = DuplicationProcess.run(DuplicationProcess::Input.new(topology_path, "flay", ""))
+topology_matches = topology_actual[0] == 0 && topology_actual[1].include?("Total duplication score: 0") && topology_actual[1].include?("Status: complete")
+topology_reference_clean = topology_reference[0] == 0 && topology_reference[1].include?("Total score (lower is better) = 0")
+DuplicationProcess.verify(topology_matches && topology_reference_clean, "different class method tree topology was grouped")
+
+partial_path = "test/fixtures/duplication_class_methods_partial_match.rb"
+partial_actual = DuplicationProcess.run(DuplicationProcess::Input.new(partial_path, "fleek", ""))
+partial_reference = DuplicationProcess.run(DuplicationProcess::Input.new(partial_path, "flay", ""))
+DuplicationProcess.verify_output(partial_actual, DuplicationProcess::OutputExpectation.new(1, ["Status: incomplete"], "partial class-method duplicate was silently skipped"))
+DuplicationProcess.verify(partial_actual[2].include?("unsupported Flay candidate syntax"), "partial class-method duplicate was silently skipped")
+partial_reference_fields = ["IDENTICAL code found in :call (mass*2 = 64)", "#{partial_path}:4", "#{partial_path}:9", "Total score (lower is better) = 64"]
+DuplicationProcess.verify_output(partial_reference, DuplicationProcess::OutputExpectation.new(0, partial_reference_fields, "partial Flay group changed"))
+
+class_identical_path = "test/fixtures/duplication_class_methods_identical.rb"
+DuplicationProcess.verify_class_method_parity(class_identical_path, :identical)
 
 ambiguous_class_methods = DuplicationProcess.run(DuplicationProcess::Input.new("test/fixtures/duplication_class_methods_ambiguous.rb", "fleek", ""))
 DuplicationProcess.verify_output(ambiguous_class_methods, DuplicationProcess::OutputExpectation.new(1, ["Status: incomplete"], "ambiguous class method groups were reported as complete"))
