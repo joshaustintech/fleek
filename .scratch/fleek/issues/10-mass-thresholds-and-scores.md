@@ -4,16 +4,20 @@
 
 **Blocked by:** 09 Structural duplication groups.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] Execute locked-reference cases to establish exact mass semantics; preserve default mass 16 and supported explicit mass selection.
-- [ ] Immediately-below, at, and above threshold cases select exactly the reference nodes.
-- [ ] Identical and structurally similar groups retain the correct occurrence multiplier, group score, totals, and applicable per-file contributions.
-- [ ] Invalid mass settings fail before analysis; unsupported group/AST forms still fail honestly rather than disappearing.
-- [ ] CLI scores and statuses match the selected contract; mass-boundary/multiplier/total mutations are detected and required gates pass.
+- [x] Execute locked-reference cases to establish exact mass semantics; preserve default mass 16 and supported explicit mass selection.
+- [x] Immediately-below, at, and above threshold cases select exactly the reference nodes.
+- [x] Identical and structurally similar groups retain the correct occurrence multiplier, group score, totals, and applicable per-file contributions.
+- [x] Invalid mass settings fail before analysis; unsupported group/AST forms still fail honestly rather than disappearing.
+- [x] CLI scores and statuses match the selected contract; mass-boundary/multiplier/total mutations are detected and required gates pass.
+
+## Answer
+
+Implemented explicit `--mass MASS` for the bounded single-file Flay check, with default 16, supported range 3 through the native integer maximum, input validation, selected-threshold reporting, and total/per-file score fields. Values below 3 fail because nested bare-call candidates are outside this slice. [ADR 0017](../../../docs/adr/0017-flay-mass-threshold-and-scoring.md) records the boundary evidence, scope, and forced mutation rebuild rationale. Flay 2.14.4 comparisons at 15/16/17 match; all 39 project mutants are caught, including mass boundary, identical multiplier, and total score. Project build/contracts, Flay, and Reek gates pass; both code-review axes pass.
 
 ## Comments
 

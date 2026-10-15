@@ -17,6 +17,7 @@
 - Ticket 07 imports a bounded Reek YAML subset without a YAML library; see ADR 0013 for supported keys and deliberate no-analysis exit differences.
 - Ticket 08 defines stable text report v1 and explicit coverage/status fields; see ADR 0014 for layout, escaping, stream, and unsupported-format behavior.
 - Ticket 09 adds bounded, separately selectable default Flay structural groups; see ADR 0016. Threshold boundaries and combined reporting remain tickets 10 and 12.
+- Ticket 10 supports validated `--mass MASS` for that single-file subset and reports total/per-file scores; see ADR 0017. Multi-group and cross-file score aggregation remain later work.
 
 ## Fog
 
@@ -80,6 +81,12 @@
 - Locked Flay 2.14.4 comparisons cover renamed/changed-literal similar groups, identical groups, different structure, unsupported syntax, score and locations. Threshold boundary expansion and combined selection are tracked by tickets 10 and 12.
 - Native intermediate method shapes and locations are per-analysis locals; the existing native report buffer remains the adapter's output channel. Named constants describe supported statement tags and error results.
 - All project build/contracts and Flay/Reek checks pass; 36 mutations were caught across complete and focused runs. Pinned Spinel's host socket limitation remains documented in ADR 0015.
+
+## Ticket 10 receipt
+
+- ADR 0017 records validated `--mass MASS` support from 3 through the native integer maximum, default 16, and the lower bound that prevents unimplemented nested candidates from being silently omitted.
+- Locked Flay 2.14.4 comparisons at thresholds 15, 16, and 17 match the mass-16 fixture; invalid mass values fail before analysis. Reports include group, total, and applicable single-file score contributions.
+- All 39 mutants are caught, including the inclusive mass boundary, identical multiplier, and total score. The mutation harness now forces a fresh binary so timestamp granularity cannot produce false mutant survival. All project build/contracts, Flay, and Reek checks pass; both specification and standards code-review axes pass.
 
 ## Ticket 08 receipt
 

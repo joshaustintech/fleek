@@ -1,4 +1,4 @@
-# Proves public checks reject two deliberately broken parser/CLI behaviors.
+# Proves public checks reject deliberately broken parser, CLI, and analyzer behaviors.
 class MutationCase
   # Carries one behavior mutation and its expected contract failure.
   Configuration = Struct.new(:source, :target, :replacement, :label, :expected_failure)
@@ -33,6 +33,9 @@ class MutationCase
     "Reek path exclusions" => "test/configuration_contract.rb",
     "named stdin path exclusions" => "test/configuration_contract.rb",
     "Flay structural equality" => "test/duplication_contract.rb",
+    "Flay mass boundary" => "test/duplication_contract.rb",
+    "Flay identical multiplier" => "test/duplication_contract.rb",
+    "Flay total score" => "test/duplication_contract.rb",
     "text report newline escaping" => "test/text_report_contract.rb",
     "text report source ordering" => "test/text_report_contract.rb",
     "text report section ordering" => "test/text_report_contract.rb",
@@ -77,6 +80,7 @@ class MutationCase
   end
 
   def verify_build
+    File.delete("build/fleek") if File.file?("build/fleek")
     process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-build-out", err: "/tmp/fleek-mutation-build-err")
     _, status = MutationProcess.wait(process_id)
     raise "#{@configuration.label} mutant failed to compile" unless status.success?
@@ -285,6 +289,21 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "bool same_shape = first_method.shape_count == second_method.shape_count;",
   "bool same_shape = false;",
   "Flay structural equality",
+  "similar method group report differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "mass >= (size_t) mass_threshold",
+  "mass > (size_t) mass_threshold",
+  "Flay mass boundary",
+  "similar method group report differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "(identical ? 2 : 1)",
+  "(identical ? 1 : 1)",
+  "Flay identical multiplier",
+  "identical group multiplier changed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'puts "Total duplication score: #{score}"',
+  'puts "Total duplication score: 0"',
+  "Flay total score",
   "similar method group report differed")).run
 
 process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")

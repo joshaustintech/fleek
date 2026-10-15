@@ -1,7 +1,6 @@
 # Fleek exposes native CLI usage and reference identities.
 class Fleek
   VERSION = "0.1.0"
-  DUPLICATION_UNSUPPORTED_SOURCE = -4
   # Retains source identity alongside its diagnostic for the text report.
   SourceFailure = Struct.new(:path, :message, :kind)
   FLAY_REFERENCE = "2.14.4"
@@ -10,6 +9,8 @@ class Fleek
 
   # Provides the native Prism parser adapter.
   module NativePrism
+    DUPLICATION_UNSUPPORTED_SOURCE = -4
+    FLAY_DEFAULT_MASS = 16
     ffi_source <<~C
     #include "prism.h"
     #include <stdint.h>
@@ -260,7 +261,7 @@ class Fleek
       return true;
     }
 
-    int fleek_structural_duplication(const char *source, size_t length) {
+    int fleek_structural_duplication(const char *source, size_t length, int mass_threshold) {
       fleek_duplication_buffer[0] = 0;
       if (memchr(source, 0, length) != NULL) return FLEEK_DUPLICATION_NUL_SOURCE;
       pm_options_t options = {0};
@@ -289,7 +290,7 @@ class Fleek
       bool same_shape = first_method.shape_count == second_method.shape_count;
       for (size_t index = 0; same_shape && index < first_method.shape_count; index++) same_shape = first_method.shapes[index] == second_method.shapes[index];
       bool identical = same_shape && fleek_duplication_methods_identical(&parser, first, second);
-      int score = same_shape && mass >= 16 ? (int) mass * 2 * (identical ? 2 : 1) : 0;
+      int score = same_shape && mass >= (size_t) mass_threshold ? (int) mass * 2 * (identical ? 2 : 1) : 0;
       if (score > 0) snprintf(fleek_duplication_buffer, sizeof(fleek_duplication_buffer), "%d\t%d\t%zu\t%d\t%s", first_method.line, second_method.line, mass, score, identical ? "identical" : "similar");
       pm_node_destroy(&parser, root);
       pm_parser_free(&parser);
@@ -331,7 +332,7 @@ class Fleek
     ffi_func :fleek_parse_message, [], :str
     ffi_func :fleek_class_variable, [:str, :size_t], :int
     ffi_func :fleek_class_variable_finding, [], :str
-    ffi_func :fleek_structural_duplication, [:str, :size_t], :int
+    ffi_func :fleek_structural_duplication, [:str, :size_t, :int], :int
     ffi_func :fleek_structural_duplication_finding, [], :str
   end
 
@@ -618,7 +619,7 @@ class Fleek
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] SOURCE"
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
-    puts "       fleek --checks flay:StructuralDuplication SOURCE"
+    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] SOURCE"
   end
 
   def self.help_requested?(arguments)
@@ -685,14 +686,56 @@ class Fleek
   def self.run_structural_duplication(inputs)
     input_error = structural_duplication_input_error(inputs)
     return report_duplication_input_failure(input_error) unless input_error.empty?
-    read_and_analyze_duplication(inputs[0])
+    read_and_analyze_duplication(duplication_source_path(inputs), duplication_mass_threshold(inputs))
   end
 
   def self.structural_duplication_input_error(inputs)
-    unsupported_option = inputs.find { |input| input.start_with?("-") }
+    mass_error = duplication_mass_error(inputs)
+    return mass_error unless mass_error.empty?
+    duplication_source_input_error(inputs)
+  end
+
+  def self.duplication_mass_error(inputs)
+    return "--mass may be specified only once." if inputs.count("--mass") > 1
+    mass_index = duplication_mass_index(inputs)
+    return "" if mass_index == inputs.length
+    return "" if valid_duplication_mass?(inputs[mass_index + 1])
+    "--mass requires an integer from 3 through 2147483647 for the supported syntax."
+  end
+
+  def self.valid_duplication_mass?(mass_value)
+    return false unless mass_value && mass_value.match?(/\A[0-9]+\z/)
+    mass = mass_value.to_i
+    mass >= 3 && mass <= 2_147_483_647
+  end
+
+  def self.duplication_source_input_error(inputs)
+    unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" }
     return "Unsupported Flay option: #{quote_text(unsupported_option)}" if unsupported_option
-    return "flay:StructuralDuplication requires exactly one Ruby source file." unless inputs.length == 1
-    duplication_path_error(inputs[0])
+    duplication_path_input_error(duplication_source_paths(inputs))
+  end
+
+  def self.duplication_path_input_error(paths)
+    return "flay:StructuralDuplication requires exactly one Ruby source file." unless paths.length == 1
+    duplication_path_error(paths[0])
+  end
+
+  def self.duplication_source_paths(inputs)
+    mass_index = duplication_mass_index(inputs)
+    inputs.take(mass_index) + inputs.drop([mass_index + 2, inputs.length].min)
+  end
+
+  def self.duplication_source_path(inputs)
+    duplication_source_paths(inputs)[0]
+  end
+
+  def self.duplication_mass_index(inputs)
+    inputs.index("--mass") || inputs.length
+  end
+
+  def self.duplication_mass_threshold(inputs)
+    mass_index = duplication_mass_index(inputs)
+    inputs.fetch(mass_index + 1, NativePrism::FLAY_DEFAULT_MASS).to_i
   end
 
   def self.duplication_path_error(path)
@@ -702,22 +745,24 @@ class Fleek
     ""
   end
 
-  def self.read_and_analyze_duplication(path)
-    analyze_structural_duplication(path, File.binread(path))
+  def self.read_and_analyze_duplication(path, mass_threshold)
+    analyze_structural_duplication(path, File.binread(path), mass_threshold)
   rescue SystemCallError
     report_duplication_input_failure("Cannot read source file: #{quote_text(path)}")
   end
 
-  def self.analyze_structural_duplication(path, source)
-    result = NativePrism.fleek_structural_duplication(source, source.bytesize)
-    return report_invalid_duplication_source(path, source, result) if result < 0
-    print_duplication_report(path, result)
+  def self.analyze_structural_duplication(path, source, mass_threshold)
+    result = NativePrism.fleek_structural_duplication(source, source.bytesize, mass_threshold)
+    if result < 0
+      print_duplication_header(path, mass_threshold)
+      return report_invalid_duplication_source(path, source, result)
+    end
+    print_duplication_report(path, result, mass_threshold)
   end
 
   def self.report_invalid_duplication_source(path, source, result)
-    return report_unsupported_duplication_source(path) if result == DUPLICATION_UNSUPPORTED_SOURCE
+    return report_unsupported_duplication_source(path) if result == NativePrism::DUPLICATION_UNSUPPORTED_SOURCE
 
-    print_duplication_header(path)
     report_parse_failure(path, source, result)
     report_input_summary(1, 0, 1, 0, "incomplete")
     1
@@ -729,29 +774,28 @@ class Fleek
   end
 
   def self.report_unsupported_duplication_source(path)
-    print_duplication_header(path)
     warn "ERROR: #{quote_text(path)}: unsupported Flay candidate syntax; only two parameterless top-level methods with bare calls or integer literal statements are supported."
     report_input_summary(1, 0, 1, 0, "incomplete")
     1
   end
 
-  def self.print_duplication_header(path)
-    print_duplication_metadata
+  def self.print_duplication_header(path, mass_threshold)
+    print_duplication_metadata(mass_threshold)
     puts "Sources:"
     puts "  Source: #{quote_text(path)} scope=included"
     puts "Duplication:"
   end
 
-  def self.print_duplication_metadata
+  def self.print_duplication_metadata(mass_threshold)
     puts "Fleek report v1"
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: one Ruby file; two parameterless methods; bare calls and integer literals; Flay mass 16."
+    puts "Scope limits: one Ruby file; two parameterless methods; bare calls and integer literals; Flay mass #{mass_threshold}."
   end
 
-  def self.print_duplication_report(path, score)
-    print_duplication_header(path)
+  def self.print_duplication_report(path, score, mass_threshold)
+    print_duplication_header(path, mass_threshold)
     print_duplication_results(path, score)
     print_duplication_status(score)
   end
@@ -766,6 +810,7 @@ class Fleek
   def self.print_duplication_results(path, score)
     print_duplication_group(path) if score > 0
     puts "Total duplication score: #{score}"
+    puts "File duplication score: #{quote_text(path)} score=#{score}"
   end
 
   def self.print_duplication_group(path)
