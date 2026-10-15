@@ -11,8 +11,7 @@ Install
 The executable is a native arm64 Mach-O binary linked only to macOS
 libSystem. It needs no Ruby, Flay, Reek, Spinel, project checkout, or network
 connection at runtime. The binary has an ad hoc linker signature, with no
-Developer ID, and is not notarized. The archive has not been published or
-retrieved from a release service.
+Developer ID, and is not notarized.
 
 Identity
 

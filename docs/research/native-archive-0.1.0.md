@@ -3,7 +3,7 @@
 ## Artifact identity
 
 - Archive: [`dist/fleek-0.1.0-macos-arm64.tar.gz`](../../dist/fleek-0.1.0-macos-arm64.tar.gz)
-- SHA-256: `de453b0210372ca7a6501584a890f4005d19758681c9cf12fef8239c74f476f7`
+- SHA-256: `025449a33a9028a87c7e26b7618cca72077ecfaffc6a5911a0e75fa478e19ef3`
 - Platform: macOS arm64, tested on macOS 27.0.1 build 26A434.
 - Executable: Mach-O 64-bit arm64; Fleek 0.1.0; Spinel 2026.09.12; Prism 1.9.0; references Flay 2.14.4 and Reek 6.6.0.
 - Dynamic libraries: `/usr/lib/libSystem.B.dylib` only.
