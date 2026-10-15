@@ -24,6 +24,7 @@
 - Ticket 14 pins the real Rails corpus and records exact initial parity; see ADR 0020. Ticket 18 closes namespaced ClassVariable parity (ADR 0021). Ticket 19 is claimed for ongoing Flay class-method parity work; it still gates release/runtime work.
 - Ticket 19 supports bounded parameterless method candidates across simple class declarations. Structural fingerprints retain tree nesting; qualifying unsupported partial-subtree matches fail incomplete. Contracts cover topology differences, partial subtrees, Rails-shaped similar methods across classes, and identical methods against Flay 2.14.4. See ADRs 0022–0024. Class-level statements and the actual 25-file Rails run remain incomplete; parity and release gates stay open.
 - ADRs 0024–0025 extend bounded candidate collection across simple class declarations and one-level namespace wrappers. Cross-class `:class` rejection now requires fully modeled equal-sized class bodies; unsupported callbacks retain verified `:defn` findings with incomplete status. Empty classes/modules are clean inputs, and the empty-module null-body crash is regression-tested. The pinned 25-file run now reports Flay's score-48 `UsersController:51,58` group, but all sources remain partial due unsupported Rails syntax; release gate stays open.
+- ADR 0026 supports class methods with up to eight required positional parameters and local-variable reads. Flay 2.14.4 fixture comparisons match score-48 groups across same and different arities and keep differing parameter names classified as similar; optional/rest/keyword/block parameters remain partial. The exact 25-file manifest still reports all sources partial and exits incomplete.
 - Latest pinned 25-file run: Flay reference still score 48 at `UsersController:51,58`; Reek reference clean. Fleek Reek covers 25/25, Flay covers 0/25 and exits incomplete. See current receipt in `docs/research/rails-project-parity.md`.
 
 ## Fog
@@ -128,3 +129,9 @@
 - Discovery-rejected paths appear with `scope=failed`; analyzer-rejected paths stay `included` and associate through path-specific diagnostics and failed coverage (ADR 0014).
 - Empty scans and rejected directory symlinks keep exit 1 and their diagnostics but add no source rows/counts; mixed requests count only real sources (ADR 0014).
 - All 35 project mutants were caught; the project build/contracts, Flay (0), and Reek (0) pass. Pinned Spinel `make check` completed with 3,574 pass and 22 failures on host-restricted socket tests plus an intermittent GC-root case; ADR 0015 records the limitation and required rerun on a loopback-capable host.
+
+## Ticket 19 required-parameter receipt
+
+- ADR 0026 records the supported required positional parameter boundary and identical-group semantics.
+- Pinned Flay 2.14.4 and Fleek match parameterized Rails-shaped `:defn` groups at mass/score 48 for same and different required arities. A fixture with different formal names matches as a similar group rather than identical.
+- Focused mutations reject losing required-parameter candidates and incorrectly classifying different formal names as identical. Full 25-file parity remains open.

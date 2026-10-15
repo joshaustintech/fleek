@@ -10,6 +10,9 @@ class DuplicationProcess
   ClassMethodExpectation = Struct.new(:kind, :score, :mass, :second_line, :reference_group, :message)
   CLASS_METHOD_EXPECTATIONS = {
     rails_pair: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "Rails-shaped class method parity differed"),
+    required_parameters: ClassMethodExpectation.new("similar", 48, 48, 8, "Similar code found in :defn (mass = 48)", "required-parameter class method parity differed"),
+    parameter_arity: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "parameter-arity class method parity differed"),
+    parameter_names: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "parameter-name class method parity differed"),
     identical: ClassMethodExpectation.new("identical", 64, 32, 19, "IDENTICAL code found in :defn (mass*2 = 64)", "identical class method group changed")
   }
 
@@ -277,6 +280,9 @@ end
 
 DuplicationProcess.verify_class_method_pair(class_methods_path, 19, "class method")
 DuplicationProcess.verify_class_method_pair(class_methods_with_helper_path, 19, "class helper")
+DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_required_parameters.rb", :required_parameters)
+DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_parameter_arity.rb", :parameter_arity)
+DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_parameter_names.rb", :parameter_names)
 
 topology_path = "test/fixtures/duplication_class_methods_topology.rb"
 topology_actual = DuplicationProcess.run(DuplicationProcess::Input.new(topology_path, "fleek", ""))

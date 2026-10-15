@@ -361,7 +361,7 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_INTEGER_NODE) ||
         PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_AND_NODE) ||
         PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) ||
-        PM_NODE_TYPE_P(node, PM_ASSOC_NODE);
+        PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE);
     }
     static void fleek_duplication_collect_class_node(const pm_node_t *node, fleek_duplication_ast_t *ast) {
       if (PM_NODE_TYPE_P(node, PM_ARGUMENTS_NODE)) { pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast); return; }
@@ -381,10 +381,19 @@ class Fleek
       ast->method->data.ast.tree_ends[index] = (uint16_t) ast->method->data.ast.tree_count;
       ast->method->data.ast.node_ends[index] = (uint8_t) ast->method->shape_count;
     }
+    static bool fleek_duplication_class_parameters(const pm_node_t *node) {
+      if (node == NULL) return true;
+      if (!PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE)) return false;
+      const pm_parameters_node_t *parameters = (const pm_parameters_node_t *) node;
+      if (parameters->requireds.size > 8 || parameters->optionals.size != 0 || parameters->rest != NULL ||
+          parameters->posts.size != 0 || parameters->keywords.size != 0 || parameters->keyword_rest != NULL || parameters->block != NULL) return false;
+      for (size_t index = 0; index < parameters->requireds.size; index++) if (!PM_NODE_TYPE_P(parameters->requireds.nodes[index], PM_REQUIRED_PARAMETER_NODE)) return false;
+      return true;
+    }
     static bool fleek_duplication_class_method(const pm_node_t *node, const uint8_t *source, fleek_duplication_method_t *result) {
       if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver != NULL || method->parameters != NULL || method->body == NULL || method->equal_loc.start != NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
+      if (method->receiver != NULL || !fleek_duplication_class_parameters((const pm_node_t *) method->parameters) || method->body == NULL || method->equal_loc.start != NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
       fleek_duplication_ast_t ast = { result, false };
       fleek_duplication_collect_class_node(method->body, &ast);
       if (ast.overflow || result->shape_count == 0) return false;
@@ -410,6 +419,18 @@ class Fleek
       return mass;
     }
     static bool fleek_constants_equal(pm_parser_t *parser, pm_constant_id_t left, pm_constant_id_t right);
+    static bool fleek_duplication_class_parameters_equal(pm_parser_t *parser, const pm_def_node_t *left, const pm_def_node_t *right) {
+      if (left->parameters == NULL || right->parameters == NULL) return left->parameters == right->parameters;
+      const pm_parameters_node_t *left_parameters = (const pm_parameters_node_t *) left->parameters;
+      const pm_parameters_node_t *right_parameters = (const pm_parameters_node_t *) right->parameters;
+      if (left_parameters->requireds.size != right_parameters->requireds.size) return false;
+      for (size_t index = 0; index < left_parameters->requireds.size; index++) {
+        const pm_required_parameter_node_t *left_parameter = (const pm_required_parameter_node_t *) left_parameters->requireds.nodes[index];
+        const pm_required_parameter_node_t *right_parameter = (const pm_required_parameter_node_t *) right_parameters->requireds.nodes[index];
+        if (!fleek_constants_equal(parser, left_parameter->name, right_parameter->name)) return false;
+      }
+      return true;
+    }
     static bool fleek_duplication_class_values_equal(pm_parser_t *parser, const fleek_duplication_method_t *left, const fleek_duplication_method_t *right) {
       for (size_t index = 0; index < left->shape_count; index++) {
         const pm_node_t *first = left->data.ast.nodes[index];
@@ -417,6 +438,7 @@ class Fleek
         if (first->type != second->type) return false;
         if (PM_NODE_TYPE_P(first, PM_CALL_NODE) && !fleek_constants_equal(parser, ((const pm_call_node_t *) first)->name, ((const pm_call_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_CONSTANT_READ_NODE) && !fleek_constants_equal(parser, ((const pm_constant_read_node_t *) first)->name, ((const pm_constant_read_node_t *) second)->name)) return false;
+        if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_READ_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_read_node_t *) first)->name, ((const pm_local_variable_read_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_INSTANCE_VARIABLE_READ_NODE) && !fleek_constants_equal(parser, ((const pm_instance_variable_read_node_t *) first)->name, ((const pm_instance_variable_read_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_INSTANCE_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_instance_variable_write_node_t *) first)->name, ((const pm_instance_variable_write_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_INTEGER_NODE) && pm_integer_compare(&((const pm_integer_node_t *) first)->value, &((const pm_integer_node_t *) second)->value) != 0) return false;
@@ -649,7 +671,7 @@ class Fleek
       }
       bool same_shape = class_count == 0 ? first_method.shape_count == second_method.shape_count : fleek_duplication_class_shapes_equal(&first_method, &second_method);
       for (size_t index = 0; class_count == 0 && same_shape && index < first_method.shape_count; index++) same_shape = first_method.data.shapes[index] == second_method.data.shapes[index];
-      bool identical = same_shape && (class_count == 0 ? fleek_duplication_methods_identical(&parser, first, second) : fleek_constants_equal(&parser, first->name, second->name) && fleek_duplication_class_values_equal(&parser, &first_method, &second_method));
+      bool identical = same_shape && (class_count == 0 ? fleek_duplication_methods_identical(&parser, first, second) : fleek_constants_equal(&parser, first->name, second->name) && fleek_duplication_class_parameters_equal(&parser, first, second) && fleek_duplication_class_values_equal(&parser, &first_method, &second_method));
       int score = same_shape && mass >= (size_t) mass_threshold ? (int) mass * 2 * (identical ? 2 : 1) : 0;
       if (score > 0) snprintf(fleek_duplication_buffer, sizeof(fleek_duplication_buffer), "%d\t%d\t%zu\t%d\t%s", first_method.line, second_method.line, mass * 2, score, identical ? "identical" : "similar");
       pm_node_destroy(&parser, root);
@@ -1228,7 +1250,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods or simple classes with at most 32 direct body entries each and 16 supported parameterless methods total, using supported call, assignment, literal, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods or simple classes with at most 32 direct body entries each and 16 supported class-method candidates total; class methods accept up to 8 required positional parameters (no optional, rest, keyword, or block parameters), using supported call, assignment, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -1311,7 +1333,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: supported top-level methods or class methods in simple classes and one-level namespaces; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: parameterless top-level methods or class methods in simple classes and one-level namespaces with up to 8 required positional parameters; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter
