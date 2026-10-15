@@ -2,8 +2,9 @@ SPINEL ?= spinel
 SPINEL_ROOT ?= $(dir $(SPINEL))..
 export SPINEL SPINEL_ROOT
 FLEEK = build/fleek
+RUNTIME_REPETITIONS ?= 20
 
-.PHONY: all test verify-spinel mutation reference flay reek check rails-controller-parity package-macos-arm64 verify-macos-arm64-archive
+.PHONY: all test verify-spinel mutation reference flay reek check rails-controller-parity runtime-evidence package-macos-arm64 verify-macos-arm64-archive
 
 all: verify-spinel $(FLEEK)
 
@@ -27,6 +28,7 @@ test: verify-spinel $(FLEEK)
 	$(SPINEL) -E test/analysis_stdin_contract.rb
 	$(SPINEL) -E test/analysis_inputs_contract.rb
 	$(SPINEL) -E test/configuration_contract.rb
+	$(SPINEL) -E test/runtime_evidence_contract.rb
 
 mutation: verify-spinel $(FLEEK)
 	$(SPINEL) -E test/mutation_contract.rb
@@ -46,6 +48,9 @@ check: test mutation reference flay reek
 
 rails-controller-parity: all
 	FLEEK_REQUIRE_RAILS_CORPUS=1 $(SPINEL) -E test/duplication_contract.rb
+
+runtime-evidence: all
+	$(SPINEL) -E test/runtime_evidence.rb --measure $(RUNTIME_REPETITIONS)
 
 package-macos-arm64: all
 	mkdir -p build/fleek-0.1.0-macos-arm64/examples dist

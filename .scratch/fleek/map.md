@@ -6,7 +6,7 @@
 - One local Markdown issue per ticket in `issues/`, numbered globally in dependency order.
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
-- Tickets 01–14 and 18 resolved and pushed in order; ticket 14 records a real-project release blocker. Ticket 19 must close before runtime/archive/release tickets can pass.
+- Tickets 01–14, 16, and 18 resolved and pushed. Ticket 19 gates full Rails Flay parity; ticket 15 records bounded runtime evidence using complete supported workloads, while ticket 17 still tracks external release verification.
 - Ticket 19's pinned-controller contract now proves matching Flay findings while returning incomplete status; the exact Rails 25-file parity gate remains open.
 
 ## Decisions-so-far
@@ -31,13 +31,14 @@
 - Post-ADR 0029 corpus receipt: Flay matches score 48 at `UsersController:51,58`; Fleek still correctly reports incomplete because all 25 Flay sources remain partial. Reek remains complete and clean.
 - ADR 0030 adds local-variable assignments in class methods and preserves Flay's similar-versus-identical distinction when assigned names differ. Compound writes and class-level Rails declarations remain unsupported; the 25-file Flay gate stays open.
 - Latest pinned 25-file run: Flay reference still score 48 at `UsersController:51,58`; Reek reference clean. Fleek Reek covers 25/25, Flay covers 0/25 and exits incomplete. See current receipt in `docs/research/rails-project-parity.md`.
+- ADR 0033 records ticket 15's bounded performance workaround, fresh-process cache definition, equivalent workload checks, and evidence-derived p95 targets. Reek timing uses all 25 pinned Rails Ruby files; Flay/combined timing uses a fully analyzed duplicated class-method fixture because Rails Flay coverage remains partial.
 
 ## Fog
 
 - Native analyzer coverage starts with tickets 03–04's bounded ClassVariable slice; broader parity remains open.
 - Flay/Reek repository/tag identity and locked Ruby are established; future output-parity evidence remains open.
 - Ticket 02 proved only its named Ruby 4 newline-`&&` form and Spinel FFI declaration syntax; ticket 13 adds bounded ClassVariable/Flay behavior and reference parity, while broader grammar remains open.
-- Real Rails corpus is pinned by ticket 14. Ticket 18 makes the ClassVariable check complete on all 25 Ruby files; Flay still has 25 incomplete files and needs ticket 19. Release signing/runtime environment remains undecided.
+- Real Rails corpus is pinned by ticket 14. Ticket 18 makes ClassVariable complete on all 25 Ruby files; Flay still has 25 partial files and needs ticket 19. The native archive and bounded runtime evidence are verified; Developer ID signing, notarization, and external downloadable release remain open under ticket 17.
 
 ## Ticket 01 receipt
 
