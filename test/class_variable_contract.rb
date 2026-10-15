@@ -47,6 +47,32 @@ inherited_reference = AnalysisProcess.reek("test/fixtures/class_variable_inherit
 raise "inherited class status differs from Reek" if inherited[0] != inherited_reference[0]
 AnalysisRunner.assert_same_report(inherited, inherited_reference, "inherited class")
 
+namespaced = AnalysisProcess.fleek("test/fixtures/class_variable_namespaced.rb")
+namespaced_reference = AnalysisProcess.reek("test/fixtures/class_variable_namespaced.rb")
+raise "namespaced class status differs from Reek" unless namespaced[0] == namespaced_reference[0]
+AnalysisRunner.assert_same_report(namespaced, namespaced_reference, "namespaced class")
+raise "qualified class context missing" unless namespaced[1].include?("context=\"ApplicationCable::Connection\"")
+
+namespaced_module = AnalysisProcess.fleek("test/fixtures/class_variable_namespaced_module.rb")
+namespaced_module_reference = AnalysisProcess.reek("test/fixtures/class_variable_namespaced_module.rb")
+raise "namespaced module status differs from Reek" unless namespaced_module[0] == namespaced_module_reference[0]
+AnalysisRunner.assert_same_report(namespaced_module, namespaced_module_reference, "namespaced module")
+raise "qualified module context missing" unless namespaced_module[1].include?("context=\"ApplicationCable::Channel\"")
+
+namespaced_suppressed = AnalysisProcess.fleek("test/fixtures/class_variable_namespaced_suppressed.rb")
+namespaced_suppressed_reference = AnalysisProcess.reek("test/fixtures/class_variable_namespaced_suppressed.rb")
+raise "namespaced suppression status differs from Reek" unless namespaced_suppressed[0] == namespaced_suppressed_reference[0]
+AnalysisRunner.assert_same_report(namespaced_suppressed, namespaced_suppressed_reference, "namespaced suppression")
+
+too_deep = AnalysisProcess.fleek("test/fixtures/class_variable_namespace_too_deep.rb")
+raise "deep namespace was not reported incomplete" unless too_deep[0] == 1 && too_deep[1].include?("Status: incomplete")
+
+namespace_and_child = AnalysisProcess.fleek("test/fixtures/class_variable_namespace_and_child.rb")
+raise "unreported namespace occurrence implied complete analysis" unless namespace_and_child[0] == 1 && namespace_and_child[1].include?("Status: incomplete")
+
+wrapped_namespace_child = AnalysisProcess.fleek("test/fixtures/class_variable_namespace_wrapped_child.rb")
+raise "wrapped namespace child was accepted" unless wrapped_namespace_child[0] == 1 && wrapped_namespace_child[1].include?("Status: incomplete")
+
 unselected = AnalysisProcess.unselected("test/fixtures/class_variable.rb")
 raise "omitted check selection was accepted" unless unselected[0] == 1 && unselected[2].include?("unsupported")
 

@@ -6,7 +6,7 @@
 - One local Markdown issue per ticket in `issues/`, numbered globally in dependency order.
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
-- Tickets 01–14 resolved and pushed in order; ticket 14 records a real-project release blocker. Tickets 18–19 must close before runtime/archive/release tickets can pass.
+- Tickets 01–14 and 18 resolved and pushed in order; ticket 14 records a real-project release blocker. Ticket 19 must close before runtime/archive/release tickets can pass.
 
 ## Decisions-so-far
 
@@ -20,14 +20,14 @@
 - Ticket 10 supports validated `--mass MASS`, and ticket 11 adds deterministic two-method cross-file groups and partial-input status; see ADR 0017 for the shared grammar, pruning boundary, and per-file score allocation.
 - Ticket 12 combines explicitly selected Flay and Reek checks with independent exclusions and one incomplete/finding/complete outcome; see ADR 0018 for syntax boundaries, equivalent-reference parity, and deliberate exit-status normalization.
 - Ticket 13 proves bounded Ruby 4 and pinned Spinel analysis, inert source processing, and reference-backed Flay extension parity; see ADR 0019 for the supported integer-`&&`/`ffi_func` shapes and separate Flay node-mass/group-score reporting.
-- Ticket 14 pins the real Rails corpus and records exact incomplete parity; see ADR 0020. Tickets 18–19 gate release/runtime work until namespace and class-method coverage matches references.
+- Ticket 14 pins the real Rails corpus and records exact initial parity; see ADR 0020. Ticket 18 closes namespaced ClassVariable parity (ADR 0021); ticket 19's Flay class-method gap still gates release/runtime work.
 
 ## Fog
 
 - Native analyzer coverage starts with tickets 03–04's bounded ClassVariable slice; broader parity remains open.
 - Flay/Reek repository/tag identity and locked Ruby are established; future output-parity evidence remains open.
 - Ticket 02 proved only its named Ruby 4 newline-`&&` form and Spinel FFI declaration syntax; ticket 13 adds bounded ClassVariable/Flay behavior and reference parity, while broader grammar remains open.
-- Real Rails corpus is pinned by ticket 14, but full parity is blocked: two namespaced ClassVariable inputs and 25 Flay inputs remain incomplete. Tickets 18–19 track closure. Release signing/runtime environment remains undecided.
+- Real Rails corpus is pinned by ticket 14. Ticket 18 makes the ClassVariable check complete on all 25 Ruby files; Flay still has 25 incomplete files and needs ticket 19. Release signing/runtime environment remains undecided.
 
 ## Ticket 01 receipt
 

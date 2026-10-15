@@ -1,0 +1,4 @@
+detectors:
+  ClassVariable:
+    exclude:
+      - ApplicationCable::Connection

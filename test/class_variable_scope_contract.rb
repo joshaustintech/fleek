@@ -22,7 +22,7 @@ top_level_reference = AnalysisRunner.reek(top_level_path)
 raise "top-level behavior differs from Reek" unless top_level[0] == top_level_reference[0]
 
 nested = AnalysisRunner.fleek("test/fixtures/class_variable_nested.rb")
-raise "nested scopes were silently reported" unless nested[0] == 1 && nested[2].include?("nested classes or modules")
+raise "nested scopes were silently reported" unless nested[0] == 1 && nested[2].include?("other scope shapes are unsupported")
 reopened = AnalysisRunner.fleek("test/fixtures/class_variable_reopen.rb")
 raise "reopened classes were silently reported" unless reopened[0] == 1 && reopened[2].include?("one simple class")
 

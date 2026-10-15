@@ -49,7 +49,7 @@ BUNDLE_PATH=/path/to/fleek-bundle bundle exec reek --smell ClassVariable --no-pr
 build/fleek --checks flay:StructuralDuplication,reek:ClassVariable /tmp/fleek-rails-corpus/app/**/*.rb
 ```
 
-Evidence captured with Ruby 3.4.9 arm64-darwin23, Flay 2.14.4, Reek 6.6.0, and Spinel 2026.09.12 / source `112bae85c1a25fc5399009a849f805bfe691426b`:
+The table below is the T14 baseline at Fleek commit `dd7f86442b8e7df84e4ea3e3c1fb77b7d5de1781`, before ticket 18 added namespace support. Evidence used Ruby 3.4.9 arm64-darwin23, Flay 2.14.4, Reek 6.6.0, and Spinel 2026.09.12 / source `112bae85c1a25fc5399009a849f805bfe691426b`:
 
 | Check | Unchanged reference | Fleek on same 25 Ruby files | Result |
 | --- | --- | --- | --- |
@@ -65,10 +65,24 @@ Similar code found in :defn (mass = 48)
   app/controllers/users_controller.rb:58
 ```
 
-The directory-level Flay run also sees ERB templates and reports score 418; that is intentionally not compared to Fleek because it is a different source set. There are no findings edited out of the pinned corpus. Do not describe the clean Reek reference output as a successful Fleek check: Fleek reports the 2 namespace failures and 25 Flay failures.
+The directory-level Flay run also sees ERB templates and reports score 418; that is intentionally not compared to Fleek because it is a different source set. There are no findings edited out of the pinned corpus. Do not describe the clean Reek reference output as a successful Fleek check: the T14 baseline reported 2 namespace failures and 25 Flay failures.
+
+## Ticket 18 follow-up
+
+Ticket 18 supports one simple module namespace around a direct class or module. The same selected ClassVariable check was rerun on the unchanged 25-file manifest:
+
+```text
+build/fleek --checks reek:ClassVariable /tmp/fleek-rails-corpus/app/**/*.rb
+Coverage: 25 selected; 25 analyzed; 0 failed; 0 excluded
+Status: complete
+Reek 6.6.0: 0 total warnings
+Both exit statuses: 0
+```
+
+The output matches Reek's clean ClassVariable result. The combined run remains incomplete because Flay cannot analyze ordinary class methods; its baseline score-48 group is unchanged. Deeper namespace shapes and class-variable occurrences on the namespace itself fail closed. See [ADR 0021](../adr/0021-single-level-ruby-namespace-analysis.md).
 
 ## Decision and next work
 
-The real project is locked as the parity corpus, but this receipt does not prove full parity. Keep release and cold-runtime claims blocked until Fleek can analyze namespaced class/module contexts and the upstream Flay structural shapes found in ordinary Rails classes, then compare all findings, locations, grouping, score, order, and statuses on this exact manifest. Ticket 18 tracks that extension work. See [ADR 0020](../adr/0020-rails-parity-corpus-and-release-gate.md).
+The real project is locked as the parity corpus, but this receipt does not prove full parity. Keep release and cold-runtime claims blocked until Fleek can analyze the upstream Flay structural shapes found in ordinary Rails classes, then compare all findings, locations, grouping, score, order, and statuses on this exact manifest. Ticket 19 tracks the remaining gap; ticket 18 closes the ClassVariable namespace gap. See [ADR 0020](../adr/0020-rails-parity-corpus-and-release-gate.md).
 
 Primary corpus references: [pinned commit](https://github.com/JetBrains/sample_rails_app_8th_ed/commit/92ce7c470bc31952d7dc51cac15e577a948e479e), [tree manifest](https://api.github.com/repos/JetBrains/sample_rails_app_8th_ed/git/trees/a26706bd73befbaa3d1c3cf8d2d46c3ecf41a470?recursive=1), [lockfile](https://github.com/JetBrains/sample_rails_app_8th_ed/blob/92ce7c470bc31952d7dc51cac15e577a948e479e/Gemfile.lock), [Ruby version](https://github.com/JetBrains/sample_rails_app_8th_ed/blob/92ce7c470bc31952d7dc51cac15e577a948e/.ruby-version), [license and notices](https://github.com/JetBrains/sample_rails_app_8th_ed/blob/92ce7c470bc31952d7dc51cac15e577a948e/LICENSE.md).

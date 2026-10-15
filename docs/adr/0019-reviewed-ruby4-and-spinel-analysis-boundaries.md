@@ -12,7 +12,7 @@ T12's report also printed Flay's identical-group score in the `mass` field. Pinn
 
 ## Decision
 
-Keep analyzed source parsing pinned to Prism 1.9.0's explicit Ruby 4.0 grammar. ClassVariable analyzes exactly one simple top-level class (including a superclass) or one simple top-level module, with no nested class/module scopes. It reports direct class-variable occurrences with original source lines and honors the existing adjacent `# :reek:ClassVariable` suppression comment for either scope. A simple module can contain Spinel's compile-time `ffi_func` declaration and ordinary inert calls; Fleek reads but never loads `require`, invokes FFI declarations, or executes source.
+Keep analyzed source parsing pinned to Prism 1.9.0's explicit Ruby 4.0 grammar. ClassVariable analyzes one simple class or module, optionally directly inside one simple module namespace, and accepts a class superclass. Deeper, sibling, reopened, and ambiguous namespace scopes remain unsupported. It reports direct class-variable occurrences with original source lines and honors the existing adjacent `# :reek:ClassVariable` suppression comment for the selected scope. A simple module can contain Spinel's compile-time `ffi_func` declaration and ordinary inert calls; Fleek reads but never loads `require`, invokes FFI declarations, or executes source.
 
 The demonstrated Ruby 4 behavior is limited to the newline-leading `&&` expression inside one method, plus direct class-variable detection and suppression in the containing simple class. Reek 6.6.0's Parser 3.3.12 rejects that source with `unexpected token tAMPER` on stderr while returning exit 0. Treat its diagnostic as reference rejection, never as a clean result or parity proof. Ruby 4 findings are separately reviewed extension behavior.
 
@@ -26,7 +26,7 @@ Report Flay node mass and group score as separate values, including for identica
 
 ## Consequences
 
-Fleek analyzes one simple class or module for ClassVariable while continuing to fail closed on nested scopes. A class superclass is accepted; namespace nesting is still unsupported. A Spinel FFI source example produces a real ClassVariable finding with its original path and line; Ruby 4-only syntax produces a separately reviewed finding with original location. Structural duplication supports only the two reference-verified extension shapes above; unsupported variants remain incomplete. See [ADR 0020](0020-rails-parity-corpus-and-release-gate.md) for the real Rails coverage gate.
+Fleek analyzes one simple class or module for ClassVariable, optionally in one module namespace, while continuing to fail closed on deeper or ambiguous scopes. Outer-namespace class-variable occurrences also fail closed so a second Reek context cannot be omitted. A Spinel FFI source example produces a real ClassVariable finding with its original path and line; Ruby 4-only syntax produces a separately reviewed finding with original location. Structural duplication supports only the two reference-verified extension shapes above; unsupported variants remain incomplete. See [ADR 0020](0020-rails-parity-corpus-and-release-gate.md) for the real Rails coverage gate and [ADR 0021](0021-single-level-ruby-namespace-analysis.md) for namespace behavior.
 
 ## Evidence
 

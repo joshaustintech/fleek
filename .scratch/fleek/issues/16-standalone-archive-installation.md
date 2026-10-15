@@ -2,7 +2,7 @@
 
 **What to build:** A user extracts a versioned macOS arm64 archive and runs the real supported checks without Ruby, Flay, or Reek installed. Parent specification: Standalone native release and performance evidence.
 
-**Blocked by:** 14 Real Rails project parity; 18 Namespaced ClassVariable contexts; 19 Rails Flay class-method parity.
+**Blocked by:** 14 Real Rails project parity; 19 Rails Flay class-method parity.
 
 **Status:** open
 **Type:** task

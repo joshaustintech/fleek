@@ -41,7 +41,9 @@ class Fleek
     static int fleek_suppressed;
     static int fleek_bad_suppression;
     static const pm_node_t *fleek_only_scope;
+    static const pm_node_t *fleek_namespace_scope;
     static const uint8_t *fleek_source_start;
+    static char fleek_scope_name[512];
 
     static bool fleek_only_comments_between(const uint8_t *start, const uint8_t *end) {
       const uint8_t *cursor = start;
@@ -105,7 +107,35 @@ class Fleek
     static bool fleek_collect_classes(const pm_node_t *node, void *data) {
       (void) data;
       if (PM_NODE_TYPE_P(node, PM_CLASS_NODE)) { fleek_class_count++; fleek_only_scope = node; }
-      if (PM_NODE_TYPE_P(node, PM_MODULE_NODE)) { fleek_module_count++; fleek_only_scope = node; }
+      if (PM_NODE_TYPE_P(node, PM_MODULE_NODE)) {
+        fleek_module_count++;
+        if (fleek_module_count == 1) fleek_namespace_scope = node;
+        fleek_only_scope = node;
+      }
+      return true;
+    }
+
+    static bool fleek_scope_contains(const pm_node_t *outer, const pm_node_t *inner) {
+      return outer != NULL && inner != NULL && outer != inner && outer->location.start <= inner->location.start && outer->location.end >= inner->location.end;
+    }
+
+    static bool fleek_module_has_direct_child(const pm_node_t *module, const pm_node_t *child) {
+      const pm_node_t *body = ((const pm_module_node_t *) module)->body;
+      if (!PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) return false;
+      const pm_node_list_t *statements = &((const pm_statements_node_t *) body)->body;
+      for (size_t index = 0; index < statements->size; index++) {
+        if (statements->nodes[index] == child) return true;
+      }
+      return false;
+    }
+
+    static bool fleek_namespace_has_class_variables(const pm_node_t *node, void *data) {
+      bool *found = (bool *) data;
+      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE) || PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
+      if (node->type >= PM_CLASS_VARIABLE_AND_WRITE_NODE && node->type <= PM_CLASS_VARIABLE_WRITE_NODE) {
+        *found = true;
+        return false;
+      }
       return true;
     }
 
@@ -163,6 +193,8 @@ class Fleek
       fleek_suppressed = fleek_bad_suppression = 0;
       fleek_group_count = 0;
       fleek_only_scope = NULL;
+      fleek_namespace_scope = NULL;
+      fleek_scope_name[0] = 0;
       if (memchr(source, 0, length) != NULL) return -2;
       fleek_source_start = (const uint8_t *) source;
       pm_options_t options = {0};
@@ -183,14 +215,24 @@ class Fleek
       }
       bool simple_class = fleek_class_count == 1 && fleek_module_count == 0;
       bool simple_module = fleek_class_count == 0 && fleek_module_count == 1;
-      if ((!simple_class && !simple_module) || fleek_unsupported) {
+      bool namespaced_scope = fleek_scope_contains(fleek_namespace_scope, fleek_only_scope) &&
+        fleek_module_has_direct_child(fleek_namespace_scope, fleek_only_scope) &&
+        ((fleek_class_count == 1 && fleek_module_count == 1) || (fleek_class_count == 0 && fleek_module_count == 2));
+      if ((!simple_class && !simple_module && !namespaced_scope) || fleek_unsupported) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+      }
+      if (namespaced_scope) {
+        const pm_node_t *namespace_body = PM_NODE_TYPE_P(fleek_namespace_scope, PM_MODULE_NODE) ? ((const pm_module_node_t *) fleek_namespace_scope)->body : NULL;
+        bool namespace_has_occurrences = false;
+        if (namespace_body != NULL) pm_visit_node(namespace_body, fleek_namespace_has_class_variables, &namespace_has_occurrences);
+        if (namespace_has_occurrences) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
       }
       const pm_node_t *scope_node = fleek_only_scope;
       pm_node_t *constant_path = NULL;
       pm_node_t *scope_body = NULL;
       const uint8_t *scope_keyword = NULL;
-      if (simple_class) {
+      pm_node_t *namespace_constant_path = NULL;
+      if (fleek_class_count == 1) {
         const pm_class_node_t *class_node = (const pm_class_node_t *) scope_node;
         constant_path = class_node->constant_path;
         scope_body = class_node->body;
@@ -205,7 +247,23 @@ class Fleek
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
       pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((pm_constant_read_node_t *) constant_path)->name);
-      fleek_class_t scope = { &parser, (const char *) class_name->start, class_name->length, 0 };
+      const char *scope_name = (const char *) class_name->start;
+      size_t scope_name_length = class_name->length;
+      if (namespaced_scope) {
+        const pm_module_node_t *namespace_node = (const pm_module_node_t *) fleek_namespace_scope;
+        namespace_constant_path = namespace_node->constant_path;
+        if (!PM_NODE_TYPE_P(namespace_constant_path, PM_CONSTANT_READ_NODE)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        pm_constant_t *namespace_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((pm_constant_read_node_t *) namespace_constant_path)->name);
+        int written = snprintf(fleek_scope_name, sizeof(fleek_scope_name), "%.*s::%.*s", (int) namespace_name->length, namespace_name->start, (int) class_name->length, class_name->start);
+        if (written < 0 || (size_t) written >= sizeof(fleek_scope_name)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        scope_name = fleek_scope_name;
+        scope_name_length = (size_t) written;
+      }
+      fleek_class_t scope = { &parser, scope_name, scope_name_length, 0 };
       pm_list_node_t *comment_node = parser.comment_list.head;
       while (comment_node != NULL) {
         pm_comment_t *comment = (pm_comment_t *) comment_node;
@@ -1549,7 +1607,7 @@ class Fleek
   end
 
   def self.report_unsupported_class(path)
-    warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class or module without nested classes or modules."
+    warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class or module (optionally within one simple module namespace); other scope shapes are unsupported."
     1
   end
 
