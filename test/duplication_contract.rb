@@ -16,6 +16,7 @@ class DuplicationProcess
     conditionals: ClassMethodExpectation.new("similar", 62, 62, 14, "Similar code found in :defn (mass = 62)", "conditional class method parity differed"),
     unless_branches: ClassMethodExpectation.new("similar", 62, 62, 14, "Similar code found in :defn (mass = 62)", "unless class method parity differed"),
     conditional_return: ClassMethodExpectation.new("similar", 44, 44, 10, "Similar code found in :defn (mass = 44)", "conditional return class method parity differed"),
+    or_expression: ClassMethodExpectation.new("similar", 34, 34, 12, "Similar code found in :defn (mass = 34)", "class-method OR expression parity differed"),
     local_writes: ClassMethodExpectation.new("similar", 38, 38, 10, "Similar code found in :defn (mass = 38)", "local-write class method parity differed"),
     local_write_names: ClassMethodExpectation.new("similar", 42, 42, 20, "Similar code found in :defn (mass = 42)", "local-write identity parity differed"),
     candidate_capacity: ClassMethodExpectation.new("similar", 62, 62, 31, "Similar code found in :defn (mass = 62)", "class-method candidate capacity parity differed", 19),
@@ -106,7 +107,7 @@ class DuplicationProcess
     score = expectation.score
     mass = expectation.mass
     line = expectation.second_line
-    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "bounded if/else/unless branches", "return statements with supported values", "local-variable assignments", "Total duplication score: #{score}"], expectation.message)
+    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "bounded if/else/unless branches", "boolean OR expressions", "return statements with supported values", "local-variable assignments", "Total duplication score: #{score}"], expectation.message)
   end
 
   def self.class_method_reference_expectation(path, expectation)
@@ -293,6 +294,7 @@ DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_m
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_conditionals.rb", :conditionals)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_unless.rb", :unless_branches)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_conditional_return.rb", :conditional_return)
+DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_or.rb", :or_expression)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_local_writes.rb", :local_writes)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_local_write_names.rb", :local_write_names)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_candidate_capacity.rb", :candidate_capacity)

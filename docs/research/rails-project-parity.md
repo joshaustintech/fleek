@@ -124,6 +124,12 @@ Ordinary local-variable assignment nodes are now supported in class-method trees
 
 The exact 25-file Rails manifest was rerun after this slice with the same selected Flay and Reek checks. Flay 2.14.4 reports total score 48 and one similar `:defn` group at `users_controller.rb:51,58`. Fleek reports the same group, locations, mass, and score; Reek analyzes all 25 files with no findings. Fleek reports Flay coverage as 25 selected, 0 analyzed, and 25 partial, overall status incomplete, and exit 1. The local-assignment slice does not change the manifest result; class-level Rails DSL and other AST forms remain uncovered, so ticket 19 stays open.
 
+## Ticket 19 boolean-OR slice
+
+Prism `OrNode` is now supported in bounded class-method ASTs and contributes its operator node to structural equality and mass. On identical fixture input, Flay 2.14.4 and Fleek match a similar `:defn` group at mass/score 34 and ordered lines 2/12. A focused mutation removes OR support and is caught by the public duplication contract. ADR 0031 records this boundary; class-level Rails declarations remain outside the supported candidate model.
+
+After OR support, the exact 25-file manifest still produces Flay score 48 at `users_controller.rb:51,58`, the matching Fleek group and score, and clean Reek findings over 25/25 files. Fleek reports Flay coverage 0/25 analyzed and 25 partial, overall incomplete, exit 1. This is the recorded difference from a complete analysis and keeps the release gate open.
+
 ## Decision and next work
 
 The real project is locked as the parity corpus, but this receipt does not prove full parity. Keep release and cold-runtime claims blocked until Fleek can analyze all relevant upstream Flay structures in ordinary Rails classes, then compare all findings, locations, grouping, score, order, and statuses on this exact manifest. Ticket 19 tracks the remaining gap; ticket 18 closes the ClassVariable namespace gap. See [ADR 0020](../adr/0020-rails-parity-corpus-and-release-gate.md).

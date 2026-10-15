@@ -146,3 +146,9 @@
 - ADR 0027 records bounded `if`/`else` support and Flay's mass treatment of the else wrapper.
 - Pinned Flay 2.14.4 and Fleek match the conditional class-method fixture at mass/score 62, lines 2 and 14. Mutations protect branch collection and mass.
 - `unless` and other unsupported control flow remain partial; the pinned full manifest remains open.
+
+## Ticket 19 boolean-OR receipt
+
+- ADR 0031 records bounded Prism `OrNode` support inside class-method candidates.
+- Pinned Flay 2.14.4 and Fleek match the paired fixture as similar `:defn` groups at mass/score 34, lines 2 and 12. A focused mutation protects OR support.
+- Class-level Rails declarations remain unsupported, so exact-manifest completion remains open.
