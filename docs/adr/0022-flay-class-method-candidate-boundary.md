@@ -14,8 +14,8 @@ Extend the bounded Flay adapter to accept exactly one simple class containing ex
 
 ## Consequences
 
-The class-method seam now matches unchanged Flay 2.14.4 on a public CLI fixture, including node mass and source lines. This is only an implementation slice: the complete 25-file Rails manifest remains the release gate, and unsupported source shapes continue to report incomplete. Further AST support requires its own reference-backed contracts and mutations.
+The class-method seam now matches unchanged Flay 2.14.4 at its default mass on a public CLI fixture, including node mass and source lines. This is only an implementation slice: the complete 25-file Rails manifest remains the release gate, and unsupported source shapes continue to report incomplete. Further AST support requires its own reference-backed contracts and mutations.
 
 ## Evidence
 
-`test/duplication_contract.rb` compares a direct class with two methods against locked Flay 2.14.4 at an explicit mass threshold. A mutation disabling class-method candidate collection is required to fail that public CLI contract.
+`test/duplication_contract.rb` compares a direct class with two methods against locked Flay 2.14.4 at the default mass threshold. A mutation disabling class-method candidate collection is required to fail that public CLI contract.

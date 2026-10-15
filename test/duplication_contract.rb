@@ -157,10 +157,10 @@ DuplicationProcess.verify_output(nested, nested_fleek_expectation)
 DuplicationProcess.verify(nested[2].include?("unsupported Flay candidate syntax"), "nested Flay candidates were silently omitted")
 
 class_methods_path = "test/fixtures/duplication_class_methods.rb"
-class_methods = DuplicationProcess.run(DuplicationProcess::Input.new(class_methods_path, "fleek", "--mass", 3))
-class_methods_reference = DuplicationProcess.run(DuplicationProcess::Input.new(class_methods_path, "flay", "--mass", 3))
-class_methods_reference_valid = class_methods_reference[0] == 0 && DuplicationProcess.includes_all?(class_methods_reference[1], ["Similar code found in :defn (mass = 10)", "#{class_methods_path}:2", "#{class_methods_path}:8"])
+class_methods = DuplicationProcess.run(DuplicationProcess::Input.new(class_methods_path, "fleek", ""))
+class_methods_reference = DuplicationProcess.run(DuplicationProcess::Input.new(class_methods_path, "flay", ""))
+class_methods_reference_valid = class_methods_reference[0] == 0 && DuplicationProcess.includes_all?(class_methods_reference[1], ["Similar code found in :defn (mass = 32)", "#{class_methods_path}:2", "#{class_methods_path}:19"])
 DuplicationProcess.verify(class_methods_reference_valid, "class method Flay reference changed")
-DuplicationProcess.verify(class_methods[0] == 2 && class_methods[1].include?("Status: findings") && class_methods[1].include?("#{class_methods_path}:2,#{class_methods_path}:8") && class_methods[1].include?("mass=10 score=10"), "class method candidates were not analyzed")
+DuplicationProcess.verify(class_methods[0] == 2 && class_methods[1].include?("Status: findings") && class_methods[1].include?("#{class_methods_path}:2,#{class_methods_path}:19") && class_methods[1].include?("mass=32 score=32"), "class method candidates were not analyzed")
 
 puts "Duplication contract: pass"
