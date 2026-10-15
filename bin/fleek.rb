@@ -40,7 +40,7 @@ class Fleek
     static int fleek_unsupported;
     static int fleek_suppressed;
     static int fleek_bad_suppression;
-    static const pm_class_node_t *fleek_only_class;
+    static const pm_node_t *fleek_only_scope;
     static const uint8_t *fleek_source_start;
 
     static bool fleek_only_comments_between(const uint8_t *start, const uint8_t *end) {
@@ -104,8 +104,8 @@ class Fleek
 
     static bool fleek_collect_classes(const pm_node_t *node, void *data) {
       (void) data;
-      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE)) { fleek_class_count++; fleek_only_class = (const pm_class_node_t *) node; }
-      if (PM_NODE_TYPE_P(node, PM_MODULE_NODE)) fleek_module_count++;
+      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE)) { fleek_class_count++; fleek_only_scope = node; }
+      if (PM_NODE_TYPE_P(node, PM_MODULE_NODE)) { fleek_module_count++; fleek_only_scope = node; }
       return true;
     }
 
@@ -162,7 +162,7 @@ class Fleek
       fleek_class_count = fleek_module_count = fleek_finding_count = fleek_unsupported = 0;
       fleek_suppressed = fleek_bad_suppression = 0;
       fleek_group_count = 0;
-      fleek_only_class = NULL;
+      fleek_only_scope = NULL;
       if (memchr(source, 0, length) != NULL) return -2;
       fleek_source_start = (const uint8_t *) source;
       pm_options_t options = {0};
@@ -181,21 +181,38 @@ class Fleek
       if (fleek_class_count == 0 && fleek_module_count == 0) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
       }
-      if (fleek_class_count != 1 || fleek_module_count != 0 || fleek_unsupported) {
+      bool simple_class = fleek_class_count == 1 && fleek_module_count == 0;
+      bool simple_module = fleek_class_count == 0 && fleek_module_count == 1;
+      if ((!simple_class && !simple_module) || fleek_unsupported) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
-      const pm_class_node_t *class_node = fleek_only_class;
-      if (class_node == NULL || class_node->superclass != NULL || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE)) {
+      const pm_node_t *scope_node = fleek_only_scope;
+      pm_node_t *constant_path = NULL;
+      pm_node_t *scope_body = NULL;
+      const uint8_t *scope_keyword = NULL;
+      if (simple_class) {
+        const pm_class_node_t *class_node = (const pm_class_node_t *) scope_node;
+        constant_path = class_node->constant_path;
+        scope_body = class_node->body;
+        scope_keyword = class_node->class_keyword_loc.start;
+        if (class_node->superclass != NULL) scope_node = NULL;
+      } else {
+        const pm_module_node_t *module_node = (const pm_module_node_t *) scope_node;
+        constant_path = module_node->constant_path;
+        scope_body = module_node->body;
+        scope_keyword = module_node->module_keyword_loc.start;
+      }
+      if (scope_node == NULL || !PM_NODE_TYPE_P(constant_path, PM_CONSTANT_READ_NODE)) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
-      pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((pm_constant_read_node_t *) class_node->constant_path)->name);
+      pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((pm_constant_read_node_t *) constant_path)->name);
       fleek_class_t scope = { &parser, (const char *) class_name->start, class_name->length, 0 };
       pm_list_node_t *comment_node = parser.comment_list.head;
       while (comment_node != NULL) {
         pm_comment_t *comment = (pm_comment_t *) comment_node;
         int suppression = fleek_comment_suppression(comment);
-        if (comment->location.end <= class_node->class_keyword_loc.start && suppression != 0) {
-          if (fleek_only_comments_between(comment->location.end, class_node->class_keyword_loc.start)) {
+        if (comment->location.end <= scope_keyword && suppression != 0) {
+          if (fleek_only_comments_between(comment->location.end, scope_keyword)) {
             if (suppression < 0) fleek_bad_suppression = 1;
             if (suppression == 1) fleek_suppressed = 1;
           }
@@ -208,7 +225,7 @@ class Fleek
       if (fleek_suppressed) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
       }
-      if (class_node->body != NULL) pm_visit_node(class_node->body, fleek_class_variables, &scope);
+      if (scope_body != NULL) pm_visit_node(scope_body, fleek_class_variables, &scope);
       if (fleek_unsupported) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
@@ -222,7 +239,7 @@ class Fleek
 
     const char *fleek_class_variable_finding(void) { return fleek_finding_buffer; }
 
-    enum { FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT = 0, FLEEK_DUPLICATION_CALL_STATEMENT = 1, FLEEK_DUPLICATION_INTEGER_STATEMENT = 2 };
+    enum { FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT = 0, FLEEK_DUPLICATION_CALL_STATEMENT = 1, FLEEK_DUPLICATION_INTEGER_STATEMENT = 2, FLEEK_DUPLICATION_RUBY4_AND_STATEMENT = 3 };
 
     static int fleek_duplication_statement_tag(const pm_node_t *node) {
       if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
@@ -231,6 +248,10 @@ class Fleek
         return FLEEK_DUPLICATION_CALL_STATEMENT;
       }
       if (PM_NODE_TYPE_P(node, PM_INTEGER_NODE)) return FLEEK_DUPLICATION_INTEGER_STATEMENT;
+      if (PM_NODE_TYPE_P(node, PM_AND_NODE)) {
+        const pm_and_node_t *logical_and = (const pm_and_node_t *) node;
+        if (PM_NODE_TYPE_P(logical_and->left, PM_INTEGER_NODE) && PM_NODE_TYPE_P(logical_and->right, PM_TRUE_NODE)) return FLEEK_DUPLICATION_RUBY4_AND_STATEMENT;
+      }
       return FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT;
     }
 
@@ -246,9 +267,21 @@ class Fleek
       for (size_t statement = 0; statement < body->body.size; statement++) {
         int tag = fleek_duplication_statement_tag(body->body.nodes[statement]);
         if (tag == FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT) return false;
+        if (tag == FLEEK_DUPLICATION_RUBY4_AND_STATEMENT && statement + 1 != body->body.size) return false;
         result->shapes[statement] = tag;
       }
       return true;
+    }
+
+    static bool fleek_ffi_declaration_module(const pm_node_t *node, pm_parser_t *parser) {
+      if (!PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
+      const pm_module_node_t *module_node = (const pm_module_node_t *) node;
+      if (!PM_NODE_TYPE_P(module_node->constant_path, PM_CONSTANT_READ_NODE) || !PM_NODE_TYPE_P(module_node->body, PM_STATEMENTS_NODE)) return false;
+      const pm_statements_node_t *body = (const pm_statements_node_t *) module_node->body;
+      if (body->body.size != 1 || !PM_NODE_TYPE_P(body->body.nodes[0], PM_CALL_NODE)) return false;
+      const pm_call_node_t *declaration = (const pm_call_node_t *) body->body.nodes[0];
+      pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, declaration->name);
+      return declaration->receiver == NULL && declaration->block == NULL && name->length == 8 && memcmp(name->start, "ffi_func", 8) == 0;
     }
 
     static bool fleek_constants_equal(pm_parser_t *parser, pm_constant_id_t left, pm_constant_id_t right) {
@@ -268,6 +301,10 @@ class Fleek
           if (!fleek_constants_equal(parser, ((const pm_call_node_t *) left_statement)->name, ((const pm_call_node_t *) right_statement)->name)) return false;
         } else if (PM_NODE_TYPE_P(left_statement, PM_INTEGER_NODE) && PM_NODE_TYPE_P(right_statement, PM_INTEGER_NODE)) {
           if (pm_integer_compare(&((const pm_integer_node_t *) left_statement)->value, &((const pm_integer_node_t *) right_statement)->value) != 0) return false;
+        } else if (PM_NODE_TYPE_P(left_statement, PM_AND_NODE) && PM_NODE_TYPE_P(right_statement, PM_AND_NODE)) {
+          const pm_and_node_t *left_and = (const pm_and_node_t *) left_statement;
+          const pm_and_node_t *right_and = (const pm_and_node_t *) right_statement;
+          if (pm_integer_compare(&((const pm_integer_node_t *) left_and->left)->value, &((const pm_integer_node_t *) right_and->left)->value) != 0) return false;
         } else {
           return false;
         }
@@ -297,8 +334,16 @@ class Fleek
       fleek_duplication_method_t first_method = {0}, second_method = {0};
       const pm_def_node_t *methods[2] = { NULL, NULL };
       size_t method_count = 0;
+      size_t ffi_module_count = 0;
       for (size_t index = 0; index < program->statements->body.size; index++) {
         pm_node_t *statement = program->statements->body.nodes[index];
+        if (PM_NODE_TYPE_P(statement, PM_MODULE_NODE)) {
+          if (ffi_module_count != 0 || method_count != 0 || !fleek_ffi_declaration_module(statement, &parser)) {
+            pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
+          }
+          ffi_module_count++;
+          continue;
+        }
         if (!PM_NODE_TYPE_P(statement, PM_DEF_NODE)) {
           if (!PM_NODE_TYPE_P(statement, PM_NIL_NODE)) {
             pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
@@ -316,11 +361,14 @@ class Fleek
       const pm_def_node_t *first = methods[0];
       const pm_def_node_t *second = methods[1];
       size_t mass = 2 + first_method.shape_count;
+      for (size_t index = 0; index < first_method.shape_count; index++) {
+        if (first_method.shapes[index] == FLEEK_DUPLICATION_RUBY4_AND_STATEMENT) mass += 2;
+      }
       bool same_shape = first_method.shape_count == second_method.shape_count;
       for (size_t index = 0; same_shape && index < first_method.shape_count; index++) same_shape = first_method.shapes[index] == second_method.shapes[index];
       bool identical = same_shape && fleek_duplication_methods_identical(&parser, first, second);
       int score = same_shape && mass >= (size_t) mass_threshold ? (int) mass * 2 * (identical ? 2 : 1) : 0;
-      if (score > 0) snprintf(fleek_duplication_buffer, sizeof(fleek_duplication_buffer), "%d\t%d\t%zu\t%d\t%s", first_method.line, second_method.line, mass, score, identical ? "identical" : "similar");
+      if (score > 0) snprintf(fleek_duplication_buffer, sizeof(fleek_duplication_buffer), "%d\t%d\t%zu\t%d\t%s", first_method.line, second_method.line, mass * 2, score, identical ? "identical" : "similar");
       pm_node_destroy(&parser, root);
       pm_parser_free(&parser);
       pm_options_free(&options);
@@ -966,7 +1014,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: exactly two top-level parameterless methods across selected Ruby files; bare calls and integer literals; Flay mass #{mass_threshold}."
+    puts "Scope limits: exactly two top-level parameterless methods across selected Ruby files; bare calls, integer literals, Ruby 4 integer && true, and one simple ffi_func module; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter
@@ -1020,10 +1068,10 @@ class Fleek
   end
 
   def self.print_duplication_group(source_map)
-    first_line, second_line, _node_mass, group_score, kind = NativePrism.fleek_structural_duplication_finding.split("\t")
+    first_line, second_line, node_mass, group_score, kind = NativePrism.fleek_structural_duplication_finding.split("\t")
     locations = [duplication_source_location(first_line.to_i, source_map), duplication_source_location(second_line.to_i, source_map)]
     location_text = locations.join(",")
-    puts "  Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=#{quote_text(kind)} locations=#{quote_text(location_text)} mass=#{group_score} score=#{group_score}"
+    puts "  Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=#{quote_text(kind)} locations=#{quote_text(location_text)} mass=#{node_mass} score=#{group_score}"
     locations
   end
 
@@ -1502,7 +1550,7 @@ class Fleek
   end
 
   def self.report_unsupported_class(path)
-    warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class without inheritance or nested classes or modules."
+    warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class or module without inheritance or nested classes or modules."
     1
   end
 

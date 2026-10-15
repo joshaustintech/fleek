@@ -7,9 +7,19 @@ class AnalysisRunner
     observe(process_id, "/tmp/fleek-contract-out", "/tmp/fleek-contract-err")
   end
 
+  def self.fleek_with_check(check, path)
+    process_id = Process.spawn("build/fleek", "--checks", check, path, out: "/tmp/fleek-contract-out", err: "/tmp/fleek-contract-err")
+    observe(process_id, "/tmp/fleek-contract-out", "/tmp/fleek-contract-err")
+  end
+
   def self.reek(path)
     process_id = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "reek", "--smell", "ClassVariable", path, out: "/tmp/reek-contract-out", err: "/tmp/reek-contract-err")
     observe(process_id, "/tmp/reek-contract-out", "/tmp/reek-contract-err")
+  end
+
+  def self.flay(path)
+    process_id = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "flay", path, out: "/tmp/flay-contract-out", err: "/tmp/flay-contract-err")
+    observe(process_id, "/tmp/flay-contract-out", "/tmp/flay-contract-err")
   end
 
   # :reek:ControlParameter

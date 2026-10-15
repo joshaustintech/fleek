@@ -65,7 +65,7 @@ class CombinedProcess
   end
 
   def self.verify_flay_report(report, locations)
-    group = "Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=\"identical\" locations=\"#{locations}\" mass=64 score=64"
+    group = "Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=\"identical\" locations=\"#{locations}\" mass=32 score=64"
     verify(report.include?(group) && report.include?("Total duplication score: 64"), "combined Flay finding, locations, mass, or score differed")
   end
 

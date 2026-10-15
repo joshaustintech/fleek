@@ -6,7 +6,7 @@
 - One local Markdown issue per ticket in `issues/`, numbered globally in dependency order.
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
-- Tickets 01–12 resolved and pushed in order; continue one passing ticket per commit.
+- Tickets 01–13 resolved and pushed in order; continue one passing ticket per commit.
 
 ## Decisions-so-far
 
@@ -19,12 +19,13 @@
 - Ticket 09 adds bounded, separately selectable default Flay structural groups; see ADR 0016. Threshold boundaries and combined reporting remain tickets 10 and 12.
 - Ticket 10 supports validated `--mass MASS`, and ticket 11 adds deterministic two-method cross-file groups and partial-input status; see ADR 0017 for the shared grammar, pruning boundary, and per-file score allocation.
 - Ticket 12 combines explicitly selected Flay and Reek checks with independent exclusions and one incomplete/finding/complete outcome; see ADR 0018 for syntax boundaries, equivalent-reference parity, and deliberate exit-status normalization.
+- Ticket 13 proves bounded Ruby 4 and pinned Spinel analysis, inert source processing, and reference-backed Flay extension parity; see ADR 0019 for the supported integer-`&&`/`ffi_func` shapes and separate Flay node-mass/group-score reporting.
 
 ## Fog
 
 - Native analyzer coverage starts with tickets 03–04's bounded ClassVariable slice; broader parity remains open.
 - Flay/Reek repository/tag identity and locked Ruby are established; future output-parity evidence remains open.
-- Ticket 02 proved only its named Ruby 4 newline-`&&` form and Spinel FFI declaration syntax. AST fidelity, broad grammar, and analyzer parity remain open.
+- Ticket 02 proved only its named Ruby 4 newline-`&&` form and Spinel FFI declaration syntax; ticket 13 adds bounded ClassVariable/Flay behavior and reference parity, while broader grammar remains open.
 - Real Rails corpus and release signing/runtime environment are undecided.
 
 ## Ticket 01 receipt
@@ -100,6 +101,12 @@
 - ADR 0018 records the combined selection form, independent Flay/Reek exclusions, unsupported syntax boundaries, and deliberate upstream output/status differences.
 - Pinned Flay and Reek contracts verify equivalent source sets, finding identity, locations, scores/mass, status, and report ordering. Incomplete results override findings; clean and finding outcomes remain 0 and 2.
 - All 45 mutation cases, project contracts/build, Flay score 0, and Reek warnings 0 pass. Specification and standards code reviews pass.
+
+## Ticket 13 receipt
+
+- ADR 0019 records ClassVariable support for one simple class or module, inert Spinel FFI handling, Reek's Ruby 4 parser rejection, and exact bounded Flay extension shapes; arbitrary grammar remains explicitly unsupported.
+- Ruby 4 ClassVariable and suppression checks preserve source lines. Flay parity compares unchanged 2.14.4 finding kind, node mass, score, ordered locations, and exit status for similar and identical Ruby 4 groups and Spinel FFI modules; unsupported operands and non-final operators return incomplete.
+- All 51 project mutations were caught. `make all test flay reek` passes with 13 contracts, Flay score 0, and Reek warnings 0; specification and standards reviews pass.
 
 ## Ticket 08 receipt
 

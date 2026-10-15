@@ -42,6 +42,12 @@ class MutationCase
     "Flay cross-file ordering" => "test/duplication_contract.rb",
     "combined failure precedence" => "test/combined_contract.rb",
     "Flay ignore scope" => "test/combined_contract.rb",
+    "Spinel module finding traversal" => "test/language_extensions_contract.rb",
+    "Spinel module finding location" => "test/language_extensions_contract.rb",
+    "Spinel FFI duplication module traversal" => "test/language_extensions_contract.rb",
+    "Ruby 4 logical operator duplication" => "test/language_extensions_contract.rb",
+    "Ruby 4 operator final-position boundary" => "test/language_extensions_contract.rb",
+    "Spinel FFI module ordering" => "test/language_extensions_contract.rb",
     "text report newline escaping" => "test/text_report_contract.rb",
     "text report source ordering" => "test/text_report_contract.rb",
     "text report section ordering" => "test/text_report_contract.rb",
@@ -161,8 +167,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "ClassVariable occurrence grouping",
   "ClassVariable findings differ")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "fleek_class_count != 1 || fleek_module_count != 0 || fleek_unsupported",
-  "fleek_unsupported",
+  "if ((!simple_class && !simple_module) || fleek_unsupported)",
+  "if (fleek_unsupported)",
   "ClassVariable nested scope isolation",
   "nested scopes were silently reported")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -196,8 +202,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "partial input error precedence",
   "partial input report status or coverage differs")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class without inheritance or nested classes or modules."',
-  'warn "ERROR: ClassVariable supports one simple class without inheritance or nested classes or modules."',
+  'warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class or module without inheritance or nested classes or modules."',
+  'warn "ERROR: ClassVariable supports one simple class or module without inheritance or nested classes or modules."',
   "unsupported source path diagnostic",
   "unsupported source not identified")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -341,6 +347,36 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'false',
   "Flay ignore scope",
   "Flay ignore did not report excluded source")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "bool simple_module = fleek_class_count == 0 && fleek_module_count == 1;",
+  "bool simple_module = fleek_class_count == 0 && fleek_module_count > 1;",
+  "Spinel module finding traversal",
+  "NativeDependency ClassVariable finding or location was lost")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'group->lines[group->line_count++] = line;',
+  'group->lines[group->line_count++] = line + 1;',
+  "Spinel module finding location",
+  "NativeDependency ClassVariable finding or location was lost")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "name->length == 8 && memcmp(name->start, \"ffi_func\", 8) == 0",
+  "name->length == 7 && memcmp(name->start, \"ffi_func\", 8) == 0",
+  "Spinel FFI duplication module traversal",
+  "Flay finding or coverage differs")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (PM_NODE_TYPE_P(logical_and->left, PM_INTEGER_NODE) && PM_NODE_TYPE_P(logical_and->right, PM_TRUE_NODE)) return FLEEK_DUPLICATION_RUBY4_AND_STATEMENT;",
+  "if (PM_NODE_TYPE_P(logical_and->left, PM_INTEGER_NODE) && PM_NODE_TYPE_P(logical_and->right, PM_TRUE_NODE)) return FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT;",
+  "Ruby 4 logical operator duplication",
+  "Flay finding or coverage differs")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "tag == FLEEK_DUPLICATION_RUBY4_AND_STATEMENT && statement + 1 != body->body.size",
+  "false",
+  "Ruby 4 operator final-position boundary",
+  "non-final Ruby 4 logical-and was not rejected as incomplete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "ffi_module_count != 0 || method_count != 0 || !fleek_ffi_declaration_module(statement, &parser)",
+  "ffi_module_count != 0 || false || !fleek_ffi_declaration_module(statement, &parser)",
+  "Spinel FFI module ordering",
+  "Spinel FFI module after methods was not rejected as incomplete")).run
 
 process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

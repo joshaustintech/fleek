@@ -104,7 +104,7 @@ identical_path = "test/fixtures/duplication_identical.rb"
 identical = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "fleek", ""))
 identical_reference = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "flay", ""))
 identical_reference_weighted = identical_reference[1].include?("IDENTICAL code found in :defn (mass*2 = 64)") && identical_reference[1].include?("Total score (lower is better) = 64")
-identical_fields = ["kind=\"identical\"", "mass=64 score=64", "Total duplication score: 64", "File duplication score: \"#{identical_path}\" score=64"]
+identical_fields = ["kind=\"identical\"", "mass=32 score=64", "Total duplication score: 64", "File duplication score: \"#{identical_path}\" score=64"]
 identical_report_weighted = identical_fields.all? { |field| identical[1].include?(field) }
 DuplicationProcess.verify(identical[0] == 2 && identical_reference_weighted && identical_report_weighted, "identical group multiplier changed")
 
