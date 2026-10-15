@@ -4,17 +4,25 @@
 
 **Blocked by:** 07 Reek configuration and suppression; 08 Stable human and agent text; 11 Pruning and multi-file duplication.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] The accepted combined check selection runs both analyzers in one mode; there are no Flay/Reek analysis subcommands.
-- [ ] One stable report preserves duplication and smell content/ordering in separate sections and never invents a combined score.
-- [ ] Supported duplication ignore behavior is imported and applies only to duplication; Reek exclusions/suppression affect only smells. Opposing exclusions are tested.
-- [ ] Any unsupported enabled check/setting fails before analysis; failure of either selected analysis produces incomplete output and exit 1, overriding existing findings.
-- [ ] Complete no-findings and complete findings produce 0 and 2 respectively. Ambiguous short aliases and unsupported output/options fail with clear long-option guidance.
-- [ ] Demonstrate combined examples, independent exclusions, and status-precedence mutations; required gates pass.
+- [x] The accepted combined check selection runs both analyzers in one mode; there are no Flay/Reek analysis subcommands.
+- [x] One stable report preserves duplication and smell content/ordering in separate sections and never invents a combined score.
+- [x] Supported duplication ignore behavior is imported and applies only to duplication; Reek exclusions/suppression affect only smells. Opposing exclusions are tested.
+- [x] Any unsupported enabled check/setting fails before analysis; failure of either selected analysis produces incomplete output and exit 1, overriding existing findings.
+- [x] Complete no-findings and complete findings produce 0 and 2 respectively. Ambiguous short aliases and unsupported output/options fail with clear long-option guidance.
+- [x] Demonstrate combined examples, independent exclusions, and status-precedence mutations; required gates pass.
+
+## Answer
+
+Fleek now runs explicitly selected `flay:StructuralDuplication` and `reek:ClassVariable` checks in one invocation. The report has distinct analyzer sections and coverage, independent exclusions, no combined score, and one final status with incomplete coverage taking precedence. Flay and Reek reference contracts compare equivalent source sets, findings, locations, scores, and upstream status; ADR 0018 records format and exit-code differences.
+
+All 45 mutation cases, project contracts, build, Flay (0), and Reek (0) pass. Standards and specification reviews pass.
+
+See [ADR 0018](../../../docs/adr/0018-combined-analysis-and-independent-exclusions.md) for selection syntax, exclusion boundaries, syntax limitations, and parity decisions.
 
 ## Comments
 

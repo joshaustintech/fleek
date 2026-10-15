@@ -18,6 +18,7 @@ test: verify-spinel $(FLEEK)
 	$(SPINEL) -E test/cli_contract.rb
 	$(SPINEL) -E test/text_report_contract.rb
 	$(SPINEL) -E test/duplication_contract.rb
+	$(SPINEL) -E test/combined_contract.rb
 	$(SPINEL) -E test/native_parser_contract.rb
 	$(SPINEL) -E test/class_variable_contract.rb
 	$(SPINEL) -E test/class_variable_scope_contract.rb

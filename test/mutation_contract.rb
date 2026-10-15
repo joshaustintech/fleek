@@ -40,6 +40,8 @@ class MutationCase
     "Flay nested candidate rejection" => "test/duplication_contract.rb",
     "Flay cross-file location mapping" => "test/duplication_contract.rb",
     "Flay cross-file ordering" => "test/duplication_contract.rb",
+    "combined failure precedence" => "test/combined_contract.rb",
+    "Flay ignore scope" => "test/combined_contract.rb",
     "text report newline escaping" => "test/text_report_contract.rb",
     "text report source ordering" => "test/text_report_contract.rb",
     "text report section ordering" => "test/text_report_contract.rb",
@@ -265,13 +267,13 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "text report newline escaping",
   "source field escaping is ambiguous")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'selected_files.each { |path| print_report_source(path, configuration) }',
-  'selected_files.reverse_each { |path| print_report_source(path, configuration) }',
+  'files.each { |path| print_report_source(path, configuration) }',
+  'files.reverse_each { |path| print_report_source(path, configuration) }',
   "text report source ordering",
   "source ordering changed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "print_selected_check(files, configuration, origin)\n    print_report_scope",
-  "print_report_scope\n    print_selected_check(files, configuration, origin)",
+  "print_selected_check(files, configuration, origin)\n      print_report_scope",
+  "print_report_scope\n      print_selected_check(files, configuration, origin)",
   "text report section ordering",
   "report section order changed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -325,10 +327,20 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay cross-file location mapping",
   "cross-file report differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'read_and_analyze_duplication(files.sort, errors.sort_by(&:path), duplication_mass_threshold(inputs))',
-  'read_and_analyze_duplication(files, errors.sort_by(&:path), duplication_mass_threshold(inputs))',
+  '[included.sort, excluded.sort]',
+  '[included.reverse, excluded.sort]',
   "Flay cross-file ordering",
-  "cross-file report differed")).run
+  "failed requested file hid remaining cross-file group")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'return 1 if duplication_status == 1 || smell_status == 1',
+  'return 2 if duplication_status == 1 || smell_status == 1',
+  "combined failure precedence",
+  "combined unsupported input implied success")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'File.fnmatch?(absolute_pattern, absolute_path, pattern.include?("/") ? 0 : File::FNM_PATHNAME)',
+  'false',
+  "Flay ignore scope",
+  "Flay ignore did not report excluded source")).run
 
 process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

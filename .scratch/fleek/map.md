@@ -6,7 +6,7 @@
 - One local Markdown issue per ticket in `issues/`, numbered globally in dependency order.
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
-- Tickets 01–07 resolved and pushed in order; continue one passing ticket per commit.
+- Tickets 01–12 resolved and pushed in order; continue one passing ticket per commit.
 
 ## Decisions-so-far
 
@@ -18,6 +18,7 @@
 - Ticket 08 defines stable text report v1 and explicit coverage/status fields; see ADR 0014 for layout, escaping, stream, and unsupported-format behavior.
 - Ticket 09 adds bounded, separately selectable default Flay structural groups; see ADR 0016. Threshold boundaries and combined reporting remain tickets 10 and 12.
 - Ticket 10 supports validated `--mass MASS`, and ticket 11 adds deterministic two-method cross-file groups and partial-input status; see ADR 0017 for the shared grammar, pruning boundary, and per-file score allocation.
+- Ticket 12 combines explicitly selected Flay and Reek checks with independent exclusions and one incomplete/finding/complete outcome; see ADR 0018 for syntax boundaries, equivalent-reference parity, and deliberate exit-status normalization.
 
 ## Fog
 
@@ -93,6 +94,12 @@
 - ADR 0017 records why Flay drops lone top-level method files, how two supported methods are combined across files, deterministic file/line order, equal per-file score allocation, and why pruning has no effect while mass is at least 3.
 - Pinned Flay 2.14.4 comparisons cover cross-file identical groups, scores, reversed input ordering, a failed requested path, and the lone-method parser boundary. Failure retains valid groups but marks coverage incomplete with exit 1.
 - The full mutation suite catches all 43 mutations, including cross-file candidate collection, fail-closed nested-scope rejection, source line mapping, and order. Project contracts and build pass; Flay score 0 and Reek warnings 0. Pinned Spinel full-suite host restrictions remain recorded in ADR 0015.
+
+## Ticket 12 receipt
+
+- ADR 0018 records the combined selection form, independent Flay/Reek exclusions, unsupported syntax boundaries, and deliberate upstream output/status differences.
+- Pinned Flay and Reek contracts verify equivalent source sets, finding identity, locations, scores/mass, status, and report ordering. Incomplete results override findings; clean and finding outcomes remain 0 and 2.
+- All 45 mutation cases, project contracts/build, Flay score 0, and Reek warnings 0 pass. Specification and standards code reviews pass.
 
 ## Ticket 08 receipt
 

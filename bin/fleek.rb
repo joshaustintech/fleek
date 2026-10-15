@@ -4,7 +4,19 @@ class Fleek
   # Retains source identity alongside its diagnostic for the text report.
   SourceFailure = Struct.new(:path, :message, :kind)
   # Carries inputs and locations through structural duplication reporting.
-  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold)
+  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold, :excluded_paths, :source, :result)
+  # Carries validated analyzer inputs through combined execution.
+  CombinedAnalysis = Struct.new(:flay_inputs, :reek_inputs, :configuration, :error, :disabled_paths)
+  # Carries source coverage through stable report output.
+  Coverage = Struct.new(:selected, :analyzed, :failed, :excluded, :state)
+  # Carries parsed ClassVariable inputs through coverage aggregation.
+  ClassVariableSummary = Struct.new(:files, :errors, :configuration, :combined_report, :excluded_paths)
+  # Carries ClassVariable outcomes through status aggregation.
+  ClassVariableResults = Struct.new(:results, :analyzed, :excluded, :combined_report, :excluded_results)
+  # Carries source rows through report formatting.
+  SourceListing = Struct.new(:files, :configuration, :failed_sources, :excluded_paths)
+  # Carries independent analyzer exit results.
+  CheckResults = Struct.new(:duplication, :smell)
   FLAY_REFERENCE = "2.14.4"
   REEK_REFERENCE = "6.6.0"
   SPINEL_RELEASE = "2026.09.12"
@@ -629,12 +641,14 @@ class Fleek
   def self.print_help_reporting
     puts "Supported checks: reek:ClassVariable and flay:StructuralDuplication; other checks and machine formats are unsupported."
     puts "Analysis requires --checks; selected and run checks are shown separately."
+    puts "Select both with --checks flay:StructuralDuplication,reek:ClassVariable; .flayignore and Reek exclusions apply separately."
     puts "Report: stable text v1; diagnostics on stderr; uncovered checks are reported as not run."
   end
 
   def self.print_analysis_usage
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
-    puts "       fleek --checks reek:ClassVariable [--reek-config FILE] SOURCE"
+    puts "       fleek --checks reek:ClassVariable[,flay:StructuralDuplication] [--reek-config FILE] SOURCE"
+    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--reek-config FILE] SOURCE..."
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
     puts "       fleek --checks flay:StructuralDuplication [--mass MASS] SOURCE"
   end
@@ -692,6 +706,7 @@ class Fleek
 
   def self.print_usage_error(message)
     warn message
+    warn "Use long options: --checks, --mass, and --reek-config."
     warn "Usage: fleek [--help | --version]"
     1
   end
@@ -700,12 +715,46 @@ class Fleek
     arguments.length == 2 && arguments[0] == "--parse-ruby4"
   end
 
-  def self.run_structural_duplication(inputs)
+  # :reek:BooleanParameter
+  def self.run_structural_duplication(inputs, joint_run = false)
+    ignore_patterns, input_error = duplication_analysis_options(inputs)
+    return report_duplication_input_failure(input_error) unless input_error == ""
+    report = duplication_input_report(inputs, ignore_patterns)
+    read_and_analyze_duplication(report, joint_run)
+  end
+
+  def self.duplication_analysis_options(inputs)
     input_error = structural_duplication_input_error(inputs)
-    return report_duplication_input_failure(input_error) unless input_error.empty?
-    paths = duplication_source_paths(inputs)
-    files, errors = discover_sources(paths, ReekConfiguration.new)
-    read_and_analyze_duplication(files.sort, errors.sort_by(&:path), duplication_mass_threshold(inputs))
+    return [[], input_error] unless input_error.length.zero?
+    load_flay_ignore_patterns
+  end
+
+  def self.duplication_input_report(inputs, ignore_patterns)
+    files, errors = discover_sources(duplication_source_paths(inputs), ReekConfiguration.new)
+    included, excluded = partition_flay_sources(files, ignore_patterns)
+    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded)
+  end
+
+  def self.partition_flay_sources(files, patterns)
+    included, excluded = files.partition { |path| !flay_ignored?(path, patterns) }
+    [included.sort, excluded.sort]
+  end
+
+  def self.load_flay_ignore_patterns
+    File.file?(".flayignore") ? [File.read(".flayignore").split("\n"), ""] : [[], ""]
+  rescue SystemCallError
+    [[], "Cannot read .flayignore."]
+  end
+
+  def self.flay_ignored?(path, patterns)
+    patterns.any? { |pattern| flay_ignore_match?(path, pattern) }
+  end
+
+  def self.flay_ignore_match?(path, pattern)
+    absolute_pattern = File.expand_path(pattern)
+    absolute_path = File.expand_path(path)
+    return File.fnmatch?(absolute_pattern.chomp("/"), File.dirname(absolute_path), File::FNM_PATHNAME) if pattern.end_with?("/")
+    File.fnmatch?(absolute_pattern, absolute_path, pattern.include?("/") ? 0 : File::FNM_PATHNAME)
   end
 
   def self.structural_duplication_input_error(inputs)
@@ -756,13 +805,25 @@ class Fleek
     ""
   end
 
-  def self.read_and_analyze_duplication(paths, errors, mass_threshold)
-    return report_duplication_discovery_failure(errors, mass_threshold) if paths.empty?
-    source, source_map = combine_duplication_sources(paths)
-    report = DuplicationReport.new(paths, errors, source_map, mass_threshold)
-    analyze_structural_duplication(report, source)
+  # :reek:BooleanParameter
+  def self.read_and_analyze_duplication(report, combined_input = false)
+    paths = report.paths
+    return report_without_duplication_sources(report, combined_input) if paths.empty?
+    report.source, report.source_map = combine_duplication_sources(paths)
+    analyze_structural_duplication(report, combined_input)
   rescue SystemCallError
-    report_duplication_discovery_failure(errors + [SourceFailure.new(paths.last, "ERROR: Cannot read source file", :source)], mass_threshold)
+    report_duplication_read_failure(report, combined_input)
+  end
+
+  # :reek:BooleanParameter
+  def self.report_without_duplication_sources(report, combined_input)
+    report_duplication_discovery_failure(report, combined_input)
+  end
+
+  # :reek:BooleanParameter
+  def self.report_duplication_read_failure(report, combined_input)
+    report.errors = report.errors + [SourceFailure.new(report.paths.last, "ERROR: Cannot read source file", :source)]
+    report_duplication_discovery_failure(report, combined_input)
   end
 
   def self.combine_duplication_sources(paths)
@@ -778,78 +839,122 @@ class Fleek
     source + content + (content.end_with?("\n") ? "" : "\n")
   end
 
-  def self.analyze_structural_duplication(report, source)
-    result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold)
-    if result < 0
-      print_duplication_header(report)
-      return report_invalid_duplication_sources(report, source, result)
-    end
-    print_duplication_report(report, result)
+  # :reek:BooleanParameter
+  def self.analyze_structural_duplication(report, combined_analysis = false)
+    source = report.source
+    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold)
+    result = report.result
+    return report_duplication_analysis_failure(report, combined_analysis) if result < 0
+    print_duplication_report(report, result, combined_analysis)
   end
 
-  def self.report_invalid_duplication_sources(report, source, result)
-    return report_unsupported_duplication_sources(report) if result == NativePrism::DUPLICATION_UNSUPPORTED_SOURCE
-    return report_single_duplication_parse_failure(report, source, result) if report.paths.length == 1
+  # :reek:BooleanParameter
+  def self.report_duplication_analysis_failure(report, combined_analysis)
+    print_duplication_header(report, combined_analysis)
+    report_invalid_duplication_sources(report, combined_analysis)
+  end
+
+  # :reek:BooleanParameter
+  def self.report_invalid_duplication_sources(report, combined_error = false)
+    return report_unsupported_duplication_sources(report, combined_error) if report.result == NativePrism::DUPLICATION_UNSUPPORTED_SOURCE
+    return report_single_duplication_parse_failure(report, combined_error) if report.paths.length == 1
     warn "ERROR: Combined source set could not be parsed; no duplication results were analyzed."
-    report_duplication_failure_summary(report)
+    report_duplication_failure_summary(report, combined_error)
   end
 
-  def self.report_single_duplication_parse_failure(report, source, result)
-    report_parse_failure(report.paths[0], source, result)
-    report_duplication_failure_summary(report)
+  # :reek:BooleanParameter
+  def self.report_single_duplication_parse_failure(report, combined_parse = false)
+    report_parse_failure(report.paths[0], report.source, report.result)
+    report_duplication_failure_summary(report, combined_parse)
   end
 
-  def self.report_duplication_discovery_failure(errors, mass_threshold)
-    report = duplication_failure_report(errors, mass_threshold)
-    print_duplication_header(report)
-    report_duplication_error_summary(errors)
-  end
-
-  def self.duplication_failure_report(errors, mass_threshold)
-    # Spinel infers the source-map element type from the failed source paths.
-    paths = errors.map(&:path).take(0)
-    source_map = paths.map { |path| [path, 0] }
-    DuplicationReport.new(paths, errors, source_map, mass_threshold)
+  # :reek:BooleanParameter
+  def self.report_duplication_discovery_failure(report, combined_discovery = false)
+    warn "ERROR: .flayignore excluded every selected source; no duplication analysis ran." if report.errors.empty?
+    print_duplication_header(report, combined_discovery)
+    report_duplication_error_summary(report, combined_discovery)
   end
 
   def self.report_duplication_input_failure(message)
     warn "ERROR: #{message}"
+    warn "Use --mass MASS; check-specific options use long names."
     1
   end
 
-  def self.report_unsupported_duplication_sources(report)
+  # :reek:BooleanParameter
+  def self.report_unsupported_duplication_sources(report, combined_syntax = false)
     warn "ERROR: unsupported Flay candidate syntax; selected sources must contain exactly two total parameterless top-level methods with bare calls or integer literal statements."
     report_duplication_errors(report.errors)
-    report_duplication_failure_summary(report)
+    report_duplication_failure_summary(report, combined_syntax)
   end
 
   def self.report_duplication_errors(errors)
     errors.each { |error| report_input_error(error) }
   end
 
-  def self.report_duplication_error_summary(errors)
+  # :reek:BooleanParameter
+  # :reek:ControlParameter
+  # :reek:RepeatedConditional
+  # :reek:DuplicateMethodCall
+  def self.report_duplication_error_summary(report, combined_coverage = false)
+    errors = report.errors
+    excluded = report.excluded_paths
     report_duplication_errors(errors)
-    failed_count = errors.length
-    report_input_summary(failed_count, 0, failed_count, 0, "incomplete")
-    1
+    coverage = Coverage.new(errors.length + excluded.length, 0, errors.length, excluded.length, "incomplete")
+    report_duplication_coverage(coverage, combined_coverage)
   end
 
-  def self.report_duplication_failure_summary(report)
+  # :reek:BooleanParameter
+  # :reek:ControlParameter
+  # :reek:RepeatedConditional
+  # :reek:TooManyStatements
+  def self.report_duplication_failure_summary(report, combined_coverage = false)
     failed_count = report.paths.length + report.errors.length
-    report_input_summary(failed_count, 0, failed_count, 0, "incomplete")
+    excluded_count = report.excluded_paths.length
+    selected_count = failed_count + excluded_count
+    coverage = Coverage.new(selected_count, 0, failed_count, excluded_count, "incomplete")
+    report_duplication_coverage(coverage, combined_coverage)
+  end
+
+  # :reek:BooleanParameter
+  # :reek:ControlParameter
+  def self.report_duplication_coverage(coverage, combined_coverage)
+    return report_combined_duplication_coverage(coverage) if combined_coverage
+    report_input_summary(coverage.selected, coverage.analyzed, coverage.failed, coverage.excluded, coverage.state)
     1
   end
 
-  def self.print_duplication_header(report)
-    print_duplication_metadata(report.mass_threshold)
+  def self.report_combined_duplication_coverage(coverage)
+    report_section_coverage("Duplication", coverage)
+    1
+  end
+
+  # :reek:BooleanParameter
+  # :reek:ControlParameter
+  # :reek:RepeatedConditional
+  def self.print_duplication_header(report, duplication_header_mode = false)
+    print_duplication_metadata(report.mass_threshold) unless duplication_header_mode
     puts "Sources:"
     print_duplication_source_rows(report)
     puts "Duplication:"
   end
 
   def self.print_duplication_source_rows(report)
-    report.paths.each { |path| print_duplication_source(path, "included") }
-    report.errors.each { |error| print_duplication_source(error.path, "failed") }
+    print_duplication_included_sources(report.paths)
+    print_duplication_failed_sources(report.errors)
+    print_duplication_excluded_sources(report.excluded_paths)
+  end
+
+  def self.print_duplication_included_sources(paths)
+    paths.each { |path| print_duplication_source(path, "included") }
+  end
+
+  def self.print_duplication_failed_sources(errors)
+    errors.each { |error| print_duplication_source(error.path, "failed") }
+  end
+
+  def self.print_duplication_excluded_sources(paths)
+    paths.each { |path| print_duplication_source(path, "excluded") }
   end
 
   def self.print_duplication_source(path, scope)
@@ -864,19 +969,43 @@ class Fleek
     puts "Scope limits: exactly two top-level parameterless methods across selected Ruby files; bare calls and integer literals; Flay mass #{mass_threshold}."
   end
 
-  def self.print_duplication_report(report, score)
-    print_duplication_header(report)
+  # :reek:BooleanParameter
+  def self.print_duplication_report(report, score, combined_report = false)
+    print_duplication_header(report, combined_report)
     paths = report.paths
     errors = report.errors
     print_duplication_results(paths, score, report.source_map)
-    print_duplication_status(score, paths.length, errors.length)
+    print_duplication_status(report, score, combined_report)
   end
 
   # :reek:ControlParameter
-  def self.print_duplication_status(score, analyzed_count, failed_count)
-    status = failed_count > 0 ? 1 : (score == 0 ? 0 : 2)
-    report_input_summary(analyzed_count + failed_count, analyzed_count, failed_count, 0, report_state(status))
+  # :reek:BooleanParameter
+  # :reek:RepeatedConditional
+  def self.print_duplication_status(report, score, combined_status = false)
+    status = duplication_exit_status(report.errors.length, score)
+    coverage = duplication_coverage(report, status)
+    print_duplication_coverage(coverage, combined_status)
     status
+  end
+
+  # :reek:ControlParameter
+  def self.duplication_exit_status(failed_count, score)
+    return 1 if failed_count > 0
+    score == 0 ? 0 : 2
+  end
+
+  def self.duplication_coverage(report, status)
+    analyzed = report.paths.length
+    failed = report.errors.length
+    excluded = report.excluded_paths.length
+    Coverage.new(analyzed + failed + excluded, analyzed, failed, excluded, report_state(status))
+  end
+
+  # :reek:BooleanParameter
+  # :reek:ControlParameter
+  def self.print_duplication_coverage(coverage, combined_status)
+    return report_section_coverage("Duplication", coverage) if combined_status
+    report_input_summary(coverage.selected, coverage.analyzed, coverage.failed, coverage.excluded, coverage.state)
   end
 
   def self.print_duplication_results(paths, score, source_map)
@@ -904,7 +1033,8 @@ class Fleek
   end
 
   # :reek:TooManyStatements
-  def self.run_class_variable(inputs)
+  # :reek:BooleanParameter
+  def self.run_class_variable(inputs, combined_run = false)
     config_path, source_inputs, option_error = extract_reek_configuration(inputs)
     return report_configuration_error(option_error) unless option_error.empty?
     configuration = ReekConfiguration.load(config_path)
@@ -912,12 +1042,15 @@ class Fleek
     return report_configuration_error(configuration_error) unless configuration_error.empty?
     return run_class_variable_with_stdin(source_inputs, configuration) if source_inputs[0] == "--stdin"
 
+    raw_files, = combined_run ? discover_sources(source_inputs, ReekConfiguration.new) : [[], []]
+    excluded_paths = combined_run ? raw_files.select { |path| configuration.excluded_path?(path) } : []
     files, errors = discover_sources(source_inputs, configuration)
     return report_disabled_check(files + errors, configuration) if disabled_input?(files, configuration)
 
-    print_text_report_header(files, configuration, "", errors)
+    print_text_report_header(files, configuration, "", errors, combined_run, excluded_paths)
     report_input_errors(errors)
-    summarize_class_variable_inputs(files, errors, configuration)
+    summary = ClassVariableSummary.new(files, errors, configuration, combined_run, excluded_paths)
+    summarize_class_variable_inputs(summary)
   end
 
   # :reek:TooManyStatements
@@ -938,6 +1071,91 @@ class Fleek
     1
   end
 
+  # :reek:TooManyStatements
+  def self.run_combined_checks(inputs)
+    analysis = prepare_combined_analysis(inputs)
+    error = analysis.error
+    return report_combined_input_error(error) unless error.empty?
+    disabled_paths = analysis.disabled_paths
+    return report_disabled_check(disabled_paths, analysis.configuration) unless disabled_paths.empty?
+    print_combined_header
+    run_combined_sections(analysis)
+  end
+
+  def self.print_combined_header
+    print_report_identity
+    puts "Checks selected: flay:StructuralDuplication,reek:ClassVariable"
+    puts "Checks run: flay:StructuralDuplication,reek:ClassVariable"
+    puts "Scope limits: supported Flay and Reek syntax subsets; analyzer-specific exclusions; separate scores."
+  end
+
+  # :reek:TooManyStatements
+  def self.prepare_combined_analysis(inputs)
+    flay_inputs = without_option_pair(inputs, "--reek-config")
+    reek_inputs = without_option_pair(inputs, "--mass")
+    flay_error = structural_duplication_input_error(flay_inputs)
+    configuration, reek_sources, config_error = combined_reek_configuration(reek_inputs)
+    return CombinedAnalysis.new(flay_inputs, reek_inputs, nil, config_error, []) unless config_error.empty?
+    ignore_error = load_flay_ignore_patterns[1]
+    return CombinedAnalysis.new(flay_inputs, reek_inputs, nil, ignore_error, []) unless ignore_error.empty?
+    input_error = combined_source_error(flay_error, reek_sources)
+    return CombinedAnalysis.new(flay_inputs, reek_inputs, nil, input_error, []) unless input_error == ""
+    disabled_paths = disabled_combined_sources(reek_sources, configuration)
+    CombinedAnalysis.new(flay_inputs, reek_inputs, configuration, "", disabled_paths)
+  end
+
+  def self.combined_reek_configuration(inputs)
+    config_path, sources, option_error = extract_reek_configuration(inputs)
+    return [nil, [], option_error] unless option_error.empty?
+    configuration = ReekConfiguration.load(config_path)
+    [configuration, sources, configuration.error]
+  end
+
+  def self.combined_source_error(flay_error, reek_sources)
+    return "--stdin cannot be combined with flay:StructuralDuplication; provide Ruby source paths." if reek_sources[0] == "--stdin"
+    return flay_error unless flay_error.empty?
+    return "reek:ClassVariable requires at least one Ruby source path." if reek_sources.empty?
+    ""
+  end
+
+  def self.disabled_combined_sources(sources, configuration)
+    files, = discover_sources(sources, configuration)
+    disabled_input?(files, configuration) ? files : []
+  end
+
+  def self.run_combined_sections(analysis)
+    puts "Duplication section:"
+    duplication_status = run_structural_duplication(analysis.flay_inputs, true)
+    puts "Smell section:"
+    smell_status = run_class_variable(analysis.reek_inputs, true)
+    finish_combined_analysis(duplication_status, smell_status)
+  end
+
+  def self.finish_combined_analysis(duplication_status, smell_status)
+    combined_status = combined_analysis_status(CheckResults.new(duplication_status, smell_status))
+    puts "Overall status: #{report_state(combined_status)}"
+    combined_status
+  end
+
+  def self.without_option_pair(inputs, option)
+    index = inputs.index(option)
+    index ? inputs.take(index) + inputs.drop(index + 2) : inputs
+  end
+
+  def self.report_combined_input_error(message)
+    warn "ERROR: #{message}"
+    warn "Use long options: --checks, --mass, and --reek-config."
+    1
+  end
+
+  def self.combined_analysis_status(results)
+    duplication_status = results.duplication
+    smell_status = results.smell
+    return 1 if duplication_status == 1 || smell_status == 1
+    return 2 if duplication_status == 2 || smell_status == 2
+    0
+  end
+
   def self.run_class_variable_with_stdin(inputs, configuration)
     input_count = inputs.length
     origin = inputs[1]
@@ -956,12 +1174,19 @@ class Fleek
   end
 
   # :reek:LongParameterList
-  def self.print_text_report_header(files, configuration, origin = "", errors = [])
-    print_report_identity
-    print_selected_check(files, configuration, origin)
-    print_report_scope
-    print_report_sources(report_sources(files, origin), configuration, errors)
-    puts "Findings:"
+  # :reek:BooleanParameter
+  # :reek:ControlParameter
+  # :reek:RepeatedConditional
+  # :reek:TooManyStatements
+  def self.print_text_report_header(files, configuration, origin = "", errors = [], smell_header_mode = false, excluded_paths = [])
+    unless smell_header_mode
+      print_report_identity
+      print_selected_check(files, configuration, origin)
+      print_report_scope
+    end
+    listing = SourceListing.new(report_sources(files, origin), configuration, errors, excluded_paths)
+    print_report_sources(listing)
+    puts smell_header_mode ? "Smells:" : "Findings:"
   end
 
   def self.print_selected_check(files, configuration, origin)
@@ -983,19 +1208,42 @@ class Fleek
     puts "Scope limits: Ruby .rb inputs; only reek:ClassVariable is implemented."
   end
 
-  def self.print_report_sources(selected_files, configuration, errors)
-    failed_sources = errors.select { |error| error.kind == :source }
+  def self.print_report_sources(listing)
+    failed_sources = listing.failed_sources.select { |error| error.kind == :source }
     puts "Sources:"
-    print_source_rows(selected_files, configuration, failed_sources)
+    print_source_rows(SourceListing.new(listing.files, listing.configuration, failed_sources, listing.excluded_paths))
   end
 
-  def self.print_source_rows(selected_files, configuration, failed_sources)
-    if selected_files.empty? && failed_sources.empty?
-      puts "  none"
-      return
+  # :reek:TooManyStatements
+  def self.print_source_rows(listing)
+    files = listing.files
+    failed_sources = listing.failed_sources
+    excluded_paths = listing.excluded_paths
+    if empty_source_listing?(files, failed_sources, excluded_paths)
+      print_no_sources
+      nil
+    else
+      print_included_source_rows(files, listing.configuration)
+      print_failed_sources(failed_sources)
+      print_excluded_source_rows(excluded_paths, files)
+      nil
     end
-    selected_files.each { |path| print_report_source(path, configuration) }
-    print_failed_sources(failed_sources)
+  end
+
+  def self.empty_source_listing?(files, failed_sources, excluded_paths)
+    files.empty? && failed_sources.empty? && excluded_paths.empty?
+  end
+
+  def self.print_no_sources
+    puts "  none"
+  end
+
+  def self.print_included_source_rows(files, configuration)
+    files.each { |path| print_report_source(path, configuration) }
+  end
+
+  def self.print_excluded_source_rows(excluded_paths, files)
+    excluded_paths.reject { |path| files.include?(path) }.each { |path| puts "  Source: #{quote_text(path)} scope=excluded" }
   end
 
   def self.print_failed_sources(errors)
@@ -1146,16 +1394,24 @@ class Fleek
     path.end_with?(".rb")
   end
 
-  def self.summarize_class_variable_inputs(files, errors, configuration)
-    excluded = excluded_input_count(files, configuration)
-    summarize_class_variable_results(class_variable_input_results(files, errors, configuration), files.length - excluded, excluded)
+  # :reek:RepeatedConditional
+  # :reek:TooManyStatements
+  def self.summarize_class_variable_inputs(summary)
+    files = summary.files
+    configuration = summary.configuration
+    combined_report = summary.combined_report
+    excluded_results = excluded_input_count(files, configuration)
+    excluded = combined_report ? summary.excluded_paths.length : excluded_results
+    results = class_variable_input_results(files, summary.errors, configuration)
+    summarize_class_variable_results(ClassVariableResults.new(results, files.length - excluded_results, excluded, combined_report, excluded_results))
   end
 
   # :reek:LongParameterList
   def self.summarize_class_variable_inputs_with_stdin(files, errors, origin, configuration)
     results = class_variable_input_results(files, errors, configuration).unshift(stdin_input_result(origin, configuration))
     excluded = excluded_input_count(files, configuration) + (configuration.excluded_path?(origin) ? 1 : 0)
-    summarize_class_variable_results(results, files.length + 1 - excluded, excluded)
+    summary = ClassVariableResults.new(results, files.length + 1 - excluded, excluded, false, excluded)
+    summarize_class_variable_results(summary)
   end
 
   def self.stdin_input_result(origin, configuration)
@@ -1177,16 +1433,25 @@ class Fleek
   end
 
   # :reek:TooManyStatements
-  def self.summarize_class_variable_results(results, analyzed, excluded)
+  # :reek:ControlParameter
+  # :reek:RepeatedConditional
+  def self.summarize_class_variable_results(summary)
+    results = summary.results
+    excluded = summary.excluded
     status = class_variable_input_status(results)
-    if status == 0 && analyzed == 0 && excluded > 0
+    if status == 0 && summary.analyzed == 0 && excluded > 0
       warn "ERROR: Reek exclusions removed every selected source; no analysis ran."
       status = 1
     end
     failures = results.count(1)
-    analyzed = results.count(0) + results.count(2) - excluded
+    analyzed = results.count(0) + results.count(2) - summary.excluded_results
     selected = analyzed + failures + excluded
-    report_input_summary(selected, analyzed, failures, excluded, report_state(status))
+    state = report_state(status)
+    if summary.combined_report
+      report_section_coverage("Smell", Coverage.new(selected, analyzed, failures, excluded, state))
+      return status
+    end
+    report_input_summary(selected, analyzed, failures, excluded, state)
     status
   end
 
@@ -1214,6 +1479,10 @@ class Fleek
   def self.report_input_summary(selected, analyzed, failures, excluded, state)
     puts "Coverage: #{selected} selected; #{analyzed} analyzed; #{failures} failed; #{excluded} excluded"
     puts "Status: #{state}"
+  end
+
+  def self.report_section_coverage(section, coverage)
+    puts "#{section} coverage: #{coverage.selected} selected; #{coverage.analyzed} analyzed; #{coverage.failed} failed; #{coverage.excluded} excluded"
   end
 
   def self.analyze_class_variable_file(path, configuration)
@@ -1331,11 +1600,13 @@ class Fleek
     print_usage_error(input_error(arguments))
   end
 
+  # :reek:TooManyStatements
   def self.run_selected_checks(arguments)
     inputs = arguments[2..]
     check = arguments[1]
     return run_class_variable(inputs) if check == "reek:ClassVariable"
     return run_structural_duplication(inputs) if check == "flay:StructuralDuplication"
+    return run_combined_checks(inputs) if check == "flay:StructuralDuplication,reek:ClassVariable" || check == "reek:ClassVariable,flay:StructuralDuplication"
     print_usage_error(input_error(arguments))
   end
 end
