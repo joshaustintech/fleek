@@ -9,6 +9,7 @@
 - Dynamic libraries: `/usr/lib/libSystem.B.dylib` only.
 - Signature: ad hoc linker signature, no Team ID; not notarized.
 - Notices: Fleek Apache License 2.0 and statically linked Prism MIT license are included.
+- Source: `f5380ebad9e07958f659a1820d03060622d58b97`, released from tag `v0.1.0`; `main` includes this source commit and subsequent receipt updates.
 
 ## Extracted behavior
 
@@ -22,4 +23,4 @@
 
 The archive is a native install proof for the bounded supported checks. The pinned 25-file Rails corpus still yields the matching Flay score-48 group and clean Reek ClassVariable result, while Fleek reports Flay coverage 0/25 fully analyzed, 25 partial, overall incomplete, exit 1. See [the Rails parity receipt](rails-project-parity.md) and [ADR 0032](../adr/0032-first-native-archive-scope.md).
 
-The executable has an ad hoc linker signature; no Developer ID signing or notarization is present. This artifact is committed to the source repository and has not been published to a downloadable release service or retrieved from one. Ticket 17 remains open for those checks.
+The executable has an ad hoc linker signature; no Developer ID signing or notarization is present. GitHub release [v0.1.0](https://github.com/joshaustintech/fleek/releases/tag/v0.1.0) was published from the source tag above. Its archive asset ([download](https://github.com/joshaustintech/fleek/releases/download/v0.1.0/fleek-0.1.0-macos-arm64.tar.gz), asset ID `RA_kwDOVJyNPM4mbwI5`, 470236 bytes) reports SHA-256 `025449a33a9028a87c7e26b7618cca72077ecfaffc6a5911a0e75fa478e19ef3`. The downloaded archive matched the committed package byte-for-byte, its sidecar checksum passed, and its extracted runtime contract passed on macOS arm64. `main` push of source commit `f5380ebad9e07958f659a1820d03060622d58b97` succeeded before publication. Ticket 19 remains open for full Rails Flay parity; this release claims only the bounded supported subset.

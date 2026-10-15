@@ -14,4 +14,4 @@ Publish Fleek 0.1.0 as the first downloadable release for macOS arm64 with expli
 
 ## Consequences
 
-This lets users install and evaluate the supported subset while preserving truthful coverage status. The Mach-O is ad hoc signed and not notarized. A release is not considered verified until its downloadable asset passes the same identity and extracted-runtime checks as the local archive.
+This lets users install and evaluate the supported subset while preserving truthful coverage status. The Mach-O is ad hoc signed and not notarized. Release `v0.1.0` was published from source commit `f5380ebad9e07958f659a1820d03060622d58b97`; the downloaded asset matched the expected digest and passed the extracted-runtime contract. Ticket 19 remains open for full Rails Flay parity.
