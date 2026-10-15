@@ -3,6 +3,8 @@ class Fleek
   VERSION = "0.1.0"
   # Retains source identity alongside its diagnostic for the text report.
   SourceFailure = Struct.new(:path, :message, :kind)
+  # Carries inputs and locations through structural duplication reporting.
+  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold)
   FLAY_REFERENCE = "2.14.4"
   REEK_REFERENCE = "6.6.0"
   SPINEL_RELEASE = "2026.09.12"
@@ -277,15 +279,30 @@ class Fleek
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
       }
       const pm_program_node_t *program = (const pm_program_node_t *) root;
-      if (program->statements == NULL || program->statements->body.size != 2) {
+      if (program->statements == NULL) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
       }
       fleek_duplication_method_t first_method = {0}, second_method = {0};
-      if (!fleek_duplication_method(program->statements->body.nodes[0], (const uint8_t *) source, &first_method) || !fleek_duplication_method(program->statements->body.nodes[1], (const uint8_t *) source, &second_method)) {
+      const pm_def_node_t *methods[2] = { NULL, NULL };
+      size_t method_count = 0;
+      for (size_t index = 0; index < program->statements->body.size; index++) {
+        pm_node_t *statement = program->statements->body.nodes[index];
+        if (!PM_NODE_TYPE_P(statement, PM_DEF_NODE)) {
+          if (!PM_NODE_TYPE_P(statement, PM_NIL_NODE)) {
+            pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
+          }
+          continue;
+        }
+        if (method_count == 2 || !fleek_duplication_method(statement, (const uint8_t *) source, method_count == 0 ? &first_method : &second_method)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
+        }
+        methods[method_count++] = (const pm_def_node_t *) statement;
+      }
+      if (method_count != 2) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
       }
-      const pm_def_node_t *first = (const pm_def_node_t *) program->statements->body.nodes[0];
-      const pm_def_node_t *second = (const pm_def_node_t *) program->statements->body.nodes[1];
+      const pm_def_node_t *first = methods[0];
+      const pm_def_node_t *second = methods[1];
       size_t mass = 2 + first_method.shape_count;
       bool same_shape = first_method.shape_count == second_method.shape_count;
       for (size_t index = 0; same_shape && index < first_method.shape_count; index++) same_shape = first_method.shapes[index] == second_method.shapes[index];
@@ -686,7 +703,9 @@ class Fleek
   def self.run_structural_duplication(inputs)
     input_error = structural_duplication_input_error(inputs)
     return report_duplication_input_failure(input_error) unless input_error.empty?
-    read_and_analyze_duplication(duplication_source_path(inputs), duplication_mass_threshold(inputs))
+    paths = duplication_source_paths(inputs)
+    files, errors = discover_sources(paths, ReekConfiguration.new)
+    read_and_analyze_duplication(files.sort, errors.sort_by(&:path), duplication_mass_threshold(inputs))
   end
 
   def self.structural_duplication_input_error(inputs)
@@ -712,21 +731,13 @@ class Fleek
   def self.duplication_source_input_error(inputs)
     unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" }
     return "Unsupported Flay option: #{quote_text(unsupported_option)}" if unsupported_option
-    duplication_path_input_error(duplication_source_paths(inputs))
-  end
-
-  def self.duplication_path_input_error(paths)
-    return "flay:StructuralDuplication requires exactly one Ruby source file." unless paths.length == 1
-    duplication_path_error(paths[0])
+    return "flay:StructuralDuplication requires at least one Ruby source path." if duplication_source_paths(inputs).empty?
+    ""
   end
 
   def self.duplication_source_paths(inputs)
     mass_index = duplication_mass_index(inputs)
     inputs.take(mass_index) + inputs.drop([mass_index + 2, inputs.length].min)
-  end
-
-  def self.duplication_source_path(inputs)
-    duplication_source_paths(inputs)[0]
   end
 
   def self.duplication_mass_index(inputs)
@@ -745,27 +756,60 @@ class Fleek
     ""
   end
 
-  def self.read_and_analyze_duplication(path, mass_threshold)
-    analyze_structural_duplication(path, File.binread(path), mass_threshold)
+  def self.read_and_analyze_duplication(paths, errors, mass_threshold)
+    return report_duplication_discovery_failure(errors, mass_threshold) if paths.empty?
+    source, source_map = combine_duplication_sources(paths)
+    report = DuplicationReport.new(paths, errors, source_map, mass_threshold)
+    analyze_structural_duplication(report, source)
   rescue SystemCallError
-    report_duplication_input_failure("Cannot read source file: #{quote_text(path)}")
+    report_duplication_discovery_failure(errors + [SourceFailure.new(paths.last, "ERROR: Cannot read source file", :source)], mass_threshold)
   end
 
-  def self.analyze_structural_duplication(path, source, mass_threshold)
-    result = NativePrism.fleek_structural_duplication(source, source.bytesize, mass_threshold)
+  def self.combine_duplication_sources(paths)
+    source = ""
+    source_map = []
+    paths.each { |path| source = append_duplication_source(source, source_map, path) }
+    [source, source_map]
+  end
+
+  def self.append_duplication_source(source, source_map, path)
+    content = File.binread(path)
+    source_map << [path, source.count("\n") + 1]
+    source + content + (content.end_with?("\n") ? "" : "\n")
+  end
+
+  def self.analyze_structural_duplication(report, source)
+    result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold)
     if result < 0
-      print_duplication_header(path, mass_threshold)
-      return report_invalid_duplication_source(path, source, result)
+      print_duplication_header(report)
+      return report_invalid_duplication_sources(report, source, result)
     end
-    print_duplication_report(path, result, mass_threshold)
+    print_duplication_report(report, result)
   end
 
-  def self.report_invalid_duplication_source(path, source, result)
-    return report_unsupported_duplication_source(path) if result == NativePrism::DUPLICATION_UNSUPPORTED_SOURCE
+  def self.report_invalid_duplication_sources(report, source, result)
+    return report_unsupported_duplication_sources(report) if result == NativePrism::DUPLICATION_UNSUPPORTED_SOURCE
+    return report_single_duplication_parse_failure(report, source, result) if report.paths.length == 1
+    warn "ERROR: Combined source set could not be parsed; no duplication results were analyzed."
+    report_duplication_failure_summary(report)
+  end
 
-    report_parse_failure(path, source, result)
-    report_input_summary(1, 0, 1, 0, "incomplete")
-    1
+  def self.report_single_duplication_parse_failure(report, source, result)
+    report_parse_failure(report.paths[0], source, result)
+    report_duplication_failure_summary(report)
+  end
+
+  def self.report_duplication_discovery_failure(errors, mass_threshold)
+    report = duplication_failure_report(errors, mass_threshold)
+    print_duplication_header(report)
+    report_duplication_error_summary(errors)
+  end
+
+  def self.duplication_failure_report(errors, mass_threshold)
+    # Spinel infers the source-map element type from the failed source paths.
+    paths = errors.map(&:path).take(0)
+    source_map = paths.map { |path| [path, 0] }
+    DuplicationReport.new(paths, errors, source_map, mass_threshold)
   end
 
   def self.report_duplication_input_failure(message)
@@ -773,17 +817,43 @@ class Fleek
     1
   end
 
-  def self.report_unsupported_duplication_source(path)
-    warn "ERROR: #{quote_text(path)}: unsupported Flay candidate syntax; only two parameterless top-level methods with bare calls or integer literal statements are supported."
-    report_input_summary(1, 0, 1, 0, "incomplete")
+  def self.report_unsupported_duplication_sources(report)
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must contain exactly two total parameterless top-level methods with bare calls or integer literal statements."
+    report_duplication_errors(report.errors)
+    report_duplication_failure_summary(report)
+  end
+
+  def self.report_duplication_errors(errors)
+    errors.each { |error| report_input_error(error) }
+  end
+
+  def self.report_duplication_error_summary(errors)
+    report_duplication_errors(errors)
+    failed_count = errors.length
+    report_input_summary(failed_count, 0, failed_count, 0, "incomplete")
     1
   end
 
-  def self.print_duplication_header(path, mass_threshold)
-    print_duplication_metadata(mass_threshold)
+  def self.report_duplication_failure_summary(report)
+    failed_count = report.paths.length + report.errors.length
+    report_input_summary(failed_count, 0, failed_count, 0, "incomplete")
+    1
+  end
+
+  def self.print_duplication_header(report)
+    print_duplication_metadata(report.mass_threshold)
     puts "Sources:"
-    puts "  Source: #{quote_text(path)} scope=included"
+    print_duplication_source_rows(report)
     puts "Duplication:"
+  end
+
+  def self.print_duplication_source_rows(report)
+    report.paths.each { |path| print_duplication_source(path, "included") }
+    report.errors.each { |error| print_duplication_source(error.path, "failed") }
+  end
+
+  def self.print_duplication_source(path, scope)
+    puts "  Source: #{quote_text(path)} scope=#{scope}"
   end
 
   def self.print_duplication_metadata(mass_threshold)
@@ -791,32 +861,46 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: one Ruby file; two parameterless methods; bare calls and integer literals; Flay mass #{mass_threshold}."
+    puts "Scope limits: exactly two top-level parameterless methods across selected Ruby files; bare calls and integer literals; Flay mass #{mass_threshold}."
   end
 
-  def self.print_duplication_report(path, score, mass_threshold)
-    print_duplication_header(path, mass_threshold)
-    print_duplication_results(path, score)
-    print_duplication_status(score)
+  def self.print_duplication_report(report, score)
+    print_duplication_header(report)
+    paths = report.paths
+    errors = report.errors
+    print_duplication_results(paths, score, report.source_map)
+    print_duplication_status(score, paths.length, errors.length)
   end
 
   # :reek:ControlParameter
-  def self.print_duplication_status(score)
-    status = score == 0 ? 0 : 2
-    report_input_summary(1, 1, 0, 0, report_state(status))
+  def self.print_duplication_status(score, analyzed_count, failed_count)
+    status = failed_count > 0 ? 1 : (score == 0 ? 0 : 2)
+    report_input_summary(analyzed_count + failed_count, analyzed_count, failed_count, 0, report_state(status))
     status
   end
 
-  def self.print_duplication_results(path, score)
-    print_duplication_group(path) if score > 0
+  def self.print_duplication_results(paths, score, source_map)
+    locations = print_duplication_group(source_map) if score > 0
     puts "Total duplication score: #{score}"
-    puts "File duplication score: #{quote_text(path)} score=#{score}"
+    paths.each { |path| puts "File duplication score: #{quote_text(path)} score=#{duplication_file_score(path, locations, score)}" }
   end
 
-  def self.print_duplication_group(path)
+  def self.duplication_file_score(path, locations, score)
+    return 0 unless locations
+    locations.count { |location| location.start_with?("#{path}:") } * score / 2
+  end
+
+  def self.print_duplication_group(source_map)
     first_line, second_line, _node_mass, group_score, kind = NativePrism.fleek_structural_duplication_finding.split("\t")
-    locations = "#{path}:#{first_line},#{path}:#{second_line}"
-    puts "  Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=#{quote_text(kind)} locations=#{quote_text(locations)} mass=#{group_score} score=#{group_score}"
+    locations = [duplication_source_location(first_line.to_i, source_map), duplication_source_location(second_line.to_i, source_map)]
+    location_text = locations.join(",")
+    puts "  Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=#{quote_text(kind)} locations=#{quote_text(location_text)} mass=#{group_score} score=#{group_score}"
+    locations
+  end
+
+  def self.duplication_source_location(line, source_map)
+    source = source_map.reverse.find { |_path, start_line| line >= start_line }
+    "#{source[0]}:#{line - source[1] + 1}"
   end
 
   # :reek:TooManyStatements

@@ -114,7 +114,8 @@ ConfigurationProcess.assert_reference(ConfigurationProcess::Input.new("test/fixt
 explicit_excluded = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(scoped_source, "test/fixtures/config_path_exclusion.yml", "explicit excluded", "", "fleek"))
 explicit_excluded_reference = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(scoped_source, "test/fixtures/config_path_exclusion.yml", "explicit excluded", "", "reek"))
 raise "explicit Reek exclusion reference changed" unless explicit_excluded_reference[0] == 0
-raise "explicit exclusion implied successful analysis" unless explicit_excluded[0] == 1 && explicit_excluded[1].include?("Coverage: 1 selected; 0 analyzed; 0 failed; 1 excluded") && explicit_excluded[1].include?("Status: incomplete") && explicit_excluded[2].include?("no analysis ran")
+explicit_exclusion_fields = ["Coverage: 1 selected; 0 analyzed; 0 failed; 1 excluded", "Status: incomplete"]
+raise "explicit exclusion implied successful analysis" unless explicit_excluded[0] == 1 && explicit_exclusion_fields.all? { |field| explicit_excluded[1].include?(field) } && explicit_excluded[2].include?("no analysis ran")
 
 suppressed_source = File.expand_path("test/fixtures/class_variable_suppressed.rb")
 suppressed = ConfigurationProcess.assert_reference(ConfigurationProcess::Input.new(suppressed_source, "", "suppression", ""))

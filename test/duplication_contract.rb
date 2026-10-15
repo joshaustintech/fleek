@@ -4,6 +4,8 @@ require_relative "analysis_runner"
 class DuplicationProcess
   # Describes one source invocation and its optional Fleek arguments.
   Input = Struct.new(:path, :tool, :option, :value)
+  # Describes the expected output status and required fields.
+  OutputExpectation = Struct.new(:status, :fields, :message)
 
   def self.run(input)
     path, tool, option, value = input.to_a
@@ -35,9 +37,46 @@ class DuplicationProcess
     AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
   end
 
+  def self.run_fleek_pair(first, second)
+    run_fleek_sources(first, second, "")
+  end
+
+  def self.run_fleek_sources(first, second, third)
+    process_id = if third.empty?
+                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", first, second, out: "/tmp/fleek-duplication-out", err: "/tmp/fleek-duplication-err")
+                 else
+                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", first, second, third, out: "/tmp/fleek-duplication-out", err: "/tmp/fleek-duplication-err")
+                 end
+    AnalysisRunner.observe(process_id, "/tmp/fleek-duplication-out", "/tmp/fleek-duplication-err")
+  end
+
+  def self.run_flay_pair(first, second)
+    bundle = ENV["BUNDLE"] || "bundle"
+    process_id = Process.spawn(bundle, "exec", "flay", first, second, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
+    AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
+  end
+
+  def self.run_fleek_pair_with_missing(first, second, missing)
+    run_fleek_sources(first, second, missing)
+  end
+
+  def self.run_fleek_with_nested(first, second, nested)
+    run_fleek_sources(first, second, nested)
+  end
+
   # :reek:ControlParameter
   def self.verify(condition, message)
     raise message unless condition
+  end
+
+  def self.includes_all?(output, fields)
+    fields.all? { |field| output.include?(field) }
+  end
+
+  def self.verify_output(observation, expectation)
+    message = expectation.message
+    verify(observation[0] == expectation.status, message)
+    expectation.fields.each { |field| verify(observation[1].include?(field), message) }
   end
 end
 
@@ -46,7 +85,8 @@ similar = DuplicationProcess.run(DuplicationProcess::Input.new(similar_path, "fl
 reference = DuplicationProcess.run(DuplicationProcess::Input.new(similar_path, "flay", ""))
 reference_group = reference[1].include?("Similar code found in :defn (mass = 32)")
 reference_locations = reference[1].include?("#{similar_path}:1") && reference[1].include?("#{similar_path}:18")
-DuplicationProcess.verify(reference[0] == 0 && reference_group && reference_locations && reference[1].include?("Total score (lower is better) = 32"), "reference did not select the expected similar method group")
+DuplicationProcess.verify(reference[0] == 0, "reference exit differed: #{reference[0]}")
+DuplicationProcess.verify(reference_group && reference_locations && reference[1].include?("Total score (lower is better) = 32"), "reference did not select the expected similar method group")
 similar_group = similar[1].include?("Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=\"similar\"")
 similar_locations = similar[1].include?("locations=\"#{similar_path}:1,#{similar_path}:18\"")
 similar_fields = similar[1].include?("mass=32 score=32") && similar[1].include?("Total duplication score: 32") && similar[1].include?("File duplication score: \"#{similar_path}\" score=32")
@@ -89,5 +129,31 @@ invalid_mass_values.each do |value|
   invalid_mass = DuplicationProcess.run(DuplicationProcess::Input.new(similar_path, "fleek", "--mass", value))
   DuplicationProcess.verify(invalid_mass[0] == 1 && invalid_mass[2].include?("--mass requires an integer from 3 through 2147483647"), "invalid mass setting was accepted: #{value}")
 end
+
+first_file = "test/fixtures/duplication_file_a.rb"
+second_file = "test/fixtures/duplication_file_b.rb"
+cross_file = DuplicationProcess.run_fleek_pair(second_file, first_file)
+cross_reference = DuplicationProcess.run_flay_pair(second_file, first_file)
+cross_locations = "locations=\"#{first_file}:1,#{second_file}:1\""
+cross_reference_locations = ["#{first_file}:1", "#{second_file}:1"]
+cross_reference_matches = cross_reference_locations.all? { |location| cross_reference[1].include?(location) } && cross_reference[1].index(cross_reference_locations[0]) < cross_reference[1].index(cross_reference_locations[1])
+cross_file_matches = cross_file[0] == 2 && DuplicationProcess.includes_all?(cross_file[1], [cross_locations, "kind=\"identical\"", "Total duplication score: 64", "File duplication score: \"#{first_file}\" score=32", "File duplication score: \"#{second_file}\" score=32"])
+DuplicationProcess.verify(cross_file_matches, "cross-file report differed")
+DuplicationProcess.verify(cross_reference_matches && cross_file[1].include?(cross_locations), "cross-file locations or ordering differed from Flay")
+cross_reference_expectation = DuplicationProcess::OutputExpectation.new(0, ["IDENTICAL code found in :defn (mass*2 = 64)", "Total score (lower is better) = 64"], "cross-file reference differed from Flay")
+DuplicationProcess.verify_output(cross_reference, cross_reference_expectation)
+
+partial = DuplicationProcess.run_fleek_pair_with_missing(first_file, second_file, "test/fixtures/missing_duplication.rb")
+partial_report = partial[0] == 1 && DuplicationProcess.includes_all?(partial[1], [cross_locations, "test/fixtures/missing_duplication.rb\" scope=failed", "Coverage: 3 selected; 2 analyzed; 1 failed; 0 excluded", "Status: incomplete"])
+DuplicationProcess.verify(partial_report, "failed requested file hid remaining cross-file group")
+
+nested_path = "test/fixtures/duplication_nested_scope.rb"
+nested = DuplicationProcess.run_fleek_with_nested(first_file, second_file, nested_path)
+nested_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_path, "flay", ""))
+nested_reference_expectation = DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :defn (mass = 32)", "#{nested_path}:2", "#{nested_path}:19", "Total score (lower is better) = 32"], "nested Flay reference changed")
+DuplicationProcess.verify_output(nested_reference, nested_reference_expectation)
+nested_fleek_expectation = DuplicationProcess::OutputExpectation.new(1, ["Status: incomplete"], "nested Flay candidates were silently omitted")
+DuplicationProcess.verify_output(nested, nested_fleek_expectation)
+DuplicationProcess.verify(nested[2].include?("unsupported Flay candidate syntax"), "nested Flay candidates were silently omitted")
 
 puts "Duplication contract: pass"

@@ -36,6 +36,10 @@ class MutationCase
     "Flay mass boundary" => "test/duplication_contract.rb",
     "Flay identical multiplier" => "test/duplication_contract.rb",
     "Flay total score" => "test/duplication_contract.rb",
+    "Flay cross-file method collection" => "test/duplication_contract.rb",
+    "Flay nested candidate rejection" => "test/duplication_contract.rb",
+    "Flay cross-file location mapping" => "test/duplication_contract.rb",
+    "Flay cross-file ordering" => "test/duplication_contract.rb",
     "text report newline escaping" => "test/text_report_contract.rb",
     "text report source ordering" => "test/text_report_contract.rb",
     "text report section ordering" => "test/text_report_contract.rb",
@@ -305,6 +309,26 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'puts "Total duplication score: 0"',
   "Flay total score",
   "similar method group report differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (!PM_NODE_TYPE_P(statement, PM_NIL_NODE)) {",
+  "if (true) {",
+  "Flay cross-file method collection",
+  "cross-file report differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (!PM_NODE_TYPE_P(statement, PM_NIL_NODE)) {",
+  "if (false) {",
+  "Flay nested candidate rejection",
+  "nested Flay candidates were silently omitted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'source_map.reverse.find { |_path, start_line| line >= start_line }',
+  'source_map.find { |_path, start_line| line >= start_line }',
+  "Flay cross-file location mapping",
+  "cross-file report differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'read_and_analyze_duplication(files.sort, errors.sort_by(&:path), duplication_mass_threshold(inputs))',
+  'read_and_analyze_duplication(files, errors.sort_by(&:path), duplication_mass_threshold(inputs))',
+  "Flay cross-file ordering",
+  "cross-file report differed")).run
 
 process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

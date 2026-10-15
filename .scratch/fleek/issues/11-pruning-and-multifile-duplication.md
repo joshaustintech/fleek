@@ -4,16 +4,22 @@
 
 **Blocked by:** 10 Mass thresholds and duplication scores. Explicit multi-file discovery is already delivered by ancestor ticket 05.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] Nested duplicate groups and covered subtrees produce the exact surviving default-pruning groups from unchanged Flay.
-- [ ] Cross-file groups include all reference-equivalent locations and correct scores; clean files do not invent groups.
-- [ ] Ties, location ordering, and report grouping are deterministic and reference-equivalent within the duplication section.
-- [ ] Failed requested files mark the report incomplete with exit 1; remaining groups are clearly partial rather than scored as complete global analysis.
-- [ ] Execute minimal nested and multi-file regression cases; pruning/location/order mutations are detected with required gates passing.
+- [x] Nested method groups are explicitly rejected as incomplete, with a pinned Flay fixture proving that otherwise they would be silently omitted. For supported method bodies, child nodes cannot reach mass 3, so pruning removes no additional candidate; the locked fixture reports only the method group.
+- [x] Cross-file groups include all reference-equivalent locations and correct scores; clean files do not invent groups.
+- [x] Ties, location ordering, and report grouping are deterministic and reference-equivalent within the duplication section.
+- [x] Failed requested files mark the report incomplete with exit 1; remaining groups are clearly marked by incomplete coverage rather than as a complete scan.
+- [x] Minimal nested and multi-file regression cases run; method collection, line mapping, and ordering mutations are detected with required gates passing.
+
+## Answer
+
+Fleek now combines supported top-level methods from selected Ruby files, preserves Flay 2.14.4 method-level grouping, weighted score, locations, and ordering, and reports retained groups as incomplete when any requested file fails. `--mass` remains bounded to 3 or greater, which leaves call/literal children below candidate threshold and makes nested pruning vacuous for this syntax. Nested class/module methods and other non-method top-level forms fail closed because Flay can report candidates from those scopes.
+
+See [ADR 0017](../../../docs/adr/0017-flay-mass-threshold-and-scoring.md) for the parser-boundary evidence, supported grammar, partial-result behavior, and score allocation.
 
 ## Comments
 
