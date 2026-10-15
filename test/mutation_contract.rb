@@ -44,6 +44,7 @@ class MutationCase
     "Flay total score" => "test/duplication_contract.rb",
     "Flay cross-file method collection" => "test/duplication_contract.rb",
     "Flay class method candidate collection" => "test/duplication_contract.rb",
+    "Flay module method candidate collection" => "test/duplication_contract.rb",
     "Flay required parameter candidates" => "test/duplication_contract.rb",
     "Flay required parameter arity" => "test/duplication_contract.rb",
     "Flay required parameter identity" => "test/duplication_contract.rb",
@@ -369,7 +370,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "text report completion state",
   "finding result missing")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "bool same_shape = class_count == 0 ? first_method.shape_count == second_method.shape_count : fleek_duplication_class_shapes_equal(&first_method, &second_method);",
+  "bool same_shape = scope_count == 0 ? first_method.shape_count == second_method.shape_count : fleek_duplication_class_shapes_equal(&first_method, &second_method);",
   "bool same_shape = false;",
   "Flay structural equality",
   "similar method group report differed")).run
@@ -408,6 +409,11 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "method->receiver != NULL || method->parameters != NULL || !fleek_duplication_class_parameters((const pm_node_t *) method->parameters, result)",
   "Flay required parameter candidates",
   "required-parameter class method parity differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (set->namespace_count == 1 && PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE)) return fleek_duplication_collect_namespace_methods(body, source, set);",
+  "if (false) return fleek_duplication_collect_namespace_methods(body, source, set);",
+  "Flay module method candidate collection",
+  "module method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "parameters->requireds.size + parameters->optionals.size > 8",
   "parameters->requireds.size + parameters->optionals.size > 1",
@@ -505,7 +511,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (method_count != 0 || ffi_module_count != 0 || !fleek_duplication_collect_class_methods(statement, (const uint8_t *) source, &class_candidates)) {",
-  "if (class_count != 0 || method_count != 0 || ffi_module_count != 0 || !fleek_duplication_collect_class_methods(statement, (const uint8_t *) source, &class_candidates)) {",
+  "if (scope_count != 0 || method_count != 0 || ffi_module_count != 0 || !fleek_duplication_collect_class_methods(statement, (const uint8_t *) source, &class_candidates)) {",
   "Flay multiple class declarations",
   "class methods across classes were not compared")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -514,7 +520,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay cross-class class group rejection",
   "unsupported cross-class Flay group was reported as a defn group or complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "set->class_body_counts[left] == set->class_candidate_counts[left] &&\n                set->class_body_counts[right] == set->class_candidate_counts[right] &&",
+  "set->scope_body_counts[left] == set->scope_candidate_counts[left] &&\n                set->scope_body_counts[right] == set->scope_candidate_counts[right] &&",
   "true && true &&",
   "Flay partial class candidates",
   "supported class methods were hidden by unsupported callbacks")).run
@@ -544,8 +550,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method partial subtree",
   "partial class-method duplicate was silently skipped")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (class_count != 0) {\n        for (size_t index = 0; index < first_method.shape_count; index++) if (fleek_duplication_class_node_massless(first_method.data.ast.nodes[index])) mass--;\n      }",
-  "if (class_count != 0) {\n        for (size_t index = 0; index < first_method.shape_count; index++) if (fleek_duplication_class_node_massless(first_method.data.ast.nodes[index])) mass++;\n      }",
+  "if (scope_count != 0) {\n        for (size_t index = 0; index < first_method.shape_count; index++) if (fleek_duplication_class_node_massless(first_method.data.ast.nodes[index])) mass--;\n      }",
+  "if (scope_count != 0) {\n        for (size_t index = 0; index < first_method.shape_count; index++) if (fleek_duplication_class_node_massless(first_method.data.ast.nodes[index])) mass++;\n      }",
   "Flay class method score",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,

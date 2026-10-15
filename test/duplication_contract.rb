@@ -10,6 +10,7 @@ class DuplicationProcess
   ClassMethodExpectation = Struct.new(:kind, :score, :mass, :second_line, :reference_group, :message, :first_line)
   CLASS_METHOD_EXPECTATIONS = {
     rails_pair: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "Rails-shaped class method parity differed"),
+    module_methods: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "module method parity differed"),
     required_parameters: ClassMethodExpectation.new("similar", 48, 48, 8, "Similar code found in :defn (mass = 48)", "required-parameter class method parity differed"),
     optional_parameters: ClassMethodExpectation.new("similar", 52, 52, 9, "Similar code found in :defn (mass = 52)", "optional-parameter class method parity differed"),
     optional_parameter_defaults: ClassMethodExpectation.new("similar", 52, 52, 9, "Similar code found in :defn (mass = 52)", "optional-parameter default parity differed"),
@@ -110,7 +111,7 @@ class DuplicationProcess
     score = expectation.score
     mass = expectation.mass
     line = expectation.second_line
-    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "literal-default optional positional parameters", "bounded if/else/unless branches", "boolean OR expressions", "return statements with supported values", "local-variable assignments", "Total duplication score: #{score}"], expectation.message)
+    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "direct methods in one simple module", "literal-default optional positional parameters", "bounded if/else/unless branches", "boolean OR expressions", "return statements with supported values", "local-variable assignments", "Total duplication score: #{score}"], expectation.message)
   end
 
   def self.class_method_reference_expectation(path, expectation)
@@ -308,6 +309,7 @@ DuplicationProcess.verify_class_method_parity(optional_defaults_path, :optional_
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_optional_literal_defaults.rb", :optional_literal_defaults)
 DuplicationProcess.verify_class_method_no_group("test/fixtures/duplication_class_methods_optional_parameter_counts.rb")
 DuplicationProcess.verify_class_method_no_group("test/fixtures/duplication_class_methods_optional_parameter_count_candidates.rb")
+DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_module_methods.rb", :module_methods)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_conditionals.rb", :conditionals)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_unless.rb", :unless_branches)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_conditional_return.rb", :conditional_return)
