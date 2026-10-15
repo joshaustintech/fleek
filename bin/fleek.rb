@@ -195,7 +195,6 @@ class Fleek
         constant_path = class_node->constant_path;
         scope_body = class_node->body;
         scope_keyword = class_node->class_keyword_loc.start;
-        if (class_node->superclass != NULL) scope_node = NULL;
       } else {
         const pm_module_node_t *module_node = (const pm_module_node_t *) scope_node;
         constant_path = module_node->constant_path;
@@ -1550,7 +1549,7 @@ class Fleek
   end
 
   def self.report_unsupported_class(path)
-    warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class or module without inheritance or nested classes or modules."
+    warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class or module without nested classes or modules."
     1
   end
 

@@ -2,7 +2,7 @@
 
 **What to build:** Maintainers can compare measured cold CLI runtime against pinned originals on identical proven source and choose a target from evidence. Parent specification: Standalone native release and performance evidence.
 
-**Blocked by:** 14 Real Rails project parity.
+**Blocked by:** 14 Real Rails project parity; 18 Namespaced ClassVariable contexts; 19 Rails Flay class-method parity.
 
 **Status:** open
 **Type:** task

@@ -42,6 +42,11 @@ text_only = AnalysisProcess.fleek("test/fixtures/class_variable_text.rb")
 raise "string marker reported as class variable" if text_only[1].include?("ClassVariable:")
 raise "comment marker reported as class variable" unless AnalysisProcess.fleek("test/fixtures/class_variable_text.rb")[0] == 0
 
+inherited = AnalysisProcess.fleek("test/fixtures/class_variable_inherited.rb")
+inherited_reference = AnalysisProcess.reek("test/fixtures/class_variable_inherited.rb")
+raise "inherited class status differs from Reek" if inherited[0] != inherited_reference[0]
+AnalysisRunner.assert_same_report(inherited, inherited_reference, "inherited class")
+
 unselected = AnalysisProcess.unselected("test/fixtures/class_variable.rb")
 raise "omitted check selection was accepted" unless unselected[0] == 1 && unselected[2].include?("unsupported")
 
@@ -52,7 +57,7 @@ raise "embedded NUL was not rejected" unless nul[0] == 1 && nul[2].include?("emb
 File.write("/tmp/fleek-class-variable-invalid.rb", "class Counter\n  @@count =\nend\n")
 invalid = AnalysisProcess.fleek("/tmp/fleek-class-variable-invalid.rb")
 raise "invalid source was not rejected" unless invalid[0] == 1
-File.write("/tmp/fleek-class-variable-unsupported.rb", "class Counter < Base\n  @@count = 0\nend\n")
+File.write("/tmp/fleek-class-variable-unsupported.rb", "class Counter\n  class Nested; end\nend\n")
 unsupported = AnalysisProcess.fleek("/tmp/fleek-class-variable-unsupported.rb")
 raise "unsupported context was accepted" unless unsupported[0] == 1 && unsupported[2].include?("supports one simple class")
 

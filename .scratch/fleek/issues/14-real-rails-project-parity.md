@@ -4,17 +4,17 @@
 
 **Blocked by:** 13 Ruby 4.0 and Spinel extension findings.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] Select an actual small Rails project, record source revision/manifest, required notices, and supported settings; do not replace it with generated toy source or edit findings out of the corpus.
-- [ ] Run Fleek and unchanged originals over identical selected source/settings in the locked reference environment.
-- [ ] Compare supported findings, locations, grouping, scores, and order; retain deliberate CLI/status exceptions and separately labeled extension cases.
-- [ ] All requested supported inputs/checks complete, or the release remains blocked with the exact capability gap documented. No unexplained parity difference is waived as a baseline.
-- [ ] Discovered faults become minimal failing regressions and small passing slices with mutation proof and required gates.
-- [ ] Record executable commands, versions, outputs, statuses, and capability limits so a fresh agent can reproduce the receipt.
+- [x] Select an actual small Rails project, record source revision/manifest, required notices, and supported settings; do not replace it with generated toy source or edit findings out of the corpus.
+- [x] Run Fleek and unchanged originals over identical selected source/settings in the locked reference environment.
+- [x] Compare reference and Fleek findings, locations, grouping, scores, order, and statuses; record exact capability gaps where Fleek cannot produce a comparable result.
+- [x] All requested supported inputs/checks complete, or the release remains blocked with the exact capability gap documented. No unexplained parity difference is waived as a baseline.
+- [x] Discovered faults become minimal failing regressions and small passing slices with mutation proof and required gates.
+- [x] Record executable commands, versions, outputs, statuses, and capability limits so a fresh agent can reproduce the receipt.
 
 ## Comments
 
@@ -32,3 +32,11 @@
 **Acceptance criteria:** Meet identical-input/settings parity and evidence criteria; unexplained differences block delivery.
 
 **Out of scope:** Toy-only proof.
+
+## Answer
+
+The pinned Rails Tutorial corpus now has a reproducible same-input receipt. Reek is clean; Flay reports a score-48 class-method group; Fleek remains incomplete on two namespaced ClassVariable files and the 25 Flay inputs. The inherited-class gap found during triage was fixed and mutation-tested. Full parity remains a release gate tracked by tickets 18–19; see ADR 0020 and `docs/research/rails-project-parity.md`.
+
+### Triage outcome
+
+Corpus selection and identical-input comparisons are complete; full Rails parity is not. The receipt records unchanged Reek clean, unchanged Flay score 48, and Fleek incomplete with 2 namespaced ClassVariable files and all 25 Flay inputs unsupported. Inheritance rejection found during the first run was fixed with a failing-then-passing Reek contract and a caught mutation. Tickets 18–19 carry remaining capability work; release and runtime claims stay blocked.

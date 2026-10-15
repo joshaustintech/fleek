@@ -1,0 +1,74 @@
+# Rails project parity receipt
+
+## Corpus
+
+Use JetBrains' Rails Tutorial app at commit `92ce7c470bc31952d7dc51cac15e577a948e479e` (tree `a26706bd73befbaa3d1c3cf8d2d46c3ecf41a470`). The pinned revision specifies Ruby 3.3.1 and Rails 8.0.0 and carries its MIT/Beerware notice in `LICENSE.md` (SHA-256 `79f463c320afea55eba0347bae91b0c164c807872e33afaf492a0419e5bdc308`). Do not copy its source into Fleek.
+
+The compared input is all 25 tracked Ruby files under `app/`, selected in sorted recursive path order by `app/**/*.rb`. ERB templates are outside Fleek's Ruby input contract; do not pass the `app/` directory to Flay for comparison because Flay also analyzes `.erb` files. Neither `.reek.yml` nor `.flayignore` exists in the corpus. Settings are Reek `--smell ClassVariable` defaults and Flay default mass 16. Fleek selects both corresponding checks with default configuration and mass.
+
+The 25-file manifest is pinned by the source commit and tree above:
+
+```text
+app/channels/application_cable/channel.rb
+app/channels/application_cable/connection.rb
+app/controllers/account_activations_controller.rb
+app/controllers/application_controller.rb
+app/controllers/microposts_controller.rb
+app/controllers/password_resets_controller.rb
+app/controllers/relationships_controller.rb
+app/controllers/sessions_controller.rb
+app/controllers/static_pages_controller.rb
+app/controllers/users_controller.rb
+app/helpers/account_activations_helper.rb
+app/helpers/application_helper.rb
+app/helpers/microposts_helper.rb
+app/helpers/password_resets_helper.rb
+app/helpers/relationships_helper.rb
+app/helpers/sessions_helper.rb
+app/helpers/static_pages_helper.rb
+app/helpers/users_helper.rb
+app/jobs/application_job.rb
+app/mailers/application_mailer.rb
+app/mailers/user_mailer.rb
+app/models/application_record.rb
+app/models/micropost.rb
+app/models/relationship.rb
+app/models/user.rb
+```
+
+## Reproduction
+
+On Apple Silicon with the locked Fleek bundle and pinned Spinel compiler:
+
+```sh
+git clone https://github.com/JetBrains/sample_rails_app_8th_ed.git /tmp/fleek-rails-corpus
+git -C /tmp/fleek-rails-corpus checkout --detach 92ce7c470bc31952d7dc51cac15e577a948e479e
+SPINEL=/path/to/spinel-2026.09.12/bin/spinel make all
+BUNDLE_PATH=/path/to/fleek-bundle bundle exec flay /tmp/fleek-rails-corpus/app/**/*.rb
+BUNDLE_PATH=/path/to/fleek-bundle bundle exec reek --smell ClassVariable --no-progress /tmp/fleek-rails-corpus/app/**/*.rb
+build/fleek --checks flay:StructuralDuplication,reek:ClassVariable /tmp/fleek-rails-corpus/app/**/*.rb
+```
+
+Evidence captured with Ruby 3.4.9 arm64-darwin23, Flay 2.14.4, Reek 6.6.0, and Spinel 2026.09.12 / source `112bae85c1a25fc5399009a849f805bfe691426b`:
+
+| Check | Unchanged reference | Fleek on same 25 Ruby files | Result |
+| --- | --- | --- | --- |
+| `reek:ClassVariable` | Exit 0; `0 total warnings` | Exit 1; 23 analyzed, 2 failed, incomplete; no findings | Incomplete due to namespaced module/class declarations in the two `app/channels/application_cable/*.rb` files. Inheritance alone is now supported. |
+| `flay:StructuralDuplication` | Exit 0; score 48; one similar `:defn` group, mass 48, locations `users_controller.rb:51` and `users_controller.rb:58` | Exit 1; 0 analyzed, 25 failed, incomplete; no groups or score | Unsupported nested class methods; current Flay adapter accepts only two parameterless top-level methods. |
+| Combined | Both references exit 0 | Exit 1; overall `incomplete` | Correct fail-closed behavior, but not Rails project parity. |
+
+Flay's exact group was:
+
+```text
+Similar code found in :defn (mass = 48)
+  app/controllers/users_controller.rb:51
+  app/controllers/users_controller.rb:58
+```
+
+The directory-level Flay run also sees ERB templates and reports score 418; that is intentionally not compared to Fleek because it is a different source set. There are no findings edited out of the pinned corpus. Do not describe the clean Reek reference output as a successful Fleek check: Fleek reports the 2 namespace failures and 25 Flay failures.
+
+## Decision and next work
+
+The real project is locked as the parity corpus, but this receipt does not prove full parity. Keep release and cold-runtime claims blocked until Fleek can analyze namespaced class/module contexts and the upstream Flay structural shapes found in ordinary Rails classes, then compare all findings, locations, grouping, score, order, and statuses on this exact manifest. Ticket 18 tracks that extension work. See [ADR 0020](../adr/0020-rails-parity-corpus-and-release-gate.md).
+
+Primary corpus references: [pinned commit](https://github.com/JetBrains/sample_rails_app_8th_ed/commit/92ce7c470bc31952d7dc51cac15e577a948e479e), [tree manifest](https://api.github.com/repos/JetBrains/sample_rails_app_8th_ed/git/trees/a26706bd73befbaa3d1c3cf8d2d46c3ecf41a470?recursive=1), [lockfile](https://github.com/JetBrains/sample_rails_app_8th_ed/blob/92ce7c470bc31952d7dc51cac15e577a948e479e/Gemfile.lock), [Ruby version](https://github.com/JetBrains/sample_rails_app_8th_ed/blob/92ce7c470bc31952d7dc51cac15e577a948e/.ruby-version), [license and notices](https://github.com/JetBrains/sample_rails_app_8th_ed/blob/92ce7c470bc31952d7dc51cac15e577a948e/LICENSE.md).

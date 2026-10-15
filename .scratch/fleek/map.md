@@ -6,13 +6,13 @@
 - One local Markdown issue per ticket in `issues/`, numbered globally in dependency order.
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
-- Tickets 01–13 resolved and pushed in order; continue one passing ticket per commit.
+- Tickets 01–14 resolved and pushed in order; ticket 14 records a real-project release blocker. Tickets 18–19 must close before runtime/archive/release tickets can pass.
 
 ## Decisions-so-far
 
 - Native combined Flay/Reek replacement; pinned Spinel compiler; Ruby 4.0 and pinned Spinel source input; standalone macOS arm64 release.
 - Primary test seam: compiled CLI process. Parser feasibility uses a temporary real native probe.
-- Ticket sequence and dependencies in issue bodies; summary: 01 compiler/reference harness → 02 parser → 03–08 smell/input/config/text → 09–12 duplication/combined report → 13–14 language/Rails parity → 15–17 runtime/release.
+- Ticket sequence and dependencies in issue bodies; summary: 01 compiler/reference harness → 02 parser → 03–08 smell/input/config/text → 09–12 duplication/combined report → 13–14 language/Rails parity → 18–19 Rails coverage → 15–17 runtime/release.
 - Research notes and ADRs link from `spec.md` and project documentation.
 - Ticket 07 imports a bounded Reek YAML subset without a YAML library; see ADR 0013 for supported keys and deliberate no-analysis exit differences.
 - Ticket 08 defines stable text report v1 and explicit coverage/status fields; see ADR 0014 for layout, escaping, stream, and unsupported-format behavior.
@@ -20,13 +20,14 @@
 - Ticket 10 supports validated `--mass MASS`, and ticket 11 adds deterministic two-method cross-file groups and partial-input status; see ADR 0017 for the shared grammar, pruning boundary, and per-file score allocation.
 - Ticket 12 combines explicitly selected Flay and Reek checks with independent exclusions and one incomplete/finding/complete outcome; see ADR 0018 for syntax boundaries, equivalent-reference parity, and deliberate exit-status normalization.
 - Ticket 13 proves bounded Ruby 4 and pinned Spinel analysis, inert source processing, and reference-backed Flay extension parity; see ADR 0019 for the supported integer-`&&`/`ffi_func` shapes and separate Flay node-mass/group-score reporting.
+- Ticket 14 pins the real Rails corpus and records exact incomplete parity; see ADR 0020. Tickets 18–19 gate release/runtime work until namespace and class-method coverage matches references.
 
 ## Fog
 
 - Native analyzer coverage starts with tickets 03–04's bounded ClassVariable slice; broader parity remains open.
 - Flay/Reek repository/tag identity and locked Ruby are established; future output-parity evidence remains open.
 - Ticket 02 proved only its named Ruby 4 newline-`&&` form and Spinel FFI declaration syntax; ticket 13 adds bounded ClassVariable/Flay behavior and reference parity, while broader grammar remains open.
-- Real Rails corpus and release signing/runtime environment are undecided.
+- Real Rails corpus is pinned by ticket 14, but full parity is blocked: two namespaced ClassVariable inputs and 25 Flay inputs remain incomplete. Tickets 18–19 track closure. Release signing/runtime environment remains undecided.
 
 ## Ticket 01 receipt
 
@@ -107,6 +108,12 @@
 - ADR 0019 records ClassVariable support for one simple class or module, inert Spinel FFI handling, Reek's Ruby 4 parser rejection, and exact bounded Flay extension shapes; arbitrary grammar remains explicitly unsupported.
 - Ruby 4 ClassVariable and suppression checks preserve source lines. Flay parity compares unchanged 2.14.4 finding kind, node mass, score, ordered locations, and exit status for similar and identical Ruby 4 groups and Spinel FFI modules; unsupported operands and non-final operators return incomplete.
 - All 51 project mutations were caught. `make all test flay reek` passes with 13 contracts, Flay score 0, and Reek warnings 0; specification and standards reviews pass.
+
+## Ticket 14 receipt
+
+- ADR 0020 and `docs/research/rails-project-parity.md` pin the MIT/Beerware Rails 8 Tutorial corpus, 25-file Ruby manifest, settings, versions, commands, outputs, and source notice without vendoring source.
+- Identical-input references report Reek ClassVariable clean and Flay score 48 at `users_controller.rb:51,58`; Fleek accurately exits incomplete. Inherited classes now pass the ClassVariable check and match Reek, caught by the dedicated mutation; two namespaced files still fail.
+- Full Rails parity and release/runtime claims remain blocked by tickets 18–19. Existing code review and full gates must pass for the ticket 14 documentation and inheritance slice.
 
 ## Ticket 08 receipt
 
