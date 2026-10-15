@@ -2,7 +2,7 @@
 
 **What to build:** `flay:StructuralDuplication` preserves upstream Flay 2.14.4 findings for ordinary methods inside Rails classes, including nested method candidates, AST structure, source locations, mass, grouping, score, and order. Parent specification: Language support and real-project parity.
 
-**Status:** open
+**Status:** claimed
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent

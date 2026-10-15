@@ -81,6 +81,10 @@ Both exit statuses: 0
 
 The output matches Reek's clean ClassVariable result. The combined run remains incomplete because Flay cannot analyze ordinary class methods; its baseline score-48 group is unchanged. Deeper namespace shapes and class-variable occurrences on the namespace itself fail closed. See [ADR 0021](../adr/0021-single-level-ruby-namespace-analysis.md).
 
+## Ticket 19 implementation slice
+
+The Flay adapter now recognizes exactly two direct, parameterless methods in one simple class when both bodies use the existing bounded statement grammar. A synthetic public CLI contract matches Flay 2.14.4's similar `:defn` group, mass, score, and source lines. On the pinned 25-file manifest, Flay still reports one score-48 group at `users_controller.rb:51,58`, while Fleek reports all 25 files incomplete. This slice does not close the corpus or release gate; unsupported shapes remain explicit. See [ADR 0022](../adr/0022-flay-class-method-candidate-boundary.md).
+
 ## Decision and next work
 
 The real project is locked as the parity corpus, but this receipt does not prove full parity. Keep release and cold-runtime claims blocked until Fleek can analyze the upstream Flay structural shapes found in ordinary Rails classes, then compare all findings, locations, grouping, score, order, and statuses on this exact manifest. Ticket 19 tracks the remaining gap; ticket 18 closes the ClassVariable namespace gap. See [ADR 0020](../adr/0020-rails-parity-corpus-and-release-gate.md).
