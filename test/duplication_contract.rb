@@ -147,7 +147,7 @@ DuplicationProcess.verify(identical[0] == 2 && identical_reference_weighted && i
 unsupported_path = "test/fixtures/duplication_unsupported.rb"
 unsupported = DuplicationProcess.run(DuplicationProcess::Input.new(unsupported_path, "fleek", ""))
 unsupported_state = unsupported[1].include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded") && unsupported[1].include?("Status: incomplete")
-DuplicationProcess.verify(unsupported[0] == 1 && unsupported_state && unsupported[2].include?("unsupported Flay candidate syntax"), "unsupported syntax implied complete analysis")
+DuplicationProcess.verify(unsupported[0] == 1 && unsupported_state && unsupported[2].include?("Partial results may omit Flay candidates"), "unsupported syntax implied complete analysis")
 
 fuzzy = DuplicationProcess.run(DuplicationProcess::Input.new(similar_path, "fleek", "--fuzzy"))
 DuplicationProcess.verify(fuzzy[0] == 1 && fuzzy[2].include?("Unsupported Flay option: \"--fuzzy\""), "unsupported fuzzy request was accepted")
@@ -221,6 +221,26 @@ namespace_class_actual_fields = ["kind=\"similar\"", "locations=\"#{namespace_cl
 DuplicationProcess.verify_output(namespace_class_actual, DuplicationProcess::OutputExpectation.new(2, namespace_class_actual_fields, "simple namespace class methods were not analyzed"))
 namespace_class_reference_fields = ["Similar code found in :defn (mass = 48)", "#{namespace_class_path}:3", "#{namespace_class_path}:10", "Total score (lower is better) = 48"]
 DuplicationProcess.verify_output(namespace_class_reference, DuplicationProcess::OutputExpectation.new(0, namespace_class_reference_fields, "Flay namespace class-method group changed"))
+
+empty_namespace_path = "test/fixtures/duplication_empty_namespace_classes.rb"
+empty_namespace_actual = DuplicationProcess.run(DuplicationProcess::Input.new(empty_namespace_path, "fleek", ""))
+empty_namespace_reference = DuplicationProcess.run(DuplicationProcess::Input.new(empty_namespace_path, "flay", ""))
+DuplicationProcess.verify_output(empty_namespace_actual, DuplicationProcess::OutputExpectation.new(0, ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"], "empty namespaced classes were not analyzed cleanly"))
+DuplicationProcess.verify_output(empty_namespace_reference, DuplicationProcess::OutputExpectation.new(0, ["Total score (lower is better) = 0"], "Flay empty namespaced classes changed"))
+
+empty_module_path = "test/fixtures/duplication_empty_module.rb"
+empty_module_actual = DuplicationProcess.run(DuplicationProcess::Input.new(empty_module_path, "fleek", ""))
+empty_module_reference = DuplicationProcess.run(DuplicationProcess::Input.new(empty_module_path, "flay", ""))
+DuplicationProcess.verify_output(empty_module_actual, DuplicationProcess::OutputExpectation.new(0, ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"], "empty modules were not analyzed cleanly"))
+DuplicationProcess.verify_output(empty_module_reference, DuplicationProcess::OutputExpectation.new(0, ["Total score (lower is better) = 0"], "Flay empty module changed"))
+
+partial_candidates_path = "test/fixtures/duplication_class_methods_partial_candidates.rb"
+partial_candidates_actual = DuplicationProcess.run(DuplicationProcess::Input.new(partial_candidates_path, "fleek", ""))
+partial_candidates_reference = DuplicationProcess.run(DuplicationProcess::Input.new(partial_candidates_path, "flay", ""))
+partial_candidates_fields = ["kind=\"similar\"", "locations=\"#{partial_candidates_path}:4,#{partial_candidates_path}:15\"", "mass=48 score=48", "Total duplication score: 48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(partial_candidates_actual, DuplicationProcess::OutputExpectation.new(1, partial_candidates_fields, "supported class methods were hidden by unsupported callbacks"))
+partial_candidates_reference_fields = ["Similar code found in :defn (mass = 48)", "#{partial_candidates_path}:4", "#{partial_candidates_path}:15", "Total score (lower is better) = 48"]
+DuplicationProcess.verify_output(partial_candidates_reference, DuplicationProcess::OutputExpectation.new(0, partial_candidates_reference_fields, "Flay class methods with callbacks changed"))
 
 partial_rails_path = "test/fixtures/duplication_class_methods_partial_rails.rb"
 partial_rails_actual = DuplicationProcess.run(DuplicationProcess::Input.new(partial_rails_path, "fleek", ""))

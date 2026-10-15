@@ -57,6 +57,9 @@ class MutationCase
     "Flay partial source label" => "test/duplication_contract.rb",
     "Flay partial coverage count" => "test/duplication_contract.rb",
     "Flay ambiguous class group rejection" => "test/duplication_contract.rb",
+    "Flay partial class candidates" => "test/duplication_contract.rb",
+    "Flay empty namespace classes" => "test/duplication_contract.rb",
+    "Flay empty module body guard" => "test/duplication_contract.rb",
     "Flay cross-file location mapping" => "test/duplication_contract.rb",
     "Flay cross-file ordering" => "test/duplication_contract.rb",
     "combined failure precedence" => "test/combined_contract.rb",
@@ -380,7 +383,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "if (PM_NODE_TYPE_P(statement, PM_CLASS_NODE)) {",
   "if (false) {",
   "Flay class method candidate collection",
-  "Rails-shaped class method parity differed")).run
+  "unsupported syntax implied complete analysis")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (set->count == 16 || !fleek_duplication_class_method(child, source, &set->candidates[set->count])) { fleek_duplication_partial = 1; continue; }",
   "if (set->count == 1 || !fleek_duplication_class_method(child, source, &set->candidates[set->count])) { fleek_duplication_partial = 1; continue; }",
@@ -392,15 +395,30 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay multiple class declarations",
   "class methods across classes were not compared")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (same_shape && set->class_body_counts[left] == set->class_body_counts[right] && mass + 2 >= (size_t) mass_threshold) return false;",
+  "if (same_shape && set->class_body_counts[left] == set->class_body_counts[right] &&\n                set->class_body_counts[left] == set->class_candidate_counts[left] &&\n                set->class_body_counts[right] == set->class_candidate_counts[right] &&\n                mass + 2 >= (size_t) mass_threshold) return false;",
   "if (false) return false;",
   "Flay cross-class class group rejection",
   "unsupported cross-class Flay group was reported as a defn group or complete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "set->class_body_counts[left] == set->class_candidate_counts[left] &&\n                set->class_body_counts[right] == set->class_candidate_counts[right] &&",
+  "true && true &&",
+  "Flay partial class candidates",
+  "supported class methods were hidden by unsupported callbacks")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "else if (!fleek_duplication_collect_namespace_classes(statement, (const uint8_t *) source, &class_candidates)) {",
   "else if (true) {",
   "Flay namespace class method collection",
   "simple namespace class methods were not analyzed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "(class_node->body != NULL && !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE))",
+  "(class_node->body == NULL || !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE))",
+  "Flay empty namespace classes",
+  "empty namespaced classes were not analyzed cleanly")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "module_node->body == NULL || !PM_NODE_TYPE_P(module_node->body, PM_STATEMENTS_NODE)",
+  "!PM_NODE_TYPE_P(module_node->body, PM_STATEMENTS_NODE)",
+  "Flay empty module body guard",
+  "empty modules were not analyzed cleanly")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (left->shape_count != right->shape_count || left->data.ast.tree_count != right->data.ast.tree_count) return false;\n      for (size_t index = 0; index < left->data.ast.tree_count; index++) if (left->data.ast.tree[index] != right->data.ast.tree[index]) return false;\n      return true;",
   "return left->shape_count == right->shape_count;",
@@ -427,10 +445,10 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method pair ordering",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'fleek_duplication_partial = 1;',
-  'fleek_duplication_partial = 0;',
+  'if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) { fleek_duplication_partial = 1; continue; }',
+  'if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) { fleek_duplication_partial = 0; continue; }',
   "Flay class method partial status",
-  "partial Rails class results were hidden or reported complete")).run
+  "supported class methods were hidden by unsupported callbacks")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'print_duplication_source(path, report.source_scope)',
   'print_duplication_source(path, "included")',
@@ -440,7 +458,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'report.paths.length - report.partial_paths.length',
   'report.paths.length',
   "Flay partial coverage count",
-  "partial Rails class results were hidden or reported complete")).run
+  "unsupported syntax implied complete analysis")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'source_map.reverse.find { |_path, start_line| line >= start_line }',
   'source_map.find { |_path, start_line| line >= start_line }',

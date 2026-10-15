@@ -10,7 +10,7 @@ The pinned Rails manifest wraps Action Cable classes in `ApplicationCable` modul
 
 ## Decision
 
-Allow one-level module namespaces to contain direct simple class declarations for Flay candidate collection; multiple top-level namespaces are permitted in one selected source. Continue rejecting deeper namespace nesting. Other namespace-body statements are skipped only with partial status; module-level methods are not treated as class methods. Preserve FFI declaration modules as their existing separate input form.
+Allow one-level module namespaces to contain direct simple class declarations for Flay candidate collection; multiple top-level namespaces are permitted in one selected source. Empty modules and empty simple classes are clean inputs because Flay finds no class-method groups in them. Guard null module bodies before FFI-shape inspection. Continue rejecting deeper namespace nesting. Other namespace-body statements are skipped only with partial status; module-level methods are not treated as class methods. Preserve FFI declaration modules as their existing separate input form.
 
 ## Consequences
 

@@ -10,7 +10,7 @@ Flay analyzes methods from multiple class declarations in one selected source se
 
 ## Decision
 
-Collect bounded, direct, parameterless methods from multiple simple class declarations in the combined source. Retain the existing limit of 16 supported candidates total and at most 32 direct body entries per class. Compare candidates across classes when the upstream result is a supported `:defn` pair. When similarly shaped classes have the same number of direct body entries and could instead yield Flay's `:class` group, fail incomplete rather than relabeling it as `:defn`. Class callbacks, parameterized methods, and unsupported method ASTs mark sources partial; matching unsupported subtrees or ambiguous method groups fail closed.
+Collect bounded, direct, parameterless methods from multiple simple class declarations in the combined source. Retain the existing limit of 16 supported candidates total and at most 32 direct body entries per class. Compare candidates across classes when the upstream result is a supported `:defn` pair. Reject a possible Flay `:class` group when similarly shaped classes have equal body sizes and every direct entry is a modeled method; this avoids inferring whole-class similarity from partial ASTs. Unsupported callbacks and method forms mark sources partial, while verified method findings remain visible with incomplete status; matching unsupported subtrees or ambiguous method groups fail closed.
 
 ## Consequences
 

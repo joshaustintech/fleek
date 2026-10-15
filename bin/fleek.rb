@@ -110,7 +110,9 @@ class Fleek
       fleek_duplication_method_t candidates[16];
       size_t class_indices[16];
       size_t class_body_counts[16];
+      size_t class_candidate_counts[16];
       size_t class_count;
+      size_t namespace_count;
       size_t count;
     } fleek_duplication_class_candidates_t;
 
@@ -430,28 +432,38 @@ class Fleek
     static bool fleek_duplication_collect_class_methods(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set) {
       if (!PM_NODE_TYPE_P(node, PM_CLASS_NODE)) return false;
       const pm_class_node_t *class_node = (const pm_class_node_t *) node;
-      if (class_node->constant_path == NULL || class_node->body == NULL || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) || !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE)) return false;
-      const pm_statements_node_t *body = (const pm_statements_node_t *) class_node->body;
-      if (body->body.size > 32) return false;
+      if (class_node->constant_path == NULL || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) ||
+          (class_node->body != NULL && !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE))) return false;
       size_t class_index = set->class_count++;
       size_t first_candidate = set->count;
-      size_t body_count = body->body.size;
-      for (size_t index = 0; index < body->body.size; index++) {
-        const pm_node_t *child = body->body.nodes[index];
-        if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) { fleek_duplication_partial = 1; continue; }
-        if (set->count == 16 || !fleek_duplication_class_method(child, source, &set->candidates[set->count])) { fleek_duplication_partial = 1; continue; }
-        set->methods[set->count] = (const pm_def_node_t *) child;
-        set->class_indices[set->count] = class_index;
-        set->count++;
+      size_t body_count = 0;
+      if (class_node->body != NULL) {
+        const pm_statements_node_t *body = (const pm_statements_node_t *) class_node->body;
+        if (body->body.size > 32) return false;
+        body_count = body->body.size;
+        for (size_t index = 0; index < body->body.size; index++) {
+          const pm_node_t *child = body->body.nodes[index];
+          if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) { fleek_duplication_partial = 1; continue; }
+          if (set->count == 16 || !fleek_duplication_class_method(child, source, &set->candidates[set->count])) { fleek_duplication_partial = 1; continue; }
+          set->methods[set->count] = (const pm_def_node_t *) child;
+          set->class_indices[set->count] = class_index;
+          set->count++;
+        }
       }
-      for (size_t index = first_candidate; index < set->count; index++) set->class_body_counts[index] = body_count;
+      for (size_t index = first_candidate; index < set->count; index++) {
+        set->class_body_counts[index] = body_count;
+        set->class_candidate_counts[index] = set->count - first_candidate;
+      }
       return true;
     }
 
     static bool fleek_duplication_collect_namespace_classes(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set) {
       if (!PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
       const pm_module_node_t *module_node = (const pm_module_node_t *) node;
-      if (!PM_NODE_TYPE_P(module_node->constant_path, PM_CONSTANT_READ_NODE) || !PM_NODE_TYPE_P(module_node->body, PM_STATEMENTS_NODE)) return false;
+      if (!PM_NODE_TYPE_P(module_node->constant_path, PM_CONSTANT_READ_NODE)) return false;
+      set->namespace_count++;
+      if (module_node->body == NULL) return true;
+      if (!PM_NODE_TYPE_P(module_node->body, PM_STATEMENTS_NODE)) return false;
       const pm_statements_node_t *body = (const pm_statements_node_t *) module_node->body;
       if (body->body.size > 32) return false;
       for (size_t index = 0; index < body->body.size; index++) {
@@ -474,7 +486,10 @@ class Fleek
           size_t mass = 2 + set->candidates[left].shape_count;
           for (size_t node_index = 0; node_index < set->candidates[left].shape_count; node_index++) if (PM_NODE_TYPE_P(set->candidates[left].data.ast.nodes[node_index], PM_KEYWORD_HASH_NODE)) mass--;
           if (set->class_indices[left] != set->class_indices[right]) {
-            if (same_shape && set->class_body_counts[left] == set->class_body_counts[right] && mass + 2 >= (size_t) mass_threshold) return false;
+            if (same_shape && set->class_body_counts[left] == set->class_body_counts[right] &&
+                set->class_body_counts[left] == set->class_candidate_counts[left] &&
+                set->class_body_counts[right] == set->class_candidate_counts[right] &&
+                mass + 2 >= (size_t) mass_threshold) return false;
           }
           if (!same_shape || mass < (size_t) mass_threshold) {
             for (size_t left_node = 0; left_node < set->candidates[left].shape_count; left_node++) {
@@ -506,7 +521,7 @@ class Fleek
     static bool fleek_ffi_declaration_module(const pm_node_t *node, pm_parser_t *parser) {
       if (!PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
       const pm_module_node_t *module_node = (const pm_module_node_t *) node;
-      if (!PM_NODE_TYPE_P(module_node->constant_path, PM_CONSTANT_READ_NODE) || !PM_NODE_TYPE_P(module_node->body, PM_STATEMENTS_NODE)) return false;
+      if (!PM_NODE_TYPE_P(module_node->constant_path, PM_CONSTANT_READ_NODE) || module_node->body == NULL || !PM_NODE_TYPE_P(module_node->body, PM_STATEMENTS_NODE)) return false;
       const pm_statements_node_t *body = (const pm_statements_node_t *) module_node->body;
       if (body->body.size != 1 || !PM_NODE_TYPE_P(body->body.nodes[0], PM_CALL_NODE)) return false;
       const pm_call_node_t *declaration = (const pm_call_node_t *) body->body.nodes[0];
@@ -615,6 +630,9 @@ class Fleek
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
         }
         method_count = 2;
+      }
+      if (class_candidates.namespace_count != 0 && class_count == 0 && method_count == 0) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
       }
       if (method_count != 2) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
