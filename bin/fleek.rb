@@ -1,6 +1,8 @@
 # Fleek exposes native CLI usage and reference identities.
 class Fleek
   VERSION = "0.1.0"
+  # Retains source identity alongside its diagnostic for the text report.
+  SourceFailure = Struct.new(:path, :message)
   FLAY_REFERENCE = "2.14.4"
   REEK_REFERENCE = "6.6.0"
   SPINEL_RELEASE = "2026.09.12"
@@ -287,7 +289,7 @@ class Fleek
       source = File.read(path)
       parse(source)
     rescue SystemCallError
-      @error = "file cannot be read: #{path}"
+      @error = "file cannot be read: #{Fleek.quote_text(path)}"
     end
 
     def parse(source)
@@ -461,7 +463,7 @@ class Fleek
     end
 
     def fail_config(number, message)
-      @error = "#{@path}:#{number}: #{message}" if @error.empty?
+      @error = "#{Fleek.quote_text(@path)}:#{number}: #{message}" if @error.empty?
     end
 
     def disabled_for?(path)
@@ -497,9 +499,20 @@ class Fleek
   def self.print_help
     puts "Usage: fleek [--help | --version]"
     print_analysis_usage
+    print_help_identity
+    print_help_reporting
+  end
+
+  def self.print_help_identity
     puts "Fleek #{VERSION} is a native Ruby analysis CLI."
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}."
     puts "Compiler: Spinel #{SPINEL_RELEASE}."
+  end
+
+  def self.print_help_reporting
+    puts "Supported checks: reek:ClassVariable only; other checks and machine formats are unsupported."
+    puts "Analysis requires --checks; selected and run checks are shown separately."
+    puts "Report: stable text v1; diagnostics on stderr; uncovered checks are reported as not run."
   end
 
   def self.print_analysis_usage
@@ -519,7 +532,8 @@ class Fleek
   end
 
   def self.print_version
-    puts "Fleek #{VERSION} (Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE})"
+    puts "Fleek #{VERSION} (Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}; supported check: reek:ClassVariable; report: text v1)"
+    puts "Analysis requires explicit --checks selection; unsupported checks and machine formats are rejected."
     0
   end
 
@@ -529,6 +543,15 @@ class Fleek
     else
       "ERROR: Requested check or input is unsupported in this release."
     end
+  end
+
+  def self.unsupported_format_requested?(arguments)
+    arguments.include?("--format") || arguments.include?("--json") || arguments.include?("--yaml") || arguments.include?("--sarif") || arguments.any? { |argument| argument.start_with?("--format=") }
+  end
+
+  def self.report_unsupported_format
+    warn "ERROR: Unsupported output format; only stable text output is available."
+    1
   end
 
   def self.print_help_if_requested(arguments)
@@ -573,6 +596,9 @@ class Fleek
     return run_class_variable_with_stdin(source_inputs, configuration) if source_inputs[0] == "--stdin"
 
     files, errors = discover_sources(source_inputs, configuration)
+    return report_disabled_check(files + errors, configuration) if disabled_input?(files, configuration)
+
+    print_text_report_header(files, configuration, "", errors)
     report_input_errors(errors)
     summarize_class_variable_inputs(files, errors, configuration)
   end
@@ -605,14 +631,93 @@ class Fleek
 
   def self.run_named_stdin(origin, paths, configuration)
     files, errors = discover_additional_sources(paths, configuration)
+    return report_disabled_check(files + [origin] + errors, configuration) if configuration.disabled_for?(origin) || disabled_input?(files, configuration)
+
+    print_text_report_header(files, configuration, origin, errors)
     report_input_errors(errors)
     summarize_class_variable_inputs_with_stdin(files, errors, origin, configuration)
+  end
+
+  # :reek:LongParameterList
+  def self.print_text_report_header(files, configuration, origin = "", errors = [])
+    print_report_identity
+    print_selected_check(files, configuration, origin)
+    print_report_scope
+    print_report_sources(report_sources(files, origin), configuration, errors)
+    puts "Findings:"
+  end
+
+  def self.print_selected_check(files, configuration, origin)
+    puts "Checks selected: reek:ClassVariable"
+    check_runs = report_sources(files, origin).any? { |path| !configuration.excluded_path?(path) }
+    puts "Checks run: #{check_runs ? 'reek:ClassVariable' : 'none'}"
+  end
+
+  def self.report_sources(files, origin)
+    origin.empty? ? files : [origin] + files
+  end
+
+  def self.print_report_identity
+    puts "Fleek report v1"
+    puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
+  end
+
+  def self.print_report_scope
+    puts "Scope limits: Ruby .rb inputs; only reek:ClassVariable is implemented."
+  end
+
+  def self.print_report_sources(selected_files, configuration, errors)
+    failed_sources = errors.select { |error| !error.path.empty? }
+    puts "Sources:"
+    print_source_rows(selected_files, configuration, failed_sources)
+  end
+
+  def self.print_source_rows(selected_files, configuration, failed_sources)
+    if selected_files.empty? && failed_sources.empty?
+      puts "  none"
+      return
+    end
+    selected_files.each { |path| print_report_source(path, configuration) }
+    print_failed_sources(failed_sources)
+  end
+
+  def self.print_failed_sources(errors)
+    errors.each { |error| puts "  Source: #{quote_text(error.path)} scope=failed" }
+  end
+
+  def self.print_report_source(path, configuration)
+    excluded = configuration.excluded_path?(path)
+    puts "  Source: #{quote_text(path)} scope=#{excluded ? 'excluded' : 'included'}"
+  end
+
+  # :reek:TooManyStatements
+  def self.quote_text(value)
+    escaped = ""
+    index = 0
+    while index < value.length
+      character = value[index]
+      escaped += if character == "\\"
+                   "\\\\"
+                 elsif character == "\""
+                   "\\\""
+                 elsif character == "\t"
+                   "\\t"
+                 elsif character == "\n"
+                   "\\n"
+                 elsif character == "\r"
+                   "\\r"
+                 else
+                   character
+                 end
+      index += 1
+    end
+    "\"#{escaped}\""
   end
 
   def self.analyze_stdin_source(origin, configuration)
     analyze_class_variable_source(origin, $stdin.read, configuration)
   rescue SystemCallError
-    warn "ERROR: Cannot read standard input: #{origin}"
+    warn "ERROR: Cannot read standard input: #{quote_text(origin)}"
     1
   end
 
@@ -644,11 +749,17 @@ class Fleek
   end
 
   def self.add_empty_scan_error(files, errors)
-    errors << "ERROR: No Ruby source files discovered from the requested inputs." if files.empty? && errors.empty?
+    errors << SourceFailure.new("", "ERROR: No Ruby source files discovered from the requested inputs.") if files.empty? && errors.empty?
   end
 
   def self.report_input_errors(errors)
-    errors.each { |message| warn message }
+    errors.each { |error| report_input_error(error) }
+  end
+
+  def self.report_input_error(error)
+    path = error.path
+    message = error.message
+    warn path.empty? ? message : "#{message}: #{quote_text(path)}"
   end
 
   # :reek:LongParameterList
@@ -656,7 +767,7 @@ class Fleek
     symlink = File.symlink?(path)
     directory = File.directory?(path)
     if symlink && directory
-      errors << "ERROR: Directory symlinks are not followed: #{path}"
+    errors << SourceFailure.new(path, "ERROR: Directory symlinks are not followed")
     elsif directory
       discover_directory(path, files, errors, configuration)
     else
@@ -672,7 +783,7 @@ class Fleek
   def self.directory_entries(path, errors)
     Dir.children(path).sort
   rescue SystemCallError
-    errors << "ERROR: Cannot scan directory: #{path}"
+    errors << SourceFailure.new(path, "ERROR: Cannot scan directory")
     []
   end
 
@@ -700,15 +811,14 @@ class Fleek
   end
 
   def self.add_explicit_source(path, files, errors)
-    unless readable_file?(path)
-      errors << "ERROR: Cannot read source file: #{path}"
-      return
-    end
-    unless ruby_source_path?(path)
-      errors << "ERROR: Expected Ruby source (.rb): #{path}"
-      return
-    end
+    return add_source_error(path, errors, "Cannot read source file") unless readable_file?(path)
+    return add_source_error(path, errors, "Expected Ruby source (.rb)") unless ruby_source_path?(path)
+
     files << path
+  end
+
+  def self.add_source_error(path, errors, message)
+    errors << SourceFailure.new(path, "ERROR: #{message}")
   end
 
   def self.readable_file?(path)
@@ -720,20 +830,19 @@ class Fleek
   end
 
   def self.summarize_class_variable_inputs(files, errors, configuration)
-    return report_disabled_check(files + errors, configuration) if disabled_input?(files, configuration)
-
     excluded = excluded_input_count(files, configuration)
     summarize_class_variable_results(class_variable_input_results(files, errors, configuration), files.length - excluded, excluded)
   end
 
   # :reek:LongParameterList
   def self.summarize_class_variable_inputs_with_stdin(files, errors, origin, configuration)
-    return report_disabled_check(files + [origin] + errors, configuration) if configuration.disabled_for?(origin) || disabled_input?(files, configuration)
-
-    results = class_variable_input_results(files, errors, configuration)
-    results.unshift(analyze_stdin_source(origin, configuration))
-    excluded = excluded_input_count(files, configuration)
+    results = class_variable_input_results(files, errors, configuration).unshift(stdin_input_result(origin, configuration))
+    excluded = excluded_input_count(files, configuration) + (configuration.excluded_path?(origin) ? 1 : 0)
     summarize_class_variable_results(results, files.length + 1 - excluded, excluded)
+  end
+
+  def self.stdin_input_result(origin, configuration)
+    configuration.excluded_path?(origin) ? 0 : analyze_stdin_source(origin, configuration)
   end
 
   def self.disabled_input?(files, configuration)
@@ -742,7 +851,7 @@ class Fleek
 
   def self.report_disabled_check(inputs, configuration)
     path = inputs.find { |input| configuration.disabled_for?(input) }
-    warn "ERROR: Reek ClassVariable is disabled for #{path}; no analysis ran."
+    warn "ERROR: Reek ClassVariable is disabled for #{quote_text(path)}; no analysis ran."
     1
   end
 
@@ -753,14 +862,21 @@ class Fleek
   # :reek:TooManyStatements
   def self.summarize_class_variable_results(results, analyzed, excluded)
     status = class_variable_input_status(results)
-    completion = status == 1 ? "incomplete" : "complete"
     if status == 0 && analyzed == 0 && excluded > 0
       warn "ERROR: Reek exclusions removed every selected source; no analysis ran."
       status = 1
-      completion = "incomplete"
     end
-    report_input_summary(analyzed, excluded, results.count(1), completion)
+    failures = results.count(1)
+    analyzed = results.count(0) + results.count(2) - excluded
+    selected = analyzed + failures + excluded
+    report_input_summary(selected, analyzed, failures, excluded, report_state(status))
     status
+  end
+
+  # :reek:ControlParameter
+  def self.report_state(status)
+    return "incomplete" if status == 1
+    status == 2 ? "findings" : "complete"
   end
 
   def self.class_variable_input_results(files, errors, configuration)
@@ -775,17 +891,16 @@ class Fleek
   end
 
   # :reek:LongParameterList
-  def self.report_input_summary(analyzed, excluded, failures, completion)
-    suffix = excluded > 0 ? "; #{excluded} excluded" : ""
-    puts "Coverage: #{analyzed} analyzed; #{failures} failed#{suffix}"
-    puts "Status: #{completion}"
+  def self.report_input_summary(selected, analyzed, failures, excluded, state)
+    puts "Coverage: #{selected} selected; #{analyzed} analyzed; #{failures} failed; #{excluded} excluded"
+    puts "Status: #{state}"
   end
 
   def self.analyze_class_variable_file(path, configuration)
     source = File.binread(path)
     analyze_class_variable_source(path, source, configuration)
   rescue SystemCallError
-      warn "ERROR: Cannot read source file: #{path}"
+      warn "ERROR: Cannot read source file: #{quote_text(path)}"
       1
   end
 
@@ -798,12 +913,12 @@ class Fleek
   end
 
   def self.report_unsupported_class(path)
-    warn "ERROR: #{path}: ClassVariable supports one simple class without inheritance or nested classes or modules."
+    warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class without inheritance or nested classes or modules."
     1
   end
 
   def self.report_unsupported_suppression(path)
-    warn "ERROR: #{path}: unsupported Reek ClassVariable suppression settings."
+    warn "ERROR: #{quote_text(path)}: unsupported Reek ClassVariable suppression settings."
     1
   end
 
@@ -822,47 +937,25 @@ class Fleek
   end
 
   def self.print_class_variable_result(path, findings)
-    if findings.empty?
-      return print_clean_class_variable(path)
-    end
-    print_class_variable_finding(path, findings)
-  end
+    return 0 if findings.empty?
 
-  def self.print_clean_class_variable(path)
-    puts "#{path} -- 0 warnings"
-    print_class_variable_completion("complete")
-    0
-  end
-
-  def self.print_class_variable_finding(path, findings)
-    print_class_variable_header(path, findings.length)
-    print_class_variable_findings(findings)
+    print_class_variable_findings(path, findings)
     2
   end
 
-  def self.print_class_variable_findings(findings)
-    findings.each { |finding| print_class_variable_finding_line(finding) }
-    print_class_variable_completion("findings")
+  def self.print_class_variable_findings(path, findings)
+    findings.each { |finding| print_class_variable_finding_line(path, finding) }
   end
 
-  def self.print_class_variable_header(path, count)
-    plural = count == 1 ? "" : "s"
-    puts "#{path} -- #{count} warning#{plural}:"
-  end
-
-  def self.print_class_variable_finding_line(finding)
+  def self.print_class_variable_finding_line(path, finding)
     lines, context, variable = finding.split("\t")
-    puts "  [#{lines}]:ClassVariable: #{context} declares the class variable '#{variable}' [https://github.com/troessner/reek/blob/v6.6.0/docs/Class-Variable.md]"
-  end
-
-  def self.print_class_variable_completion(state)
-    puts "Checks: reek:ClassVariable"
-    puts "Status: #{state}"
+    message = "[#{lines}]:ClassVariable: #{context} declares the class variable '#{variable}' [https://github.com/troessner/reek/blob/v6.6.0/docs/Class-Variable.md]"
+    puts "  Finding: check=\"reek:ClassVariable\" source=#{quote_text(path)} lines=#{quote_text(lines)} context=#{quote_text(context)} name=#{quote_text(variable)} message=#{quote_text(message)}"
   end
 
   def self.parse_ruby4_file(path)
     unless readable_file?(path)
-      warn "ERROR: Cannot read source file: #{path}"
+      warn "ERROR: Cannot read source file: #{quote_text(path)}"
       return 1
     end
 
@@ -889,7 +982,7 @@ class Fleek
 
   def self.report_parse_failure(path, source, offset)
     if offset == -2
-      warn "#{path}: embedded NUL byte is unsupported"
+      warn "#{quote_text(path)}: embedded NUL byte is unsupported"
     else
       report_syntax_error(path, source, offset)
     end
@@ -901,10 +994,15 @@ class Fleek
     line = prefix.count("\n") + 1
     column = offset - (prefix.rindex("\n") || -1)
     diagnostic = NativePrism.fleek_parse_message
-    warn "#{path}:#{line}:#{column}: #{diagnostic} (byte #{offset})"
+    warn "#{quote_text(path)}:#{line}:#{column}: #{diagnostic} (byte #{offset})"
   end
 
   def self.run(arguments)
+    return report_unsupported_format if unsupported_format_requested?(arguments)
+    run_without_unsupported_format(arguments)
+  end
+
+  def self.run_without_unsupported_format(arguments)
     return parse_ruby4_file(arguments[1]) if parse_ruby4_requested?(arguments)
     return run_class_variable(arguments[2, arguments.length - 2]) if class_variable_requested?(arguments)
     return 0 if print_help_if_requested(arguments)

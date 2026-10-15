@@ -19,7 +19,7 @@ raise "Spinel FFI declaration parse status" unless spinel_source[0] == 0
 
 invalid = NativeParserProcess.run("test/fixtures/invalid.rb")
 raise "invalid Ruby source status" unless invalid[0] == 1
-raise "original byte location changed" unless invalid[2].include?("test/fixtures/invalid.rb:2:17:") && invalid[2].include?("byte 31")
+raise "original byte location changed" unless invalid[2].include?("\"test/fixtures/invalid.rb\":2:17:") && invalid[2].include?("byte 31")
 raise "Prism diagnostic was not preserved" unless invalid[2].include?("expected")
 
 missing = NativeParserProcess.run("test/fixtures/not-found.rb")

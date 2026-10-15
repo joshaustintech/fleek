@@ -34,10 +34,10 @@ raise "stdin syntax diagnostic lost its origin" unless invalid[0] == 1 && invali
 
 empty_origin = "empty-buffer.rb"
 empty = StdinProcess.run(empty_origin, "test/fixtures/empty.rb")
-raise "empty named stdin was not a complete clean source" unless empty[0] == 0 && empty[1].include?("#{empty_origin} -- 0 warnings") && empty[1].include?("Coverage: 1 analyzed; 0 failed")
+raise "empty named stdin was not a complete clean source" unless empty[0] == 0 && empty[1].include?("Source: \"#{empty_origin}\" scope=included") && empty[1].include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && empty[1].include?("Status: complete")
 
 mixed = StdinProcess.mixed(origin, origin, "test/fixtures/class_variable.rb")
-raise "mixed stdin and path lost analysis" unless mixed[0] == 2 && mixed[1].include?("Coverage: 2 analyzed; 0 failed")
+AnalysisRunner.assert_report_state(mixed, AnalysisRunner::ReportExpectation.new(2, "Coverage: 2 selected; 2 analyzed; 0 failed; 0 excluded", "findings", "mixed stdin and path"))
 raise "mixed stdin and path diagnosed errors" unless mixed[2] == ""
 
 puts "Named stdin contract: pass"

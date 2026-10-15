@@ -11,7 +11,7 @@
 
 - [x] Import the documented Reek YAML subset with reference-equivalent explicit-file, discovery, precedence, detector, and directory-scope behavior; verify through pinned-compiler execution.
 - [x] ClassVariable enablement, supported exclusions, and suppression comments produce reference-equivalent findings on shared syntax.
-- [x] Named stdin uses the supplied origin for source scope; filesystem exclusion behavior matches Reek, and stdin path exclusions remain unapplied as in Reek.
+- [x] Named stdin uses the supplied origin for source scope and honors path exclusions; Fleek reports incomplete when exclusions leave no analyzed source, unlike Reek's exit-0 behavior.
 - [x] Malformed/unsupported settings fail with capability diagnostics before source analysis. No unified configuration format is introduced.
 - [x] Reek exclusions affect smell analysis only; preserve their scope for the later combined mode.
 - [x] Precedence, malformed mapping/list, suppression, enablement, and exclusion mutants are detected; full native and zero-finding quality gates pass.

@@ -14,7 +14,7 @@ AnalysisRunner.assert_reference(writes, writes_reference, "ClassVariable write-f
 singleton_path = "test/fixtures/class_variable_singleton.rb"
 singleton = AnalysisRunner.fleek(singleton_path)
 singleton_reference = AnalysisRunner.reek(singleton_path)
-raise "singleton context differs from Reek" unless singleton[0] == singleton_reference[0] && singleton[1].lines[1] == singleton_reference[1].lines[1]
+raise "singleton context differs from Reek" unless singleton[0] == singleton_reference[0] && AnalysisRunner.warning_lines(singleton[1]) == AnalysisRunner.warning_lines(singleton_reference[1])
 
 top_level_path = "test/fixtures/class_variable_top_level.rb"
 top_level = AnalysisRunner.fleek(top_level_path)

@@ -1,5 +1,6 @@
 require_relative "analysis_runner"
 # Verifies imported Reek settings through compiled CLI processes.
+# :reek:RepeatedConditional
 class ConfigurationProcess
   # Describes one reference-comparison invocation.
   Input = Struct.new(:path, :config, :label, :stdin)
@@ -7,27 +8,54 @@ class ConfigurationProcess
   def self.fleek(path, config = "", stdin = "")
     executable = File.expand_path("build/fleek")
     if stdin.empty?
-      if config.empty?
-        process_id = Process.spawn(executable, "--checks", "reek:ClassVariable", path, in: "/dev/null", out: "/tmp/fleek-config-out", err: "/tmp/fleek-config-err")
-      else
-        process_id = Process.spawn(executable, "--checks", "reek:ClassVariable", "--reek-config", config, path, in: "/dev/null", out: "/tmp/fleek-config-out", err: "/tmp/fleek-config-err")
-      end
+      run_fleek_file(executable, path, config)
     else
-      process_id = Process.spawn(executable, "--checks", "reek:ClassVariable", "--stdin", path, in: stdin, out: "/tmp/fleek-config-out", err: "/tmp/fleek-config-err")
+      run_fleek_stdin(executable, path, config, stdin)
     end
+  end
+
+  def self.run_fleek_file(executable, path, config)
+    process_id = if config.empty?
+                   Process.spawn(executable, "--checks", "reek:ClassVariable", path, in: "/dev/null", out: "/tmp/fleek-config-out", err: "/tmp/fleek-config-err")
+                 else
+                   Process.spawn(executable, "--checks", "reek:ClassVariable", "--reek-config", config, path, in: "/dev/null", out: "/tmp/fleek-config-out", err: "/tmp/fleek-config-err")
+                 end
+    AnalysisRunner.observe(process_id, "/tmp/fleek-config-out", "/tmp/fleek-config-err")
+  end
+
+  # :reek:LongParameterList
+  def self.run_fleek_stdin(executable, path, config, stdin)
+    process_id = if config.empty?
+                   Process.spawn(executable, "--checks", "reek:ClassVariable", "--stdin", path, in: stdin, out: "/tmp/fleek-config-out", err: "/tmp/fleek-config-err")
+                 else
+                   Process.spawn(executable, "--checks", "reek:ClassVariable", "--reek-config", config, "--stdin", path, in: stdin, out: "/tmp/fleek-config-out", err: "/tmp/fleek-config-err")
+                 end
     AnalysisRunner.observe(process_id, "/tmp/fleek-config-out", "/tmp/fleek-config-err")
   end
 
   def self.reek(path, config = "", stdin = "")
     if stdin.empty?
-      if config.empty?
-        process_id = Process.spawn("bundle", "exec", "reek", "--smell", "ClassVariable", path, in: "/dev/null", out: "/tmp/reek-config-out", err: "/tmp/reek-config-err")
-      else
-        process_id = Process.spawn("bundle", "exec", "reek", "--smell", "ClassVariable", "--config", config, path, in: "/dev/null", out: "/tmp/reek-config-out", err: "/tmp/reek-config-err")
-      end
+      run_reek_file(path, config)
     else
-      process_id = Process.spawn("bundle", "exec", "reek", "--smell", "ClassVariable", "--stdin-filename", path, in: stdin, out: "/tmp/reek-config-out", err: "/tmp/reek-config-err")
+      run_reek_stdin(path, config, stdin)
     end
+  end
+
+  def self.run_reek_file(path, config)
+    process_id = if config.empty?
+                   Process.spawn("bundle", "exec", "reek", "--smell", "ClassVariable", path, in: "/dev/null", out: "/tmp/reek-config-out", err: "/tmp/reek-config-err")
+                 else
+                   Process.spawn("bundle", "exec", "reek", "--smell", "ClassVariable", "--config", config, path, in: "/dev/null", out: "/tmp/reek-config-out", err: "/tmp/reek-config-err")
+                 end
+    AnalysisRunner.observe(process_id, "/tmp/reek-config-out", "/tmp/reek-config-err")
+  end
+
+  def self.run_reek_stdin(path, config, stdin)
+    process_id = if config.empty?
+                   Process.spawn("bundle", "exec", "reek", "--smell", "ClassVariable", "--stdin-filename", path, in: stdin, out: "/tmp/reek-config-out", err: "/tmp/reek-config-err")
+                 else
+                   Process.spawn("bundle", "exec", "reek", "--smell", "ClassVariable", "--config", config, "--stdin-filename", path, in: stdin, out: "/tmp/reek-config-out", err: "/tmp/reek-config-err")
+                 end
     AnalysisRunner.observe(process_id, "/tmp/reek-config-out", "/tmp/reek-config-err")
   end
 
@@ -90,7 +118,7 @@ ConfigurationProcess.assert_reference(ConfigurationProcess::Input.new("test/fixt
 explicit_excluded = ConfigurationProcess.fleek(scoped_source, "test/fixtures/config_path_exclusion.yml")
 explicit_excluded_reference = ConfigurationProcess.reek(scoped_source, "test/fixtures/config_path_exclusion.yml")
 raise "explicit Reek exclusion reference changed" unless explicit_excluded_reference[0] == 0
-raise "explicit exclusion implied successful analysis" unless explicit_excluded[0] == 1 && explicit_excluded[1].include?("Coverage: 0 analyzed; 0 failed; 1 excluded") && explicit_excluded[1].include?("Status: incomplete") && explicit_excluded[2].include?("no analysis ran")
+raise "explicit exclusion implied successful analysis" unless explicit_excluded[0] == 1 && explicit_excluded[1].include?("Coverage: 1 selected; 0 analyzed; 0 failed; 1 excluded") && explicit_excluded[1].include?("Status: incomplete") && explicit_excluded[2].include?("no analysis ran")
 
 suppressed_source = File.expand_path("test/fixtures/class_variable_suppressed.rb")
 suppressed = ConfigurationProcess.assert_reference(ConfigurationProcess::Input.new(suppressed_source, "", "suppression", ""))
@@ -106,7 +134,12 @@ bad_suppression = ConfigurationProcess.fleek(File.expand_path("test/fixtures/cla
 raise "unsupported suppression setting was accepted" unless bad_suppression[0] == 1 && AnalysisRunner.warning_lines(bad_suppression[1]).empty? && bad_suppression[2].include?("unsupported Reek ClassVariable suppression")
 
 ConfigurationProcess.assert_reference(ConfigurationProcess::Input.new(scoped_source, directory_config, "named stdin configuration scope", scoped_source))
-excluded_stdin = ConfigurationProcess.assert_reference(ConfigurationProcess::Input.new(scoped_source, "test/fixtures/config_path_exclusion.yml", "named stdin path exclusion policy", scoped_source))
-raise "stdin filename was incorrectly path-excluded" unless excluded_stdin[0] == 2
+excluded_stdin = ConfigurationProcess.fleek(scoped_source, "test/fixtures/config_path_exclusion.yml", scoped_source)
+raise "excluded stdin status differed" unless excluded_stdin[0] == 1
+raise "excluded stdin source scope differed: #{excluded_stdin[1]}" unless excluded_stdin[1].include?("Source: \"#{scoped_source}\" scope=excluded")
+raise "excluded stdin check was reported as run" unless excluded_stdin[1].include?("Checks run: none")
+raise "excluded stdin coverage differed" unless excluded_stdin[1].include?("Coverage: 1 selected; 0 analyzed; 0 failed; 1 excluded")
+raise "excluded stdin status label differed" unless excluded_stdin[1].include?("Status: incomplete")
+raise "excluded stdin omitted no-analysis diagnostic" unless excluded_stdin[2].include?("no analysis ran")
 
 puts "Configuration contract: pass"

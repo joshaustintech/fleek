@@ -4,17 +4,29 @@
 
 **Blocked by:** 04 ClassVariable scope and occurrence parity; 06 Named stdin analysis.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
 
-- [ ] Establish and document stable text fields, check identifiers, context/location representation, escaping, section order, and completion/coverage conventions from the accepted CLI contract.
-- [ ] Filename/message punctuation, whitespace, newlines, and non-ASCII examples do not make fields ambiguous; terminal color is never needed to understand meaning.
-- [ ] Keep findings and summaries on stdout; diagnostics on stderr. A mixed failed/good input report explicitly identifies partial results and exits 1.
-- [ ] Repeated runs over identical source/settings produce identical report semantics and stable ordering.
-- [ ] Help and version output explain selected coverage, reference identities, and unsupported capabilities. Unsupported machine formats fail explicitly.
-- [ ] Verify report interpretation through observable output checks; escaping/order/completion mutations are detected with required gates passing.
+- [x] Establish and document stable text fields, check identifiers, context/location representation, escaping, section order, and completion/coverage conventions from the accepted CLI contract.
+- [x] Filename/message punctuation, whitespace, newlines, and non-ASCII examples do not make fields ambiguous; terminal color is never needed to understand meaning.
+- [x] Keep findings and summaries on stdout; diagnostics on stderr. A mixed failed/good input report explicitly identifies partial results and exits 1.
+- [x] Repeated runs over identical source/settings produce identical report semantics and stable ordering.
+- [x] Help and version output explain selected coverage, reference identities, and unsupported capabilities. Unsupported machine formats fail explicitly.
+- [x] Verify report interpretation through observable output checks; escaping/order/completion mutations are detected with required gates passing.
+
+## Answer
+
+Implemented stable, color-free text report v1 with fixed section/field order, quoted and escaped paths, explicit check selection/run fields, scope limits, source coverage counts, findings, and clean/findings/incomplete status. Findings and summaries remain on stdout; path-bearing diagnostics are escaped on stderr. Help/version identify reference pins, available coverage, and unsupported checks/formats. Added explicit machine-format rejection.
+
+Named stdin paths matched by `exclude_paths` are reported excluded with zero analyzed sources, `Checks run: none`, incomplete status, and exit 1. Reek 6.6.0 returns 0 for the same excluded input; Fleek preserves the explicit success-must-prove-analysis rule. ADR 0013 records the reference behavior and decision.
+
+`Checks run` means the analyzer was invoked for an included Ruby input, including failed parse/unsupported-source attempts. If all sources are excluded before invocation, it reports `none`. The report contract checks the failed-input case.
+
+Sources list failed paths with `scope=failed`, including mixed successful and failed input reports; detailed diagnostics stay on stderr.
+
+Project `make check` passed: 34 mutants caught, fixture/project Flay score 0, project Reek warnings 0. Pinned Spinel `make check` passed 3,596 tests, alloc report, inference, and spin-e2e. ADR 0014 records field semantics, escaping, and the `String#dump` compiler workaround.
 
 ## Comments
 

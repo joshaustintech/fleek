@@ -58,22 +58,22 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "scope->occurrence_count++;",
   "scope->occurrence_count += 0;",
   "missing ClassVariable finding",
-  "finding status differs from Reek")).run
+  "stable finding fields missing")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "group->lines[group->line_count++] = line;",
   "group->lines[group->line_count++] = line + 1;",
   "wrong ClassVariable location",
-  "finding context/message/location missing")).run
+  "stable finding fields missing")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if findings.empty?",
   "if false",
   "false-positive ClassVariable finding",
-  "clean status differs from Reek")).run
+  "clean report report status or coverage differs")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "    2\n  end",
   "    0\n  end",
   "wrong ClassVariable findings status",
-  "finding status differs from Reek")).run
+  "finding result missing")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "fleek_groups[group_index].name_length != constant->length || memcmp(fleek_groups[group_index].name, constant->start, constant->length) != 0",
   "false",
@@ -108,9 +108,9 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "combined == 3 ? 1 : combined",
   "combined",
   "partial input error precedence",
-  "partial analysis status missing")).run
+  "mixed report coverage did not identify both sources")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'warn "ERROR: #{path}: ClassVariable supports one simple class without inheritance or nested classes or modules."',
+  'warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class without inheritance or nested classes or modules."',
   'warn "ERROR: ClassVariable supports one simple class without inheritance or nested classes or modules."',
   "unsupported source path diagnostic",
   "unsupported source not identified")).run
@@ -125,8 +125,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "stdin source origin",
   "named stdin differs from file")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'results.unshift(analyze_stdin_source(origin, configuration))',
-  'results.unshift(0)',
+  'configuration.excluded_path?(origin) ? 0 : analyze_stdin_source(origin, configuration)',
+  '0',
   "stdin findings status",
   "named stdin differs from file")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -138,7 +138,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'inputs[2, input_count - 2]',
   '[]',
   "mixed stdin path omission",
-  "mixed stdin and path lost analysis")).run
+  "mixed stdin and path report status or coverage differs")).run
 
 MutationCase.new(MutationCase::Configuration.new(source,
   'path = explicit_path.empty? ? discovered_path : explicit_path',
@@ -175,6 +175,41 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'analyze_class_variable_file(path, configuration)',
   "Reek path exclusions",
   "explicit exclusion implied successful analysis")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'configuration.excluded_path?(origin) ? 0 : analyze_stdin_source(origin, configuration)',
+  'analyze_stdin_source(origin, configuration)',
+  "named stdin path exclusions",
+  "excluded stdin status differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "elsif character == \"\\n\"",
+  "elsif character == \"not-newline\"",
+  "text report newline escaping",
+  "source field escaping is ambiguous")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'selected_files.each { |path| print_report_source(path, configuration) }',
+  'selected_files.reverse_each { |path| print_report_source(path, configuration) }',
+  "text report source ordering",
+  "source ordering changed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "print_selected_check(files, configuration, origin)\n    print_report_scope",
+  "print_report_scope\n    print_selected_check(files, configuration, origin)",
+  "text report section ordering",
+  "report section order changed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'check_runs = report_sources(files, origin).any? { |path| !configuration.excluded_path?(path) }',
+  'check_runs = false',
+  "text report check execution",
+  "run check missing")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'print_failed_sources(failed_sources)',
+  'puts "  none"',
+  "text report failed source identity",
+  "failed source missing from report sources")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'status == 2 ? "findings" : "complete"',
+  '"complete"',
+  "text report completion state",
+  "finding result missing")).run
 
 process_id = Process.spawn("make", "-B", "test", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

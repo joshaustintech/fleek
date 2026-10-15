@@ -1,5 +1,7 @@
 # Runs Fleek and Reek for CLI comparison contracts.
 class AnalysisRunner
+  # Defines expected public report status and coverage fields.
+  ReportExpectation = Struct.new(:status, :coverage, :state, :label)
   def self.fleek(path)
     process_id = Process.spawn("build/fleek", "--checks", "reek:ClassVariable", path, out: "/tmp/fleek-contract-out", err: "/tmp/fleek-contract-err")
     observe(process_id, "/tmp/fleek-contract-out", "/tmp/fleek-contract-err")
@@ -37,6 +39,12 @@ class AnalysisRunner
     actual
   end
 
+  def self.assert_report_state(result, expectation)
+    output = result[1]
+    valid = result[0] == expectation.status && output.include?(expectation.coverage) && output.include?("Status: #{expectation.state}")
+    raise "#{expectation.label} report status or coverage differs" unless valid
+  end
+
   def self.assert_findings(actual, reference, label)
     reports = [actual, reference].map { |result| warning_lines(result[1]) }
     raise "#{label} findings differ from Reek" unless reports[0] == reports[1]
@@ -48,10 +56,21 @@ class AnalysisRunner
   end
 
   def self.finding_lines(output)
-    output.lines.select { |line| / -- |ClassVariable:/.match?(line) }
+    output.lines.select { |line| line.include?("Source:") || line.include?("Finding:") || line.include?("Coverage:") || line.include?("Status:") }
   end
 
   def self.warning_lines(output)
-    output.lines.select { |line| line.include?("ClassVariable:") }
+    output.lines.map { |line| warning_from_line(line) }.compact
+  end
+
+  def self.warning_from_line(line)
+    if line.include?("Finding:")
+      marker = line.index(" message=")
+      return unless marker
+      value = line[(marker + 9)..].strip
+      value[1...-1]
+    elsif line.include?("ClassVariable:")
+      line.strip
+    end
   end
 end

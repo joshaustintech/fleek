@@ -16,7 +16,7 @@ The native reader accepts a bounded, single-document block YAML subset: root map
 
 The Reek quality gate found parser-state and recursive traversal smells in the implementation. Use Reek's own comment suppression only on the ReekConfiguration parser class and affected CLI traversal/report methods; all other project code remains under the default gate. This is a narrow implementation exception, not a new finding policy for analyzed Ruby.
 
-The most specific matching directory directive replaces the global ClassVariable directive. Its path is matched against the source's directory; named stdin uses its supplied origin. ClassVariable exclude values match substrings of the reported context. exclude_paths affects explicit and discovered filesystem inputs, but Reek 6.6.0 does not apply it to named stdin. These exclusions remain limited to smell analysis.
+The most specific matching directory directive replaces the global ClassVariable directive. Its path is matched against the source's directory; named stdin uses its supplied origin. ClassVariable exclude values match substrings of the reported context. `exclude_paths` applies to explicit, discovered, and named-stdin inputs. An executed reference check showed Reek 6.6.0 skips excluded stdin with exit 0; Fleek reports it as excluded and returns 1 with “no analysis ran” so success never implies the selected check executed. These exclusions remain limited to smell analysis.
 
 Comments attached before a class support :reek:ClassVariable (disabled by default) and { enabled: false }; { enabled: true } leaves the finding active. An inline comment on the class declaration itself does not suppress the class, matching Reek 6.6.0. Other ClassVariable comment settings fail explicitly.
 

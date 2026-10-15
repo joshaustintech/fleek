@@ -38,7 +38,7 @@ repeated_reference = InputProcess.reek_repeated(file)
 AnalysisRunner.assert_reference(repeated, repeated_reference, "repeated paths")
 
 mixed = InputProcess.fleek_mixed("test/fixtures/bad_syntax.rb", file)
-raise "partial analysis status missing" unless mixed[0] == 1 && mixed[1].include?("Status: incomplete")
+AnalysisRunner.assert_report_state(mixed, AnalysisRunner::ReportExpectation.new(1, "Coverage: 2 selected; 1 analyzed; 1 failed; 0 excluded", "incomplete", "partial input"))
 raise "good file lost after input failure" unless mixed[1].include?("@@count")
 raise "failed source not identified" unless mixed[2].include?("bad_syntax.rb")
 unsupported = InputProcess.fleek_mixed("test/fixtures/class_variable_nested.rb", file)

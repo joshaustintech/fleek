@@ -1,3 +1,4 @@
+require_relative "analysis_runner"
 # Verifies selected ClassVariable analysis against the unchanged Reek CLI.
 class AnalysisProcess
   def self.fleek(path)
@@ -28,7 +29,7 @@ reference = AnalysisProcess.reek("test/fixtures/class_variable.rb")
 raise "finding status differs from Reek: #{finding[0]} #{finding[1]} #{finding[2]}" unless finding[0] == 2
 raise "finding status differs from Reek" unless finding[0] == reference[0]
 raise "finding context/message/location missing" unless finding[1].include?("[3]:ClassVariable: Counter declares the class variable '@@count'")
-raise "finding does not match Reek" unless finding[1].lines[1].strip == reference[1].lines[1].strip
+AnalysisRunner.assert_same_report(finding, reference, "finding")
 raise "findings diagnostic leaked to stderr" unless finding[2] == ""
 
 clean = AnalysisProcess.fleek("test/fixtures/class_variable_clean.rb")

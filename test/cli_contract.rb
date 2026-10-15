@@ -33,6 +33,10 @@ raise "help usage" unless help_result[1].include?("Usage:")
 raise "help parser prototype" unless help_result[1].include?("--parse-ruby4 SOURCE")
 raise "help named stdin" unless help_result[1].include?("--stdin SOURCE [PATH...]")
 raise "help Reek config" unless help_result[1].include?("--reek-config FILE")
+raise "help supported coverage missing" unless help_result[1].include?("Supported checks: reek:ClassVariable only")
+raise "help unsupported capabilities missing" unless help_result[1].include?("machine formats are unsupported")
+raise "help explicit selection missing" unless help_result[1].include?("Analysis requires --checks")
+raise "help report contract missing" unless help_result[1].include?("stable text v1")
 raise "help stderr" unless help_result[2] == ""
 
 usage_result = cli_process.without_arguments
@@ -43,6 +47,10 @@ raise "empty invocation usage" unless usage_result[2].include?("Usage:")
 version_result = cli_process.with_argument("--version")
 raise "version status" unless version_result[0] == 0
 raise "version references" unless version_result[1].include?("Flay 2.14.4")
+raise "version coverage missing" unless version_result[1].include?("supported check: reek:ClassVariable")
+raise "version unsupported capabilities missing" unless version_result[1].include?("machine formats are rejected")
+raise "version explicit selection missing" unless version_result[1].include?("requires explicit --checks selection")
+raise "version report contract missing" unless version_result[1].include?("report: text v1")
 
 unsupported_result = cli_process.with_unknown_check
 raise "unsupported check status" unless unsupported_result[0] == 1
