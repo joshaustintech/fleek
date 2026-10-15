@@ -18,6 +18,6 @@ Preserve Fleek's declared status contract: Flay 2.14.4 returns 0 when it reports
 
 ## Consequences
 
-The measured targets are met on macOS arm64: Flay fixture p95 3.824 ms against 171.175 ms; Reek ClassVariable on the 25-file Rails corpus p95 6.546 ms against 377.459 ms; combined fixture p95 3.975 ms against 510.622 ms. Raw observations and reproduction steps are in [the runtime receipt](../research/cold-runtime-2026-10-15.md).
+The measured targets are met on macOS arm64: Flay fixture p95 3.897 ms against 178.776 ms; Reek ClassVariable on the 25-file Rails corpus p95 6.606 ms against 376.211 ms; combined fixture p95 4.323 ms against 693.700 ms. These are the latest receipt values; raw observations and reproduction steps are in [the runtime receipt](../research/cold-runtime-2026-10-15.md).
 
 These measurements prove only the listed workloads. They do not establish full Rails Flay parity, runtime on other hosts, purged-cache behavior, or downloadable release performance. Ticket 19 remains the full-manifest Flay gate; ticket 17 remains the external release verification gate.
