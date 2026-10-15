@@ -27,6 +27,8 @@
 - ADR 0026 supports class methods with up to eight required positional parameters and local-variable reads. Flay 2.14.4 fixture comparisons match score-48 groups across same and different arities and keep differing parameter names classified as similar; optional/rest/keyword/block parameters remain partial. The exact 25-file manifest still reports all sources partial and exits incomplete.
 - ADR 0027 supports bounded `if`/`else` branches in class methods, raises combined candidate cap to 24, and preserves independent method findings alongside possible cross-class `:class` groups. Flay 2.14.4 and Fleek match mass/score 62 with ordered lines; the pinned corpus retains its score-48 controller group but remains incomplete.
 - ADR 0028 adds bounded `unless` branch support in class methods, with Flay 2.14.4 parity at mass/score 62 and ordered lines. Class-level DSL calls and other unsupported Rails forms still prevent complete 25-file coverage.
+- ADR 0029 adds bounded conditional `return false` support in class methods, with Flay parity at mass/score 44 and lines 2/10. The exact manifest still needs complete Flay analysis before ticket 19 can close.
+- Post-ADR 0029 corpus receipt: Flay matches score 48 at `UsersController:51,58`; Fleek still correctly reports incomplete because all 25 Flay sources remain partial. Reek remains complete and clean.
 - Latest pinned 25-file run: Flay reference still score 48 at `UsersController:51,58`; Reek reference clean. Fleek Reek covers 25/25, Flay covers 0/25 and exits incomplete. See current receipt in `docs/research/rails-project-parity.md`.
 
 ## Fog

@@ -112,6 +112,12 @@ Bounded Prism `UnlessNode` branches are now represented distinctly in class-meth
 
 After this extension, `make rails-controller-parity` still passes for the pinned UsersController. On the identical 25-file manifest, Flay remains score 48 at `users_controller.rb:51,58`, and Reek remains clean. Fleek reports the same Flay group and score, Reek coverage 25/25, but Flay coverage remains 0/25 fully analyzed with 25 partial sources; combined status is incomplete and exit 1. The ticket's complete-manifest acceptance item remains open.
 
+## Ticket 19 conditional-return slice
+
+The class-method AST grammar now accepts Prism `ReturnNode` and `FalseNode`, including the Rails `return false if digest.nil?` form. A paired fixture matches Flay 2.14.4's similar `:defn` group at mass/score 44 and ordered lines 2/10; mutations verify that removing either node makes the public contract fail. This does not model all method body forms or class-level Rails declarations, so the full 25-file acceptance remains open. See [ADR 0029](../adr/0029-class-method-conditional-returns.md).
+
+The exact 25-file comparison was rerun after conditional-return support. Flay remains score 48 at `users_controller.rb:51,58`; Fleek retains the matching group, reports Reek clean on all 25 files, and reports Flay coverage 0/25 fully analyzed with 25 partial sources. Combined status remains incomplete with exit 1; this slice does not alter the release gate.
+
 ## Decision and next work
 
 The real project is locked as the parity corpus, but this receipt does not prove full parity. Keep release and cold-runtime claims blocked until Fleek can analyze all relevant upstream Flay structures in ordinary Rails classes, then compare all findings, locations, grouping, score, order, and statuses on this exact manifest. Ticket 19 tracks the remaining gap; ticket 18 closes the ClassVariable namespace gap. See [ADR 0020](../adr/0020-rails-parity-corpus-and-release-gate.md).
