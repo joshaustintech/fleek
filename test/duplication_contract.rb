@@ -11,6 +11,9 @@ class DuplicationProcess
   CLASS_METHOD_EXPECTATIONS = {
     rails_pair: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "Rails-shaped class method parity differed"),
     required_parameters: ClassMethodExpectation.new("similar", 48, 48, 8, "Similar code found in :defn (mass = 48)", "required-parameter class method parity differed"),
+    optional_parameters: ClassMethodExpectation.new("similar", 52, 52, 9, "Similar code found in :defn (mass = 52)", "optional-parameter class method parity differed"),
+    optional_parameter_defaults: ClassMethodExpectation.new("similar", 52, 52, 9, "Similar code found in :defn (mass = 52)", "optional-parameter default parity differed"),
+    optional_literal_defaults: ClassMethodExpectation.new("similar", 40, 40, 8, "Similar code found in :defn (mass = 40)", "optional literal default parity differed"),
     parameter_arity: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "parameter-arity class method parity differed"),
     parameter_names: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "parameter-name class method parity differed"),
     conditionals: ClassMethodExpectation.new("similar", 62, 62, 14, "Similar code found in :defn (mass = 62)", "conditional class method parity differed"),
@@ -107,7 +110,7 @@ class DuplicationProcess
     score = expectation.score
     mass = expectation.mass
     line = expectation.second_line
-    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "bounded if/else/unless branches", "boolean OR expressions", "return statements with supported values", "local-variable assignments", "Total duplication score: #{score}"], expectation.message)
+    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "literal-default optional positional parameters", "bounded if/else/unless branches", "boolean OR expressions", "return statements with supported values", "local-variable assignments", "Total duplication score: #{score}"], expectation.message)
   end
 
   def self.class_method_reference_expectation(path, expectation)
@@ -123,6 +126,13 @@ class DuplicationProcess
     reference = run(Input.new(path, "flay", ""))
     verify_output(actual, class_method_actual_expectation(path, expectation))
     verify_output(reference, class_method_reference_expectation(path, expectation))
+  end
+
+  def self.verify_class_method_no_group(path, description = "optional-parameter count mismatch was grouped")
+    actual = run(Input.new(path, "fleek", ""))
+    reference = run(Input.new(path, "flay", ""))
+    verify_output(actual, OutputExpectation.new(0, ["Total duplication score: 0", "Status: complete"], description))
+    verify_output(reference, OutputExpectation.new(0, ["Total score (lower is better) = 0"], "Flay grouped mismatched optional-parameter counts"))
   end
 end
 
@@ -291,6 +301,13 @@ DuplicationProcess.verify_class_method_pair(class_methods_with_helper_path, 19, 
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_required_parameters.rb", :required_parameters)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_parameter_arity.rb", :parameter_arity)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_parameter_names.rb", :parameter_names)
+optional_parameters_path = "test/fixtures/duplication_class_methods_optional_parameters.rb"
+DuplicationProcess.verify_class_method_parity(optional_parameters_path, :optional_parameters)
+optional_defaults_path = "test/fixtures/duplication_class_methods_optional_parameter_defaults.rb"
+DuplicationProcess.verify_class_method_parity(optional_defaults_path, :optional_parameter_defaults)
+DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_optional_literal_defaults.rb", :optional_literal_defaults)
+DuplicationProcess.verify_class_method_no_group("test/fixtures/duplication_class_methods_optional_parameter_counts.rb")
+DuplicationProcess.verify_class_method_no_group("test/fixtures/duplication_class_methods_optional_parameter_count_candidates.rb")
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_conditionals.rb", :conditionals)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_unless.rb", :unless_branches)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_conditional_return.rb", :conditional_return)
@@ -308,11 +325,7 @@ class_group_with_pair_reference_fields = ["Similar code found in :defn (mass = 6
 DuplicationProcess.verify_output(class_group_with_pair_reference, DuplicationProcess::OutputExpectation.new(0, class_group_with_pair_reference_fields, "Flay groups with conditional class-method candidates changed"))
 
 topology_path = "test/fixtures/duplication_class_methods_topology.rb"
-topology_actual = DuplicationProcess.run(DuplicationProcess::Input.new(topology_path, "fleek", ""))
-topology_reference = DuplicationProcess.run(DuplicationProcess::Input.new(topology_path, "flay", ""))
-topology_matches = topology_actual[0] == 0 && topology_actual[1].include?("Total duplication score: 0") && topology_actual[1].include?("Status: complete")
-topology_reference_clean = topology_reference[0] == 0 && topology_reference[1].include?("Total score (lower is better) = 0")
-DuplicationProcess.verify(topology_matches && topology_reference_clean, "different class method tree topology was grouped")
+DuplicationProcess.verify_class_method_no_group(topology_path, "different class method tree topology was grouped")
 
 partial_path = "test/fixtures/duplication_class_methods_partial_match.rb"
 partial_actual = DuplicationProcess.run(DuplicationProcess::Input.new(partial_path, "fleek", ""))

@@ -1,5 +1,5 @@
 class SupportedBoundary
-  def value(input = nil)
+  def value(input = default_input)
     input.to_s
   end
 end

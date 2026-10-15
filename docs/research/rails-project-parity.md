@@ -130,6 +130,12 @@ Prism `OrNode` is now supported in bounded class-method ASTs and contributes its
 
 After OR support, the exact 25-file manifest still produces Flay score 48 at `users_controller.rb:51,58`, the matching Fleek group and score, and clean Reek findings over 25/25 files. Fleek reports Flay coverage 0/25 analyzed and 25 partial, overall incomplete, exit 1. This is the recorded difference from a complete analysis and keeps the release gate open.
 
+## Ticket 19 optional-default slice
+
+The class-method analyzer accepts up to eight combined required and optional positional parameters when each optional default is an integer, string, symbol, boolean, or nil literal. Paired fixtures compare identical inputs against Flay 2.14.4: integer-default methods match at mass/score 52 and lines 2/9; a second fixture covers string, symbol, boolean, and nil defaults at mass/score 40 and lines 2/8. Different optional-parameter counts produce no group in both tools, including when method bodies are identical. Differing default literals preserve the similar classification. Focused mutations protect unsupported defaults, symbol acceptance, candidate selection, mass, identity, and count behavior. See [ADR 0035](../adr/0035-literal-optional-parameter-defaults.md).
+
+After this slice, the exact 25-file Rails run still matches Flay's score-48 `:defn` group at `users_controller.rb:51,58`; Fleek reports all 25 sources partial, 0 analyzed, and exit 1. Reek ClassVariable remains complete and clean on all 25 files. Optional arguments therefore improve the supported syntax but do not close the full-manifest gate; module-level helper methods, class-level declarations, and other method body forms remain unsupported.
+
 ## Decision and next work
 
 The real project is locked as the parity corpus, but this receipt does not prove full Flay parity. Ticket 19 tracks the remaining class-level Rails Flay gap; its complete-manifest and broad release claims remain gated until all findings, locations, grouping, score, order, and statuses are compared on this exact manifest. Ticket 15 records separate bounded timing evidence: Reek ClassVariable is measured on this complete 25-file corpus, while Flay and combined timings use fully analyzed fixtures. Ticket 18 closes the ClassVariable namespace gap. See [ADR 0020](../adr/0020-rails-parity-corpus-and-release-gate.md) and [ADR 0033](../adr/0033-bounded-cold-runtime-evidence.md).

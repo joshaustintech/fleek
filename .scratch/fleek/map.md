@@ -16,6 +16,7 @@
 - Ticket sequence and dependencies in issue bodies; summary: 01 compiler/reference harness → 02 parser → 03–08 smell/input/config/text → 09–12 duplication/combined report → 13–14 language/Rails parity → 18–19 Rails coverage → 15–17 runtime/release.
 - Research notes and ADRs link from `spec.md` and project documentation.
 - Ticket 17 verifies GitHub release `v0.1.0` and its retrieved arm64 archive; see [issue 17](issues/17-downloadable-release-verification.md), [ADR 0034](../../docs/adr/0034-publish-bounded-native-first-release.md), and the [release receipt](../../docs/research/native-archive-0.1.0.md). Ticket 19 remains the full Rails Flay parity gate.
+- Ticket 19 adds bounded literal-default optional positional parameters with Flay-matched mass and similarity; see [ADR 0035](../../docs/adr/0035-literal-optional-parameter-defaults.md). The pinned 25-file corpus remains incomplete.
 - Ticket 07 imports a bounded Reek YAML subset without a YAML library; see ADR 0013 for supported keys and deliberate no-analysis exit differences.
 - Ticket 08 defines stable text report v1 and explicit coverage/status fields; see ADR 0014 for layout, escaping, stream, and unsupported-format behavior.
 - Ticket 09 adds bounded, separately selectable default Flay structural groups; see ADR 0016. Threshold boundaries and combined reporting remain tickets 10 and 12.
