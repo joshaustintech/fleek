@@ -14,6 +14,7 @@ class DuplicationProcess
     parameter_arity: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "parameter-arity class method parity differed"),
     parameter_names: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "parameter-name class method parity differed"),
     conditionals: ClassMethodExpectation.new("similar", 62, 62, 14, "Similar code found in :defn (mass = 62)", "conditional class method parity differed"),
+    unless_branches: ClassMethodExpectation.new("similar", 62, 62, 14, "Similar code found in :defn (mass = 62)", "unless class method parity differed"),
     candidate_capacity: ClassMethodExpectation.new("similar", 62, 62, 31, "Similar code found in :defn (mass = 62)", "class-method candidate capacity parity differed", 19),
     identical: ClassMethodExpectation.new("identical", 64, 32, 19, "IDENTICAL code found in :defn (mass*2 = 64)", "identical class method group changed")
   }
@@ -102,7 +103,7 @@ class DuplicationProcess
     score = expectation.score
     mass = expectation.mass
     line = expectation.second_line
-    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "Total duplication score: #{score}"], expectation.message)
+    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "bounded if/else/unless nodes", "Total duplication score: #{score}"], expectation.message)
   end
 
   def self.class_method_reference_expectation(path, expectation)
@@ -287,6 +288,7 @@ DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_m
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_parameter_arity.rb", :parameter_arity)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_parameter_names.rb", :parameter_names)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_conditionals.rb", :conditionals)
+DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_unless.rb", :unless_branches)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_candidate_capacity.rb", :candidate_capacity)
 
 class_group_with_pair_path = "test/fixtures/duplication_class_methods_class_group_with_conditional_pair.rb"
