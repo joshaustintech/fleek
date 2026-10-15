@@ -2,7 +2,7 @@
 class Fleek
   VERSION = "0.1.0"
   # Retains source identity alongside its diagnostic for the text report.
-  SourceFailure = Struct.new(:path, :message)
+  SourceFailure = Struct.new(:path, :message, :kind)
   FLAY_REFERENCE = "2.14.4"
   REEK_REFERENCE = "6.6.0"
   SPINEL_RELEASE = "2026.09.12"
@@ -667,7 +667,7 @@ class Fleek
   end
 
   def self.print_report_sources(selected_files, configuration, errors)
-    failed_sources = errors.select { |error| !error.path.empty? }
+    failed_sources = errors.select { |error| error.kind == :source }
     puts "Sources:"
     print_source_rows(selected_files, configuration, failed_sources)
   end
@@ -749,7 +749,7 @@ class Fleek
   end
 
   def self.add_empty_scan_error(files, errors)
-    errors << SourceFailure.new("", "ERROR: No Ruby source files discovered from the requested inputs.") if files.empty? && errors.empty?
+    errors << SourceFailure.new("", "ERROR: No Ruby source files discovered from the requested inputs.", :request) if files.empty? && errors.empty?
   end
 
   def self.report_input_errors(errors)
@@ -767,7 +767,7 @@ class Fleek
     symlink = File.symlink?(path)
     directory = File.directory?(path)
     if symlink && directory
-    errors << SourceFailure.new(path, "ERROR: Directory symlinks are not followed")
+      errors << SourceFailure.new(path, "ERROR: Directory symlinks are not followed", :request)
     elsif directory
       discover_directory(path, files, errors, configuration)
     else
@@ -783,7 +783,7 @@ class Fleek
   def self.directory_entries(path, errors)
     Dir.children(path).sort
   rescue SystemCallError
-    errors << SourceFailure.new(path, "ERROR: Cannot scan directory")
+    errors << SourceFailure.new(path, "ERROR: Cannot scan directory", :request)
     []
   end
 
@@ -818,7 +818,7 @@ class Fleek
   end
 
   def self.add_source_error(path, errors, message)
-    errors << SourceFailure.new(path, "ERROR: #{message}")
+    errors << SourceFailure.new(path, "ERROR: #{message}", :source)
   end
 
   def self.readable_file?(path)
@@ -880,12 +880,15 @@ class Fleek
   end
 
   def self.class_variable_input_results(files, errors, configuration)
+    source_errors, scan_errors = errors.partition { |error| error.kind == :source }
     files.map do |path|
       configuration.excluded_path?(path) ? 0 : analyze_class_variable_file(path, configuration)
-    end + Array.new(errors.length, 1)
+    end + Array.new(source_errors.length, 1) + Array.new(scan_errors.length, :scan_failure)
   end
 
   def self.class_variable_input_status(results)
+    return 1 if results.include?(:scan_failure)
+
     combined = results.inject(0) { |current, result| current | result }
     combined == 3 ? 1 : combined
   end

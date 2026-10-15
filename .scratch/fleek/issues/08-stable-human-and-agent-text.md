@@ -24,9 +24,11 @@ Named stdin paths matched by `exclude_paths` are reported excluded with zero ana
 
 `Checks run` means the analyzer was invoked for an included Ruby input, including failed parse/unsupported-source attempts. If all sources are excluded before invocation, it reports `none`. The report contract checks the failed-input case.
 
-Sources list failed paths with `scope=failed`, including mixed successful and failed input reports; detailed diagnostics stay on stderr.
+`scope` reports discovery scope: discovery-rejected paths are `failed`, excluded paths are `excluded`, and accepted paths are `included`. Analyzer failures keep `included` scope but carry a path-specific stderr diagnostic and contribute to failed coverage.
 
-Project `make check` passed: 34 mutants caught, fixture/project Flay score 0, project Reek warnings 0. Pinned Spinel `make check` passed 3,596 tests, alloc report, inference, and spin-e2e. ADR 0014 records field semantics, escaping, and the `String#dump` compiler workaround.
+Request-level discovery failures, including empty scans and rejected directory symlinks, keep their diagnostics and exit 1 without fabricating source rows/counts. Mixed requests still count actual sources while remaining incomplete. Report-contract temporary files/directories use process-unique `/tmp` paths and are cleaned in an ensure path without deleting pre-existing data.
+
+ADR 0014 records field semantics, escaping, the request-level empty-scan failure rule, and the `String#dump` compiler workaround.
 
 ## Comments
 

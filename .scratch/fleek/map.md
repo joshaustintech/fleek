@@ -79,5 +79,6 @@
 - The compiled CLI contract verifies findings, clean and partial reports, stdout/stderr separation, special path characters and UTF-8, repeat determinism, source order, and unsupported format failure.
 - Named stdin path exclusions now appear as excluded coverage and incomplete status when they leave no analyzed source; Reek returns 0 for the same input, while Fleek follows the success-must-prove-analysis rule (ADR 0013).
 - `Checks run` means analyzer invocation; parse/unsupported-source failures count as failed attempts, while pre-analysis exclusions report `none` (ADR 0014).
-- Failed paths appear in `Sources` with `scope=failed`, including mixed analyzed/failed runs; diagnostics remain on stderr (ADR 0014).
-- All 34 project mutants were caught. Project Flay score and Reek warnings were zero; pinned Spinel 2026.09.12 passed 3,596 tests, alloc report, inference, and spin-e2e for this ticket.
+- Discovery-rejected paths appear with `scope=failed`; analyzer-rejected paths stay `included` and associate through path-specific diagnostics and failed coverage (ADR 0014).
+- Empty scans and rejected directory symlinks keep exit 1 and their diagnostics but add no source rows/counts; mixed requests count only real sources (ADR 0014).
+- All 35 project mutants were caught; the project build/contracts, Flay (0), and Reek (0) pass. Pinned Spinel `make check` completed with 3,574 pass and 22 failures on host-restricted socket tests plus an intermittent GC-root case; ADR 0015 records the limitation and required rerun on a loopback-capable host.

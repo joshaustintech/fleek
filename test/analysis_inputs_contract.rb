@@ -51,7 +51,11 @@ missing = AnalysisRunner.fleek("test/fixtures/missing.rb")
 raise "missing input was accepted" unless missing[0] == 1 && missing[2].include?("Cannot read")
 empty = InputProcess.fleek_directory("test/fixtures/discovery/hidden_only")
 raise "empty discovery was successful" unless empty[0] == 1 && empty[2].include?("No Ruby source files discovered")
+raise "empty discovery fabricated a failed source count" unless empty[1].include?("Coverage: 0 selected; 0 analyzed; 0 failed; 0 excluded") && empty[1].include?("Status: incomplete")
 directory_link = AnalysisRunner.fleek("test/fixtures/discovery/recursive_link")
 raise "explicit directory symlink was followed" unless directory_link[0] == 1
+raise "directory scan failure fabricated a source row" unless !directory_link[1].include?("  Source:") && directory_link[1].include?("Coverage: 0 selected; 0 analyzed; 0 failed; 0 excluded") && directory_link[1].include?("Status: incomplete")
+mixed_directory_failure = InputProcess.fleek_mixed("test/fixtures/discovery/recursive_link", file)
+raise "mixed directory failure fabricated a source count" unless mixed_directory_failure[0] == 1 && mixed_directory_failure[1].include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && mixed_directory_failure[1].include?("Status: incomplete") && !mixed_directory_failure[1].include?("Source: \"test/fixtures/discovery/recursive_link\"")
 
 puts "Analysis input contract: pass"

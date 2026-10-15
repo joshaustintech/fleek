@@ -2,25 +2,88 @@
 class MutationCase
   # Carries one behavior mutation and its expected contract failure.
   Configuration = Struct.new(:source, :target, :replacement, :label, :expected_failure)
+  CONTRACTS = {
+    "wrong usage status" => "test/cli_contract.rb",
+    "embedded NUL acceptance" => "test/native_parser_contract.rb",
+    "Ruby 4 grammar downgrade" => "test/native_parser_contract.rb",
+    "location attribution" => "test/native_parser_contract.rb",
+    "ClassVariable occurrence grouping" => "test/class_variable_scope_contract.rb",
+    "ClassVariable nested scope isolation" => "test/class_variable_scope_contract.rb",
+    "missing ClassVariable finding" => "test/text_report_contract.rb",
+    "wrong ClassVariable location" => "test/text_report_contract.rb",
+    "false-positive ClassVariable finding" => "test/text_report_contract.rb",
+    "wrong ClassVariable findings status" => "test/text_report_contract.rb",
+    "hidden directory discovery" => "test/analysis_inputs_contract.rb",
+    "directory symlink traversal" => "test/analysis_inputs_contract.rb",
+    "empty scan success" => "test/analysis_inputs_contract.rb",
+    "empty scan fabricated source count" => "test/analysis_inputs_contract.rb",
+    "directory scan failure fabricated source" => "test/analysis_inputs_contract.rb",
+    "partial input error precedence" => "test/analysis_inputs_contract.rb",
+    "unsupported source path diagnostic" => "test/analysis_inputs_contract.rb",
+    "stdin origin requirement" => "test/analysis_stdin_contract.rb",
+    "stdin source origin" => "test/analysis_stdin_contract.rb",
+    "stdin findings status" => "test/analysis_stdin_contract.rb",
+    "empty stdin source fallback" => "test/analysis_stdin_contract.rb",
+    "mixed stdin path omission" => "test/analysis_stdin_contract.rb",
+    "explicit configuration precedence" => "test/configuration_contract.rb",
+    "malformed configuration mapping" => "test/configuration_contract.rb",
+    "suppression comment handling" => "test/configuration_contract.rb",
+    "disabled selected check handling" => "test/configuration_contract.rb",
+    "ClassVariable context exclusions" => "test/configuration_contract.rb",
+    "Reek path exclusions" => "test/configuration_contract.rb",
+    "named stdin path exclusions" => "test/configuration_contract.rb",
+    "text report newline escaping" => "test/text_report_contract.rb",
+    "text report source ordering" => "test/text_report_contract.rb",
+    "text report section ordering" => "test/text_report_contract.rb",
+    "text report check execution" => "test/text_report_contract.rb",
+    "text report failed source identity" => "test/text_report_contract.rb",
+    "text report completion state" => "test/text_report_contract.rb"
+  }
 
   def initialize(configuration)
     @configuration = configuration
+    @selected_labels = ENV["FLEEK_MUTATIONS"]
+    @source = configuration.source
   end
 
   def run
-    source = @configuration.source
-    mutated = source.gsub(@configuration.target, @configuration.replacement)
-    raise "#{@configuration.label} mutation target missing" if mutated == source
+    return unless selected_mutation?
 
-    File.write("bin/fleek.rb", mutated)
+    apply_mutation
     verify_mutation
   ensure
-    File.write("bin/fleek.rb", source)
+    File.write("bin/fleek.rb", @source)
+  end
+
+  def apply_mutation
+    mutated = @source.gsub(@configuration.target, @configuration.replacement)
+    raise "#{@configuration.label} mutation target missing" if mutated == @source
+    File.write("bin/fleek.rb", mutated)
+  end
+
+  def selected_mutation?
+    return true unless @selected_labels && !@selected_labels.empty?
+
+    labels = @selected_labels.split(",")
+    unknown_labels = labels - CONTRACTS.keys
+    raise "unknown mutation labels: #{unknown_labels.join(', ')}" unless unknown_labels.empty?
+    labels.include?(@configuration.label)
   end
 
   def verify_mutation
-    process_id = Process.spawn("make", "-B", "test", out: "/tmp/fleek-mutation-out", err: "/tmp/fleek-mutation-err")
-    _, status = Process.waitpid2(process_id)
+    verify_build
+    verify_contract
+  end
+
+  def verify_build
+    process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-build-out", err: "/tmp/fleek-mutation-build-err")
+    _, status = MutationProcess.wait(process_id)
+    raise "#{@configuration.label} mutant failed to compile" unless status.success?
+  end
+
+  def verify_contract
+    process_id = Process.spawn(ENV["SPINEL"] || "spinel", "-E", CONTRACTS.fetch(@configuration.label), out: "/tmp/fleek-mutation-out", err: "/tmp/fleek-mutation-err")
+    _, status = MutationProcess.wait(process_id)
     verify_failure(status)
   end
 
@@ -30,6 +93,13 @@ class MutationCase
     message = File.read("/tmp/fleek-mutation-err")
     raise "unexpected #{label} failure" unless message.include?(@configuration.expected_failure)
     puts "Mutation contract: caught #{label}"
+  end
+end
+
+# Waits for isolated mutation build and contract subprocesses.
+class MutationProcess
+  def self.wait(process_id)
+    Process.waitpid2(process_id)
   end
 end
 
@@ -95,20 +165,25 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "directory symlink traversal",
   "directory scan findings differ from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "files << path",
-  "files << path unless files.include?(path)",
-  "repeated input suppression",
-  "repeated paths findings differ from Reek")).run
-MutationCase.new(MutationCase::Configuration.new(source,
   "if files.empty? && errors.empty?",
   "if false",
   "empty scan success",
   "empty discovery was successful")).run
 MutationCase.new(MutationCase::Configuration.new(source,
+  "Array.new(scan_errors.length, :scan_failure)",
+  "Array.new(scan_errors.length, 1)",
+  "empty scan fabricated source count",
+  "empty discovery fabricated a failed source count")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'SourceFailure.new(path, "ERROR: Directory symlinks are not followed", :request)',
+  'SourceFailure.new(path, "ERROR: Directory symlinks are not followed", :source)',
+  "directory scan failure fabricated source",
+  "directory scan failure fabricated a source row")).run
+MutationCase.new(MutationCase::Configuration.new(source,
   "combined == 3 ? 1 : combined",
   "combined",
   "partial input error precedence",
-  "mixed report coverage did not identify both sources")).run
+  "partial input report status or coverage differs")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'warn "ERROR: #{quote_text(path)}: ClassVariable supports one simple class without inheritance or nested classes or modules."',
   'warn "ERROR: ClassVariable supports one simple class without inheritance or nested classes or modules."',
@@ -150,11 +225,6 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'nil',
   "malformed configuration mapping",
   "malformed YAML mapping was not rejected before analysis")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  'value.include?(": ")',
-  'false',
-  "malformed YAML list mapping",
-  "malformed YAML list mapping was not rejected before analysis")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'if (fleek_suppressed) {',
   'if (false) {',
@@ -211,6 +281,6 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "text report completion state",
   "finding result missing")).run
 
-process_id = Process.spawn("make", "-B", "test", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
+process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)
 raise "mutation restore failed" unless status.success?

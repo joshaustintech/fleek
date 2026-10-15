@@ -2,6 +2,9 @@
 require_relative "analysis_runner"
 # Runs text-report requests through the public CLI boundary.
 class TextReportProcess
+  SPECIAL_PATH = "/tmp/fleek-report-#{Process.pid}-\\slash-\"quoted\"\tline\n-é\r.rb"
+  ORDER_DIRECTORY = "/tmp/fleek-report-order-#{Process.pid}"
+
   def self.mixed_inputs
     process_id = Process.spawn("build/fleek", "--checks", "reek:ClassVariable", "test/fixtures/class_variable.rb", "test/fixtures/missing-report-source.rb", out: "/tmp/fleek-text-report-out", err: "/tmp/fleek-text-report-err")
     _, status = Process.waitpid2(process_id)
@@ -14,8 +17,30 @@ class TextReportProcess
     [status.exitstatus, File.read("/tmp/fleek-text-report-out"), File.read("/tmp/fleek-text-report-err")]
   end
 
+  def self.cleanup_fixtures
+    File.delete(SPECIAL_PATH) if File.exist?(SPECIAL_PATH)
+    cleanup_order_directory
+  end
+
+  def self.cleanup_order_directory
+    return unless Dir.exist?(ORDER_DIRECTORY)
+
+    ["a.rb", "z.rb"].each do |entry|
+      path = "#{ORDER_DIRECTORY}/#{entry}"
+      File.delete(path) if File.file?(path)
+    end
+    Dir.rmdir(ORDER_DIRECTORY) if Dir.empty?(ORDER_DIRECTORY)
+  end
+
+  def self.require_unused_fixture_paths
+    raise "special report fixture path already exists" if File.exist?(SPECIAL_PATH)
+    raise "report order fixture directory already exists" if Dir.exist?(ORDER_DIRECTORY)
+  end
+
 end
 
+TextReportProcess.require_unused_fixture_paths
+begin
 result = AnalysisRunner.fleek("test/fixtures/class_variable.rb")
 raise "report version missing" unless result[1].start_with?("Fleek report v1\n")
 raise "reference identities missing" unless result[1].include?("References: Flay 2.14.4; Reek 6.6.0; Spinel 2026.09.12")
@@ -39,26 +64,23 @@ raise "mixed report omitted analyzed source" unless partial_sources[1].include?(
 raise "mixed report coverage did not identify both sources" unless partial_sources[0] == 1 && partial_sources[1].include?("Coverage: 2 selected; 1 analyzed; 1 failed; 0 excluded")
 raise "mixed report lost failed-source diagnostic" unless partial_sources[2].include?("Cannot read source file")
 
-special_path = "test/fixtures/report-\\slash-\"quoted\"\tline\n-é\r.rb"
+special_path = TextReportProcess::SPECIAL_PATH
 File.write(special_path, "class Café\n  @@count = 1\nend\n")
 special = AnalysisRunner.fleek(special_path)
-escaped_path = "Source: \"test/fixtures/report-\\\\slash-\\\"quoted\\\"\\tline\\n-é\\r.rb\" scope=included"
+escaped_path = "Source: \"/tmp/fleek-report-#{Process.pid}-\\\\slash-\\\"quoted\\\"\\tline\\n-é\\r.rb\" scope=included"
 raise "source field escaping is ambiguous" unless special[1].include?(escaped_path)
-raise "finding source escaping is ambiguous" unless special[1].include?("source=\"test/fixtures/report-\\\\slash-\\\"quoted\\\"\\tline\\n-é\\r.rb\"")
+raise "finding source escaping is ambiguous" unless special[1].include?("source=\"/tmp/fleek-report-#{Process.pid}-\\\\slash-\\\"quoted\\\"\\tline\\n-é\\r.rb\"")
 raise "non-ASCII finding was lost" unless special[1].include?("Café")
 File.delete(special_path)
 File.write(special_path, "class Café\n  @@count =\nend\n")
 special_error = AnalysisRunner.fleek(special_path)
-escaped_diagnostic_path = "\"test/fixtures/report-\\\\slash-\\\"quoted\\\"\\tline\\n-é\\r.rb\":2:"
+escaped_diagnostic_path = "\"/tmp/fleek-report-#{Process.pid}-\\\\slash-\\\"quoted\\\"\\tline\\n-é\\r.rb\":2:"
 raise "diagnostic path escaping is ambiguous" unless special_error[0] == 1 && special_error[2].include?(escaped_diagnostic_path) && !special_error[2].include?("line\n-é")
+raise "analyzer-failed source lost included scope" unless special_error[1].include?(escaped_path)
 raise "failed source did not record attempted check" unless special_error[1].include?("Checks run: reek:ClassVariable") && special_error[1].include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded")
 File.delete(special_path)
 
-order_directory = "test/fixtures/report_order"
-if Dir.exist?(order_directory)
-  Dir.children(order_directory).each { |entry| File.delete("#{order_directory}/#{entry}") }
-  Dir.rmdir(order_directory)
-end
+order_directory = TextReportProcess::ORDER_DIRECTORY
 Dir.mkdir(order_directory)
 File.write("#{order_directory}/z.rb", "class Zed\nend\n")
 File.write("#{order_directory}/a.rb", "class Able\nend\n")
@@ -74,3 +96,6 @@ format = TextReportProcess.format_request
 raise "unsupported format was accepted" unless format[0] == 1 && format[1].empty? && format[2].include?("Unsupported output format")
 
 puts "Text report contract: pass"
+ensure
+  TextReportProcess.cleanup_fixtures
+end
