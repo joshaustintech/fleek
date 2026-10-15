@@ -25,6 +25,7 @@
 - Ticket 19 supports bounded parameterless method candidates across simple class declarations. Structural fingerprints retain tree nesting; qualifying unsupported partial-subtree matches fail incomplete. Contracts cover topology differences, partial subtrees, Rails-shaped similar methods across classes, and identical methods against Flay 2.14.4. See ADRs 0022–0024. Class-level statements and the actual 25-file Rails run remain incomplete; parity and release gates stay open.
 - ADRs 0024–0025 extend bounded candidate collection across simple class declarations and one-level namespace wrappers. Cross-class `:class` rejection now requires fully modeled equal-sized class bodies; unsupported callbacks retain verified `:defn` findings with incomplete status. Empty classes/modules are clean inputs, and the empty-module null-body crash is regression-tested. The pinned 25-file run now reports Flay's score-48 `UsersController:51,58` group, but all sources remain partial due unsupported Rails syntax; release gate stays open.
 - ADR 0026 supports class methods with up to eight required positional parameters and local-variable reads. Flay 2.14.4 fixture comparisons match score-48 groups across same and different arities and keep differing parameter names classified as similar; optional/rest/keyword/block parameters remain partial. The exact 25-file manifest still reports all sources partial and exits incomplete.
+- ADR 0027 supports bounded `if`/`else` branches in class methods, raises combined candidate cap to 24, and preserves independent method findings alongside possible cross-class `:class` groups. Flay 2.14.4 and Fleek match mass/score 62 with ordered lines; the pinned corpus retains its score-48 controller group but remains incomplete. Other control-flow nodes remain unsupported.
 - Latest pinned 25-file run: Flay reference still score 48 at `UsersController:51,58`; Reek reference clean. Fleek Reek covers 25/25, Flay covers 0/25 and exits incomplete. See current receipt in `docs/research/rails-project-parity.md`.
 
 ## Fog
@@ -135,3 +136,9 @@
 - ADR 0026 records the supported required positional parameter boundary and identical-group semantics.
 - Pinned Flay 2.14.4 and Fleek match parameterized Rails-shaped `:defn` groups at mass/score 48 for same and different required arities. A fixture with different formal names matches as a similar group rather than identical.
 - Focused mutations reject losing required-parameter candidates and incorrectly classifying different formal names as identical. Full 25-file parity remains open.
+
+## Ticket 19 conditional-branch receipt
+
+- ADR 0027 records bounded `if`/`else` support and Flay's mass treatment of the else wrapper.
+- Pinned Flay 2.14.4 and Fleek match the conditional class-method fixture at mass/score 62, lines 2 and 14. Mutations protect branch collection and mass.
+- `unless` and other unsupported control flow remain partial; the pinned full manifest remains open.

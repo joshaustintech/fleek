@@ -7,12 +7,14 @@ class DuplicationProcess
   # Describes the expected output status and required fields.
   OutputExpectation = Struct.new(:status, :fields, :message)
   # Carries scalar paired CLI/reference expectations for class-method fixtures.
-  ClassMethodExpectation = Struct.new(:kind, :score, :mass, :second_line, :reference_group, :message)
+  ClassMethodExpectation = Struct.new(:kind, :score, :mass, :second_line, :reference_group, :message, :first_line)
   CLASS_METHOD_EXPECTATIONS = {
     rails_pair: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "Rails-shaped class method parity differed"),
     required_parameters: ClassMethodExpectation.new("similar", 48, 48, 8, "Similar code found in :defn (mass = 48)", "required-parameter class method parity differed"),
     parameter_arity: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "parameter-arity class method parity differed"),
     parameter_names: ClassMethodExpectation.new("similar", 48, 48, 9, "Similar code found in :defn (mass = 48)", "parameter-name class method parity differed"),
+    conditionals: ClassMethodExpectation.new("similar", 62, 62, 14, "Similar code found in :defn (mass = 62)", "conditional class method parity differed"),
+    candidate_capacity: ClassMethodExpectation.new("similar", 62, 62, 31, "Similar code found in :defn (mass = 62)", "class-method candidate capacity parity differed", 19),
     identical: ClassMethodExpectation.new("identical", 64, 32, 19, "IDENTICAL code found in :defn (mass*2 = 64)", "identical class method group changed")
   }
 
@@ -100,13 +102,13 @@ class DuplicationProcess
     score = expectation.score
     mass = expectation.mass
     line = expectation.second_line
-    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:2,#{path}:#{line}\"", "mass=#{mass} score=#{score}", "Total duplication score: #{score}"], expectation.message)
+    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "Total duplication score: #{score}"], expectation.message)
   end
 
   def self.class_method_reference_expectation(path, expectation)
     line = expectation.second_line
     score = expectation.score
-    fields = [expectation.reference_group, "#{path}:2", "#{path}:#{line}", "Total score (lower is better) = #{score}"]
+    fields = [expectation.reference_group, "#{path}:#{expectation.first_line || 2}", "#{path}:#{line}", "Total score (lower is better) = #{score}"]
     OutputExpectation.new(0, fields, expectation.message)
   end
 
@@ -216,6 +218,7 @@ cross_class_group_reference_fields = ["Similar code found in :class (mass = 50)"
 DuplicationProcess.verify_output(cross_class_group_reference, DuplicationProcess::OutputExpectation.new(0, cross_class_group_reference_fields, "cross-class Flay group changed"))
 cross_class_group_actual_fields = ["Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
 DuplicationProcess.verify_output(cross_class_group_actual, DuplicationProcess::OutputExpectation.new(1, cross_class_group_actual_fields, "unsupported cross-class Flay group was reported as a defn group or complete"))
+DuplicationProcess.verify(!cross_class_group_actual[1].include?("Group:"), "unsupported cross-class Flay group was reported as a defn group or complete")
 
 namespace_class_path = "test/fixtures/duplication_class_methods_namespace.rb"
 namespace_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(namespace_class_path, "fleek", ""))
@@ -283,6 +286,16 @@ DuplicationProcess.verify_class_method_pair(class_methods_with_helper_path, 19, 
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_required_parameters.rb", :required_parameters)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_parameter_arity.rb", :parameter_arity)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_parameter_names.rb", :parameter_names)
+DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_conditionals.rb", :conditionals)
+DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_candidate_capacity.rb", :candidate_capacity)
+
+class_group_with_pair_path = "test/fixtures/duplication_class_methods_class_group_with_conditional_pair.rb"
+class_group_with_pair_actual = DuplicationProcess.run(DuplicationProcess::Input.new(class_group_with_pair_path, "fleek", ""))
+class_group_with_pair_reference = DuplicationProcess.run(DuplicationProcess::Input.new(class_group_with_pair_path, "flay", ""))
+class_group_with_pair_fields = ["kind=\"similar\"", "locations=\"#{class_group_with_pair_path}:20,#{class_group_with_pair_path}:32\"", "mass=62 score=62", "Total duplication score: 62", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(class_group_with_pair_actual, DuplicationProcess::OutputExpectation.new(1, class_group_with_pair_fields, "independent class-method candidates were hidden by a possible class group"))
+class_group_with_pair_reference_fields = ["Similar code found in :defn (mass = 62)", "#{class_group_with_pair_path}:20", "#{class_group_with_pair_path}:32", "Similar code found in :class (mass = 50)", "#{class_group_with_pair_path}:1", "#{class_group_with_pair_path}:10", "Total score (lower is better) = 112"]
+DuplicationProcess.verify_output(class_group_with_pair_reference, DuplicationProcess::OutputExpectation.new(0, class_group_with_pair_reference_fields, "Flay groups with conditional class-method candidates changed"))
 
 topology_path = "test/fixtures/duplication_class_methods_topology.rb"
 topology_actual = DuplicationProcess.run(DuplicationProcess::Input.new(topology_path, "fleek", ""))
