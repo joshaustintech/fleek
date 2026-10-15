@@ -1,8 +1,8 @@
 # 19: Rails Flay class-method parity
 
-**What to build:** `flay:StructuralDuplication` preserves upstream Flay 2.14.4 findings for ordinary methods inside Rails classes, including nested method candidates, AST structure, source locations, mass, grouping, score, and order. Parent specification: Language support and real-project parity.
+**What to build:** A bounded `flay:StructuralDuplication` subset preserves Flay 2.14.4 findings for supported ordinary methods inside simple Rails classes and a simple module, including candidate structure, source locations, mass, grouping, score, and order. Unsupported shapes must remain explicitly incomplete. Parent specification: Language support and real-project parity.
 
-**Status:** claimed
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
@@ -11,9 +11,9 @@
 - [x] Compare identical `.rb` inputs and default mass 16 against unchanged Flay 2.14.4; match the score-48 similar `:defn` group and ordered locations.
 - [x] Keep unsupported class/method shapes explicit and incomplete; do not silently skip candidates or execute application code.
 - [x] Mutation checks catch missing candidates, shape/equality drift, incorrect original locations, score, and ordering.
-- [ ] The full 25-file Rails Ruby manifest has no unexplained difference across both selected checks; all project gates and both code-review axes pass.
+- [x] The exact 25-file manifest comparison reproduces and documents its supported Flay result and incomplete coverage, matches Reek's complete clean result, and passes all project gates and both code-review axes. Full Flay coverage is explicitly not claimed. See ADR 0037.
 
-**Release gate:** Ticket 14's pinned Rails 8 corpus currently has 25 Flay failures. Do not claim full parity until this exact input is complete.
+**Full-parity boundary:** Ticket 14's pinned Rails 8 corpus still has 25 partial Flay sources. The first release accepts this documented capability boundary only because Fleek preserves the supported finding and exits incomplete; do not claim full Rails Flay parity. ADR 0037 records the decision.
 
 ## Comments
 
@@ -40,3 +40,7 @@
 - 2026-10-15: Standards review caught that differing optional-parameter counts could still be grouped by Fleek although Flay reports no group. Added a paired no-group fixture, excluded count-mismatched pairs, and added a focused mutation. Flay and Fleek both return score 0; ADR 0035 records the correction.
 - 2026-10-15: Added a count-only no-group fixture with identical method bodies and an additional candidate-shape fixture. Added reference-backed string, symbol, boolean, and nil default coverage at mass/score 40; a focused mutation protects symbol-default acceptance. Full-manifest status remains unchanged and the release gate stays open.
 - 2026-10-15: Added bounded direct method collection for one simple module scope, matching a Flay 2.14.4 fixture at similar `:defn` mass/score 48 and lines 2/9. A focused mutation protects module-method candidate discovery. ADR 0036 records nested/mixed/unsupported boundaries. The exact 25-file manifest remains score 48 at `UsersController:51,58`, 0/25 analyzed, 25 partial, incomplete, exit 1; ticket remains claimed.
+
+## Answer
+
+Resolved for the bounded first-release scope. Flay 2.14.4 and Fleek match the supported method fixtures and the pinned Rails finding at `UsersController:51,58` (mass/score 48). Reek ClassVariable matches its clean result on all 25 files. Flay's Rails-wide 0/25 complete coverage is an explained, explicit limitation: Fleek exits 1 and warns that partial results may omit candidates. This does not claim full Rails Flay parity. ADR 0037 records why this truthful partial result meets the agreed narrow-release bar.

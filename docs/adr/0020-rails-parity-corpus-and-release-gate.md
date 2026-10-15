@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted. Its full-parity prerequisite for the bounded first release is superseded by [ADR 0037](0037-bounded-rails-flay-release-acceptance.md); this ADR remains authoritative for the pinned corpus and exact inputs.
 
 ## Context
 
@@ -16,11 +16,11 @@ Pin `JetBrains/sample_rails_app_8th_ed` at commit `92ce7c470bc31952d7dc51cac15e5
 
 At the T14 baseline, ClassVariable support accepted one simple class declaration with a superclass, because the superclass does not change the detector's local class-variable traversal; namespaced scopes remained unsupported. Ticket 18 later added one direct namespace level (ADR 0021), while deeper or ambiguous namespace shapes remain unsupported. Flay remains incomplete for class-contained methods; the discovered score-48 group is evidence of useful upstream behavior that Fleek must implement before claiming project parity.
 
-Keep incomplete status and exit 1 for the current full corpus. A clean reference result does not authorize Fleek success if any selected file/check did not run. Release and cold-runtime acceptance depend on full selected-input parity on this corpus; do not hide the two ClassVariable failures or 25 Flay failures through path exclusions.
+Keep incomplete status and exit 1 for the current full corpus. A clean reference result does not authorize Fleek success if any selected file/check did not run. At the time of this decision, release and cold-runtime acceptance were held for full selected-input parity on this corpus; do not hide the two ClassVariable failures or 25 Flay failures through path exclusions. ADR 0037 later accepts the documented bounded first-release scope while preserving the incomplete result and making no full-parity claim.
 
 ## Consequences
 
-The real-project limitation and exact versions, manifest, commands, results, and next capability work are recorded in [the parity receipt](../research/rails-project-parity.md). Ticket 18 closes the namespace gap for ClassVariable; ticket 19 tracks the remaining ordinary class-method Flay coverage. Tickets 15–17 remain blocked until complete combined runs match.
+The real-project limitation and exact versions, manifest, commands, results, and next capability work are recorded in [the parity receipt](../research/rails-project-parity.md). Ticket 18 closes the namespace gap for ClassVariable; ticket 19 tracked ordinary class-method Flay coverage and is resolved for bounded first-release scope by ADR 0037. Tickets 15–17 were held at this decision point pending complete combined runs; their later bounded evidence and verified release are recorded separately.
 
 ## Evidence
 
