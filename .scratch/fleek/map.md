@@ -7,6 +7,7 @@
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
 - Tickets 01–14 and 18 resolved and pushed in order; ticket 14 records a real-project release blocker. Ticket 19 must close before runtime/archive/release tickets can pass.
+- Ticket 19's pinned-controller contract now proves matching Flay findings while returning incomplete status; the exact Rails 25-file parity gate remains open.
 
 ## Decisions-so-far
 

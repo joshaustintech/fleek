@@ -47,6 +47,7 @@ SPINEL=/path/to/spinel-2026.09.12/bin/spinel make all
 BUNDLE_PATH=/path/to/fleek-bundle bundle exec flay /tmp/fleek-rails-corpus/app/**/*.rb
 BUNDLE_PATH=/path/to/fleek-bundle bundle exec reek --smell ClassVariable --no-progress /tmp/fleek-rails-corpus/app/**/*.rb
 build/fleek --checks flay:StructuralDuplication,reek:ClassVariable /tmp/fleek-rails-corpus/app/**/*.rb
+FLEEK_RAILS_CORPUS=/tmp/fleek-rails-corpus make rails-controller-parity
 ```
 
 The table below is the T14 baseline at Fleek commit `dd7f86442b8e7df84e4ea3e3c1fb77b7d5de1781`, before ticket 18 added namespace support. Evidence used Ruby 3.4.9 arm64-darwin23, Flay 2.14.4, Reek 6.6.0, and Spinel 2026.09.12 / source `112bae85c1a25fc5399009a849f805bfe691426b`:
@@ -85,7 +86,11 @@ The output matches Reek's clean ClassVariable result. The combined run remains i
 
 Ticket 19's initial implementation recognized one simple class with 2–64 direct, parameterless methods when all bodies used the bounded statement grammar. It reported a single unique eligible pair and failed closed on ambiguous groups. On the pinned 25-file manifest, that version reported all 25 files incomplete. This did not close the corpus or release gate; unsupported shapes remained explicit. See [ADR 0022](../adr/0022-flay-class-method-candidate-boundary.md).
 
-The next ticket 19 slice records class-method AST topology and exact atom values separately. Locked Flay contracts cover a Rails-shaped pair (similar `:defn`, mass/score 48, lines 2 and 9), an identical class-method pair (score 64), different call nesting that Flay leaves clean, and a qualifying nested subtree that Fleek must reject as incomplete until it can report that group. Focused mutations remove topology, alter class-method score, and corrupt original line attribution; each is required to fail the public CLI contract. The real `users_controller.rb` still reports incomplete because class-level callbacks and the other controller method shapes exceed the current grammar. The exact 25-file parity/release gate remains open; these fixture results do not stand in for it. See [ADR 0022](../adr/0022-flay-class-method-candidate-boundary.md).
+The next ticket 19 slice records class-method AST topology and exact atom values separately. Locked Flay contracts cover a Rails-shaped pair (similar `:defn`, mass/score 48, lines 2 and 9), an identical class-method pair (score 64), different call nesting that Flay leaves clean, and a qualifying nested subtree that Fleek must reject as incomplete until it can report that group. Focused mutations remove topology, alter class-method score, corrupt original line attribution, and reverse pair ordering; each is required to fail the public CLI contract.
+
+The current implementation also retains supported findings when a class contains unsupported callbacks or methods. `make rails-controller-parity` verifies the environment points at the exact pinned commit and that `users_controller.rb` has no local changes, then analyzes the same real file with Flay 2.14.4 and Fleek. Both report one similar `:defn` group, mass 48, score 48, ordered at lines 51 and 58. Fleek labels the source `partial`, reports `0 analyzed; 1 failed`, warns that unsupported candidates may be omitted, and exits 1 with `Status: incomplete`. A synthetic Rails-shaped CLI contract also checks this partial-result behavior. ADR 0023 records why partial findings remain visible without signaling success.
+
+The exact 25-file parity/release gate remains open. These findings and synthetic fixtures do not stand in for full manifest comparison; unsupported shapes remain incomplete. See [ADR 0022](../adr/0022-flay-class-method-candidate-boundary.md) and [ADR 0023](../adr/0023-partial-flay-findings.md).
 
 ## Decision and next work
 

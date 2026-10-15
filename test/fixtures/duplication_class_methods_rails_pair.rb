@@ -1,15 +1,15 @@
-class UsersController
-  def following
-    @title = "Following"
-    @user  = User.find(params[:id])
-    @users = @user.following.paginate(page: params[:page])
-    render 'show_follow', status: :unprocessable_entity
+class Feed
+  def current
+    @heading = "Current"
+    @stream = Stream.open(params[:token])
+    @entries = @stream.current.list(limit: params[:limit])
+    render "current", status: :unprocessable_entity
   end
 
-  def followers
-    @title = "Followers"
-    @user  = User.find(params[:id])
-    @users = @user.followers.paginate(page: params[:page])
-    render 'show_follow', status: :unprocessable_entity
+  def archived
+    @heading = "Archived"
+    @stream = Stream.open(params[:token])
+    @entries = @stream.archived.list(limit: params[:limit])
+    render "archive", status: :unprocessable_entity
   end
 end

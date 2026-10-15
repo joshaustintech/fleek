@@ -198,6 +198,39 @@ class_methods_with_helper_path = "test/fixtures/duplication_class_methods_with_h
 rails_pair_path = "test/fixtures/duplication_class_methods_rails_pair.rb"
 DuplicationProcess.verify_class_method_parity(rails_pair_path, :rails_pair)
 
+partial_rails_path = "test/fixtures/duplication_class_methods_partial_rails.rb"
+partial_rails_actual = DuplicationProcess.run(DuplicationProcess::Input.new(partial_rails_path, "fleek", ""))
+partial_rails_reference = DuplicationProcess.run(DuplicationProcess::Input.new(partial_rails_path, "flay", ""))
+partial_rails_expected = ["#{partial_rails_path}\" scope=partial", "locations=\"#{partial_rails_path}:4,#{partial_rails_path}:11\"", "mass=48 score=48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(partial_rails_actual, DuplicationProcess::OutputExpectation.new(1, partial_rails_expected, "partial Rails class results were hidden or reported complete"))
+DuplicationProcess.verify(partial_rails_actual[2].include?("Partial results may omit Flay candidates"), "partial Rails class results were not labeled")
+DuplicationProcess.verify_output(partial_rails_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :defn (mass = 48)", "#{partial_rails_path}:4", "#{partial_rails_path}:11"], "partial Rails Flay reference changed"))
+
+rails_corpus_root = ENV["FLEEK_RAILS_CORPUS"]
+if ENV["FLEEK_REQUIRE_RAILS_CORPUS"] == "1" && (!rails_corpus_root || rails_corpus_root.empty?)
+  raise "FLEEK_RAILS_CORPUS is required for the pinned Rails controller contract"
+end
+if rails_corpus_root && !rails_corpus_root.empty?
+  rails_controller_path = File.join(rails_corpus_root, "app/controllers/users_controller.rb")
+  raise "pinned Rails UsersController is missing: #{rails_controller_path}" unless File.file?(rails_controller_path)
+  rails_revision_process = Process.spawn("git", "-C", rails_corpus_root, "rev-parse", "HEAD", out: "/tmp/fleek-rails-revision-out", err: "/tmp/fleek-rails-revision-err")
+  rails_revision = AnalysisRunner.observe(rails_revision_process, "/tmp/fleek-rails-revision-out", "/tmp/fleek-rails-revision-err")
+  expected_rails_revision = "92ce7c470bc31952d7dc51cac15e577a948e479e"
+  unless rails_revision[0] == 0 && rails_revision[1].strip == expected_rails_revision
+    raise "pinned Rails corpus revision differed from #{expected_rails_revision}"
+  end
+  rails_file_process = Process.spawn("git", "-C", rails_corpus_root, "diff", "--quiet", expected_rails_revision, "--", "app/controllers/users_controller.rb", out: "/tmp/fleek-rails-file-out", err: "/tmp/fleek-rails-file-err")
+  rails_file = AnalysisRunner.observe(rails_file_process, "/tmp/fleek-rails-file-out", "/tmp/fleek-rails-file-err")
+  raise "pinned Rails UsersController has local modifications" unless rails_file[0] == 0
+  rails_actual = DuplicationProcess.run(DuplicationProcess::Input.new(rails_controller_path, "fleek", ""))
+  rails_reference = DuplicationProcess.run(DuplicationProcess::Input.new(rails_controller_path, "flay", ""))
+  rails_fields = ["scope=partial", "locations=\"#{rails_controller_path}:51,#{rails_controller_path}:58\"", "mass=48 score=48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+  DuplicationProcess.verify_output(rails_actual, DuplicationProcess::OutputExpectation.new(1, rails_fields, "pinned Rails controller Flay group or incomplete status differed"))
+  DuplicationProcess.verify(rails_actual[2].include?("Partial results may omit Flay candidates"), "pinned Rails controller partial warning missing")
+  rails_reference_fields = ["Similar code found in :defn (mass = 48)", "#{rails_controller_path}:51", "#{rails_controller_path}:58", "Total score (lower is better) = 48"]
+  DuplicationProcess.verify_output(rails_reference, DuplicationProcess::OutputExpectation.new(0, rails_reference_fields, "pinned Rails Flay reference changed"))
+end
+
 DuplicationProcess.verify_class_method_pair(class_methods_path, 19, "class method")
 DuplicationProcess.verify_class_method_pair(class_methods_with_helper_path, 19, "class helper")
 

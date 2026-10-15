@@ -4,7 +4,7 @@ class Fleek
   # Retains source identity alongside its diagnostic for the text report.
   SourceFailure = Struct.new(:path, :message, :kind)
   # Carries inputs and locations through structural duplication reporting.
-  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold, :excluded_paths, :source, :result)
+  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold, :excluded_paths, :source, :result, :partial, :partial_paths, :source_scope)
   # Carries validated analyzer inputs through combined execution.
   CombinedAnalysis = Struct.new(:flay_inputs, :reek_inputs, :configuration, :error, :disabled_paths)
   # Carries source coverage through stable report output.
@@ -34,6 +34,7 @@ class Fleek
     static char fleek_parse_message_buffer[512];
     static char fleek_finding_buffer[4096];
     static char fleek_duplication_buffer[128];
+    static int fleek_duplication_partial;
     static int fleek_class_count;
     static int fleek_module_count;
     static int fleek_finding_count;
@@ -422,16 +423,21 @@ class Fleek
       const pm_class_node_t *class_node = (const pm_class_node_t *) node;
       if (class_node->constant_path == NULL || class_node->body == NULL || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) || !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE)) return false;
       const pm_statements_node_t *body = (const pm_statements_node_t *) class_node->body;
-      if (body->body.size < 2 || body->body.size > 16) return false;
+      if (body->body.size < 2 || body->body.size > 32) return false;
       const pm_def_node_t *methods[16] = { NULL };
       fleek_duplication_method_t candidates[16] = {0};
+      size_t candidate_count = 0;
       for (size_t index = 0; index < body->body.size; index++) {
-        if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE) || !fleek_duplication_class_method(body->body.nodes[index], source, &candidates[index])) return false;
-        methods[index] = (const pm_def_node_t *) body->body.nodes[index];
+        const pm_node_t *child = body->body.nodes[index];
+        if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) { fleek_duplication_partial = 1; continue; }
+        if (candidate_count == 16 || !fleek_duplication_class_method(child, source, &candidates[candidate_count])) { fleek_duplication_partial = 1; continue; }
+        methods[candidate_count] = (const pm_def_node_t *) child;
+        candidate_count++;
       }
+      if (candidate_count < 2) return false;
       size_t matching_pairs = 0;
-      for (size_t left = 0; left < body->body.size; left++) {
-        for (size_t right = left + 1; right < body->body.size; right++) {
+      for (size_t left = 0; left < candidate_count; left++) {
+        for (size_t right = left + 1; right < candidate_count; right++) {
           bool same_shape = fleek_duplication_class_shapes_equal(&candidates[left], &candidates[right]);
           size_t mass = 2 + candidates[left].shape_count;
           for (size_t node_index = 0; node_index < candidates[left].shape_count; node_index++) if (PM_NODE_TYPE_P(candidates[left].data.ast.nodes[node_index], PM_KEYWORD_HASH_NODE)) mass--;
@@ -503,6 +509,7 @@ class Fleek
 
     int fleek_structural_duplication(const char *source, size_t length, int mass_threshold) {
       fleek_duplication_buffer[0] = 0;
+      fleek_duplication_partial = 0;
       if (memchr(source, 0, length) != NULL) return FLEEK_DUPLICATION_NUL_SOURCE;
       pm_options_t options = {0};
       options.line = 1;
@@ -578,6 +585,7 @@ class Fleek
     }
 
     const char *fleek_structural_duplication_finding(void) { return fleek_duplication_buffer; }
+    int fleek_structural_duplication_partial(void) { return fleek_duplication_partial; }
 
     int fleek_parse_ruby4(const char *source, size_t length) {
       fleek_parse_message_buffer[0] = 0;
@@ -613,6 +621,7 @@ class Fleek
     ffi_func :fleek_class_variable_finding, [], :str
     ffi_func :fleek_structural_duplication, [:str, :size_t, :int], :int
     ffi_func :fleek_structural_duplication_finding, [], :str
+    ffi_func :fleek_structural_duplication_partial, [], :int
   end
 
   # Imports the deliberately bounded Reek YAML subset used by this check.
@@ -982,7 +991,7 @@ class Fleek
   def self.duplication_input_report(inputs, ignore_patterns)
     files, errors = discover_sources(duplication_source_paths(inputs), ReekConfiguration.new)
     included, excluded = partition_flay_sources(files, ignore_patterns)
-    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded)
+    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded, nil, nil, false, [], "included")
   end
 
   def self.partition_flay_sources(files, patterns)
@@ -1091,11 +1100,23 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.analyze_structural_duplication(report, combined_analysis = false)
-    source = report.source
-    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold)
+    run_native_duplication(report)
     result = report.result
     return report_duplication_analysis_failure(report, combined_analysis) if result < 0
     print_duplication_report(report, result, combined_analysis)
+  end
+
+  def self.run_native_duplication(report)
+    source = report.source
+    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold)
+    mark_partial_duplication_report(report)
+  end
+
+  def self.mark_partial_duplication_report(report)
+    return unless NativePrism.fleek_structural_duplication_partial == 1
+    report.partial = true
+    report.partial_paths = report.paths
+    report.source_scope = "partial"
   end
 
   # :reek:BooleanParameter
@@ -1190,7 +1211,7 @@ class Fleek
   end
 
   def self.print_duplication_source_rows(report)
-    print_duplication_included_sources(report.paths)
+    report.paths.each { |path| print_duplication_source(path, report.source_scope) }
     print_duplication_failed_sources(report.errors)
     print_duplication_excluded_sources(report.excluded_paths)
   end
@@ -1216,23 +1237,26 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: two top-level parameterless methods or one class with 2-16 direct parameterless methods; supported call, assignment, literal, and keyword-hash AST forms; partial subtree groups fail incomplete; Flay mass #{mass_threshold}."
+    puts "Scope limits: supported top-level methods or simple class method AST forms; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter
   def self.print_duplication_report(report, score, combined_report = false)
     print_duplication_header(report, combined_report)
-    paths = report.paths
-    errors = report.errors
-    print_duplication_results(paths, score, report.source_map)
+    warn_partial_duplication_results(report)
+    print_duplication_results(report.paths, score, report.source_map)
     print_duplication_status(report, score, combined_report)
+  end
+
+  def self.warn_partial_duplication_results(report)
+    warn "WARNING: Partial results may omit Flay candidates; unsupported class or method forms were not analyzed." unless report.partial_paths.empty?
   end
 
   # :reek:ControlParameter
   # :reek:BooleanParameter
   # :reek:RepeatedConditional
   def self.print_duplication_status(report, score, combined_status = false)
-    status = duplication_exit_status(report.errors.length, score)
+    status = duplication_exit_status(report.errors.length + report.partial_paths.length, score)
     coverage = duplication_coverage(report, status)
     print_duplication_coverage(coverage, combined_status)
     status
@@ -1245,10 +1269,17 @@ class Fleek
   end
 
   def self.duplication_coverage(report, status)
-    analyzed = report.paths.length
-    failed = report.errors.length
     excluded = report.excluded_paths.length
-    Coverage.new(analyzed + failed + excluded, analyzed, failed, excluded, report_state(status))
+    selected = report.paths.length + report.errors.length + excluded
+    Coverage.new(selected, duplication_analyzed_count(report), duplication_failed_count(report), excluded, report_state(status))
+  end
+
+  def self.duplication_analyzed_count(report)
+    report.paths.length - report.partial_paths.length
+  end
+
+  def self.duplication_failed_count(report)
+    report.errors.length + report.partial_paths.length
   end
 
   # :reek:BooleanParameter

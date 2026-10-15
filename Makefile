@@ -3,7 +3,7 @@ SPINEL_ROOT ?= $(dir $(SPINEL))..
 export SPINEL SPINEL_ROOT
 FLEEK = build/fleek
 
-.PHONY: all test verify-spinel mutation reference flay reek check
+.PHONY: all test verify-spinel mutation reference flay reek check rails-controller-parity
 
 all: verify-spinel $(FLEEK)
 
@@ -43,3 +43,6 @@ reek:
 	bundle exec reek bin test/*.rb
 
 check: test mutation reference flay reek
+
+rails-controller-parity: all
+	FLEEK_REQUIRE_RAILS_CORPUS=1 $(SPINEL) -E test/duplication_contract.rb
