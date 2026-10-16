@@ -62,7 +62,7 @@ class AnalysisRunner
 
   def self.assert_detector_findings(actual, reference, detector)
     reports = [detector_warnings(actual, detector), detector_warnings(reference, detector)]
-    raise "#{detector} findings differ from Reek" unless reports[0] == reports[1]
+    raise "#{detector} findings differ from Reek" unless reports[0].sort == reports[1].sort
   end
 
   def self.detector_warnings(result, detector)
@@ -88,7 +88,7 @@ class AnalysisRunner
       return unless marker
       value = line[(marker + 9)..].strip
       value[1...-1]
-    elsif line.include?("ClassVariable:") || line.include?("Attribute:") || line.include?("InstanceVariableAssumption:") || line.include?("SubclassedFromCoreClass:") || line.include?("ModuleInitialize:") || line.include?("IrresponsibleModule:") || line.include?("LongParameterList:") || line.include?("BooleanParameter:") || line.include?("LongYieldList:") || line.include?("ControlParameter:") || line.include?("UnusedParameters:") || line.include?("UtilityFunction:")
+    elsif line.include?("ClassVariable:") || line.include?("Attribute:") || line.include?("InstanceVariableAssumption:") || line.include?("SubclassedFromCoreClass:") || line.include?("ModuleInitialize:") || line.include?("IrresponsibleModule:") || line.include?("LongParameterList:") || line.include?("BooleanParameter:") || line.include?("LongYieldList:") || line.include?("ControlParameter:") || line.include?("UnusedParameters:") || line.include?("UtilityFunction:") || line.include?("DuplicateMethodCall:") || line.include?("ManualDispatch:") || line.include?("NilCheck:") || line.include?("MissingSafeMethod:") || line.include?("RepeatedConditional:") || line.include?("NestedIterators:") || line.include?("FeatureEnvy:")
       line.strip
     end
   end

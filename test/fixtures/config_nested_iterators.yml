@@ -1,0 +1,3 @@
+detectors:
+  NestedIterators:
+    max_allowed_nesting: 2

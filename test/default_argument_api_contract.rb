@@ -17,6 +17,19 @@ class DefaultArgumentApiContract
     verify_default_detector("ControlParameter", "test/fixtures/control_parameter.rb")
     verify_default_detector("UnusedParameters", "test/fixtures/unused_parameters.rb")
     verify_default_detector("UtilityFunction", "test/fixtures/utility_function.rb")
+    verify_default_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb")
+    verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call.yml")
+    verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_allow.yml")
+    verify_default_detector("ManualDispatch", "test/fixtures/manual_dispatch.rb")
+    verify_default_detector("NilCheck", "test/fixtures/nil_check.rb")
+    verify_default_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb")
+    verify_configured_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb", "test/fixtures/config_missing_safe_method_exclude.yml")
+    verify_default_detector("RepeatedConditional", "test/fixtures/repeated_conditional.rb")
+    verify_configured_detector("RepeatedConditional", "test/fixtures/repeated_conditional.rb", "test/fixtures/config_repeated_conditional.yml")
+    verify_default_detector("NestedIterators", "test/fixtures/nested_iterators.rb")
+    verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators.yml")
+    verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators_ignore.yml")
+    verify_default_detector("FeatureEnvy", "test/fixtures/feature_envy.rb")
     verify_utility_configuration_limit
     verify_control_parameter_suppression
     verify_control_parameter_logical_condition
@@ -104,6 +117,12 @@ class DefaultArgumentApiContract
 
   def self.verify_utility_instance_call
     verify_default_detector("UtilityFunction", "test/fixtures/utility_instance_method_call.rb")
+  end
+
+  def self.verify_configured_detector(detector, source, config)
+    reference = run_reek(source, detector, config)
+    actual = run_fleek(source, config)
+    verify_configuration_parity(actual, reference, detector)
   end
 
   def self.verify_long_parameter_block_limit

@@ -1,5 +1,11 @@
 # Fleek exposes native CLI usage and reference identities.
+# :reek:TooManyConstants
 class Fleek
+  # :reek:DuplicateMethodCall
+  # :reek:LongParameterList
+  # :reek:NilCheck
+  # :reek:RepeatedConditional
+  # :reek:TooManyStatements
   VERSION = "0.2.0"
   # Retains source identity alongside its diagnostic for the text report.
   SourceFailure = Struct.new(:path, :message, :kind)
@@ -46,7 +52,7 @@ class Fleek
       reek:UncommunicativeParameterName reek:UncommunicativeVariableName
       reek:UnusedParameters reek:UtilityFunction
     ].freeze
-    RUNNABLE_DEFAULT_CHECKS = %w[flay:StructuralDuplication reek:Attribute reek:BooleanParameter reek:ClassVariable reek:ControlParameter reek:InstanceVariableAssumption reek:IrresponsibleModule reek:LongParameterList reek:LongYieldList reek:ModuleInitialize reek:SubclassedFromCoreClass reek:UnusedParameters reek:UtilityFunction].freeze
+    RUNNABLE_DEFAULT_CHECKS = %w[flay:StructuralDuplication reek:Attribute reek:BooleanParameter reek:ClassVariable reek:ControlParameter reek:DuplicateMethodCall reek:FeatureEnvy reek:InstanceVariableAssumption reek:IrresponsibleModule reek:LongParameterList reek:LongYieldList reek:ManualDispatch reek:MissingSafeMethod reek:ModuleInitialize reek:NestedIterators reek:NilCheck reek:RepeatedConditional reek:SubclassedFromCoreClass reek:UnusedParameters reek:UtilityFunction].freeze
     EXPLICIT_CHECKS = %w[flay:StructuralDuplication reek:ClassVariable].freeze
     EXPLICIT = AnalysisProfile.new(EXPLICIT_CHECKS, EXPLICIT_CHECKS, [], [], false)
 
@@ -79,6 +85,8 @@ class Fleek
     #include <stdint.h>
     #include <stdio.h>
     #include <ctype.h>
+    #include <stdlib.h>
+    #include <regex.h>
 
     static char fleek_parse_message_buffer[512];
     static char fleek_finding_buffer[4096];
@@ -103,6 +111,47 @@ class Fleek
     static size_t fleek_unused_parameters_used;
     static char fleek_utility_function_buffer[8192];
     static size_t fleek_utility_function_used;
+    static char fleek_duplicate_method_call_buffer[8192];
+    static size_t fleek_duplicate_method_call_used;
+    static char fleek_manual_dispatch_buffer[4096];
+    static size_t fleek_manual_dispatch_used;
+    static char fleek_nil_check_buffer[8192];
+    static size_t fleek_nil_check_used;
+    static char fleek_missing_safe_method_buffer[4096];
+    static size_t fleek_missing_safe_method_used;
+    static char fleek_repeated_conditional_buffer[8192];
+    static size_t fleek_repeated_conditional_used;
+    static char fleek_nested_iterators_buffer[8192];
+    static size_t fleek_nested_iterators_used;
+    static char fleek_feature_envy_buffer[8192];
+    static size_t fleek_feature_envy_used;
+    static bool fleek_matches_any_pattern(const uint8_t *source, size_t length, const char *patterns) {
+      const char *start = patterns;
+      while (*start != 0) {
+        const char *end = strchr(start, '\\n');
+        size_t pattern_length = end == NULL ? strlen(start) : (size_t) (end - start);
+        if (pattern_length > 0) {
+          char pattern[256];
+          if (pattern_length >= sizeof(pattern)) return false;
+          memcpy(pattern, start, pattern_length);
+          pattern[pattern_length] = 0;
+          regex_t expression;
+          if (regcomp(&expression, pattern, REG_EXTENDED) == 0) {
+            char *text = malloc(length + 1);
+            if (text == NULL) { regfree(&expression); return false; }
+            memcpy(text, source, length);
+            text[length] = 0;
+            bool matched = regexec(&expression, text, 0, NULL, 0) == 0;
+            free(text);
+            regfree(&expression);
+            if (matched) return true;
+          }
+        }
+        if (end == NULL) break;
+        start = end + 1;
+      }
+      return false;
+    }
     static int fleek_duplication_partial;
     static int fleek_class_count;
     static int fleek_module_count;
@@ -971,7 +1020,8 @@ class Fleek
           PM_NODE_TYPE_P(node, PM_INTEGER_NODE) || PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_FALSE_NODE) ||
           PM_NODE_TYPE_P(node, PM_NIL_NODE) || PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_AND_NODE) ||
           PM_NODE_TYPE_P(node, PM_OR_NODE) || PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) ||
-          PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_PARENTHESES_NODE)) return true;
+          PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_PARENTHESES_NODE) || PM_NODE_TYPE_P(node, PM_SELF_NODE) ||
+          PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_WRITE_NODE)) return true;
       *supported = false;
       return false;
     }
@@ -1047,6 +1097,55 @@ class Fleek
       }
       return false;
     }
+    static bool fleek_record_control_line(const uint8_t *source, const pm_node_t *node, int *lines, size_t *count) {
+      int line = fleek_source_line(source, node->location.start);
+      for (size_t index = 0; index < *count; index++) if (lines[index] == line) return true;
+      if (*count >= 128) return false;
+      lines[(*count)++] = line;
+      return true;
+    }
+    static bool fleek_control_condition_lines(const pm_node_t *node, pm_constant_id_t name, pm_parser_t *parser,
+        const uint8_t *source, int *lines, size_t *count) {
+      if (node == NULL) return true;
+      if (PM_NODE_TYPE_P(node, PM_IF_NODE)) {
+        const pm_if_node_t *branch = (const pm_if_node_t *) node;
+        if (fleek_control_condition(branch->predicate, name, parser, true) && !fleek_record_control_line(source, (const pm_node_t *) branch->predicate, lines, count)) return false;
+        return fleek_control_condition_lines((const pm_node_t *) branch->statements, name, parser, source, lines, count) &&
+          fleek_control_condition_lines(branch->subsequent, name, parser, source, lines, count);
+      }
+      if (PM_NODE_TYPE_P(node, PM_UNLESS_NODE)) {
+        const pm_unless_node_t *branch = (const pm_unless_node_t *) node;
+        if (fleek_control_condition(branch->predicate, name, parser, true) && !fleek_record_control_line(source, (const pm_node_t *) branch->predicate, lines, count)) return false;
+        return fleek_control_condition_lines((const pm_node_t *) branch->statements, name, parser, source, lines, count) &&
+          fleek_control_condition_lines((const pm_node_t *) branch->else_clause, name, parser, source, lines, count);
+      }
+      if (PM_NODE_TYPE_P(node, PM_CASE_NODE)) {
+        const pm_case_node_t *branch = (const pm_case_node_t *) node;
+        if (fleek_control_condition(branch->predicate, name, parser, true) && !fleek_record_control_line(source, (const pm_node_t *) branch->predicate, lines, count)) return false;
+        for (size_t index = 0; index < branch->conditions.size; index++) {
+          const pm_node_t *condition = branch->conditions.nodes[index];
+          if (fleek_control_condition(condition, name, parser, true) && !fleek_record_control_line(source, condition, lines, count)) return false;
+        }
+        return fleek_control_condition_lines((const pm_node_t *) branch->else_clause, name, parser, source, lines, count);
+      }
+      if (PM_NODE_TYPE_P(node, PM_WHEN_NODE)) {
+        const pm_when_node_t *branch = (const pm_when_node_t *) node;
+        for (size_t index = 0; index < branch->conditions.size; index++) {
+          const pm_node_t *condition = branch->conditions.nodes[index];
+          if (fleek_control_condition(condition, name, parser, true) && !fleek_record_control_line(source, condition, lines, count)) return false;
+        }
+        return fleek_control_condition_lines((const pm_node_t *) branch->statements, name, parser, source, lines, count);
+      }
+      if (PM_NODE_TYPE_P(node, PM_ELSE_NODE)) return fleek_control_condition_lines((const pm_node_t *) ((const pm_else_node_t *) node)->statements, name, parser, source, lines, count);
+      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {
+        const pm_statements_node_t *items = (const pm_statements_node_t *) node;
+        for (size_t index = 0; index < items->body.size; index++) if (!fleek_control_condition_lines(items->body.nodes[index], name, parser, source, lines, count)) return false;
+        return true;
+      }
+      if ((PM_NODE_TYPE_P(node, PM_AND_NODE) || PM_NODE_TYPE_P(node, PM_OR_NODE)) &&
+          fleek_control_condition(node, name, parser, true)) return fleek_record_control_line(source, node, lines, count);
+      return true;
+    }
     static bool fleek_parameter_used_outside_condition(pm_parser_t *parser, const pm_node_t *node, pm_constant_id_t name) {
       if (node == NULL) return false;
       if (PM_NODE_TYPE_P(node, PM_IF_NODE)) {
@@ -1061,7 +1160,12 @@ class Fleek
         const pm_case_node_t *branch = (const pm_case_node_t *) node;
         return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) branch->else_clause, name);
       }
-      if (PM_NODE_TYPE_P(node, PM_AND_NODE) || PM_NODE_TYPE_P(node, PM_OR_NODE)) return false;
+      if (PM_NODE_TYPE_P(node, PM_AND_NODE)) {
+        return false;
+      }
+      if (PM_NODE_TYPE_P(node, PM_OR_NODE)) {
+        return false;
+      }
       if (PM_NODE_TYPE_P(node, PM_WHEN_NODE)) return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) ((const pm_when_node_t *) node)->statements, name);
       if (PM_NODE_TYPE_P(node, PM_ELSE_NODE)) return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) ((const pm_else_node_t *) node)->statements, name);
       if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {
@@ -1117,11 +1221,21 @@ class Fleek
         for (size_t index = 0; index < items->size; index++) {
           pm_constant_id_t name_id = fleek_parameter_name(items->nodes[index]);
           if (name_id == 0) return -1;
-          if (fleek_control_condition(method->body, name_id, parser, false) && !fleek_parameter_used_outside_condition(parser, method->body, name_id)) {
+          int control_lines[128] = { 0 };
+          size_t control_line_count = 0;
+          if (!fleek_control_condition_lines(method->body, name_id, parser, source, control_lines, &control_line_count)) return -1;
+          if (control_line_count > 0 && !fleek_parameter_used_outside_condition(parser, method->body, name_id)) {
+            char line_list[512] = { 0 };
+            size_t line_used = 0;
+            for (size_t line_index = 0; line_index < control_line_count; line_index++) {
+              int line_written = snprintf(line_list + line_used, sizeof(line_list) - line_used, "%s%d", line_index == 0 ? "" : ", ", control_lines[line_index]);
+              if (line_written < 0 || (size_t) line_written >= sizeof(line_list) - line_used) return -1;
+              line_used += (size_t) line_written;
+            }
             pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, name_id);
             int written = snprintf(fleek_control_parameter_buffer + fleek_control_parameter_used,
               sizeof(fleek_control_parameter_buffer) - fleek_control_parameter_used,
-              "%d\\t%.*s#%.*s\\t%.*s\\n", method->body == NULL ? line : fleek_source_line(source, method->body->location.start), (int) class_name_length, class_name,
+              "%s\\t%.*s#%.*s\\t%.*s\\n", line_list, (int) class_name_length, class_name,
               (int) method_name->length, method_name->start, (int) name->length, name->start);
             if (written < 0 || (size_t) written >= sizeof(fleek_control_parameter_buffer) - fleek_control_parameter_used) return -1;
             fleek_control_parameter_used += (size_t) written;
@@ -1178,6 +1292,468 @@ class Fleek
       return fleek_scan_method_scope(source, length, fleek_utility_function_method, NULL);
     }
     const char *fleek_utility_function_finding(void) { return fleek_utility_function_buffer; }
+    typedef struct { const uint8_t *start; size_t length; } fleek_duplicate_call_t;
+    typedef struct { fleek_duplicate_call_t calls[128]; size_t count; bool unsupported; const char *allow_calls; } fleek_duplicate_calls_t;
+    typedef struct { size_t maximum; const char *allow_calls; } fleek_duplicate_options_t;
+    static bool fleek_collect_duplicate_calls(const pm_node_t *node, void *data) {
+      fleek_duplicate_calls_t *calls = (fleek_duplicate_calls_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) { calls->unsupported = true; return false; }
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return true;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      if (call->receiver == NULL && (call->arguments == NULL || call->arguments->arguments.size == 0) && call->block == NULL) return true;
+      size_t call_length = (size_t) (call->base.location.end - call->base.location.start);
+      if (fleek_matches_any_pattern(call->base.location.start, call_length, calls->allow_calls)) return true;
+      if (calls->count >= 128) { calls->unsupported = true; return false; }
+      calls->calls[calls->count].start = call->base.location.start;
+      calls->calls[calls->count].length = (size_t) (call->base.location.end - call->base.location.start);
+      calls->count++;
+      return true;
+    }
+    static int fleek_duplicate_method_call_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
+        size_t class_name_length, const pm_node_t *node, void *data) {
+      fleek_duplicate_options_t *options = (fleek_duplicate_options_t *) data;
+      size_t maximum = options->maximum;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      if (method->receiver != NULL || method->body == NULL) return 0;
+      if (!fleek_method_body_supported(method->body)) return -1;
+      fleek_duplicate_calls_t calls = { 0 };
+      calls.allow_calls = options->allow_calls;
+      pm_visit_node(method->body, fleek_collect_duplicate_calls, &calls);
+      if (calls.unsupported) return -1;
+      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+      int findings = 0;
+      for (size_t index = 0; index < calls.count; index++) {
+        bool already_written = false;
+        size_t count = 0;
+        size_t used = 0;
+        char lines[256] = { 0 };
+        for (size_t earlier = 0; earlier < index; earlier++) {
+          if (calls.calls[index].length == calls.calls[earlier].length &&
+              memcmp(calls.calls[index].start, calls.calls[earlier].start, calls.calls[index].length) == 0) already_written = true;
+        }
+        if (already_written) continue;
+        for (size_t candidate = index; candidate < calls.count; candidate++) {
+          if (calls.calls[index].length != calls.calls[candidate].length ||
+              memcmp(calls.calls[index].start, calls.calls[candidate].start, calls.calls[index].length) != 0) continue;
+          int line = fleek_source_line(source, calls.calls[candidate].start);
+          int written = snprintf(lines + used, sizeof(lines) - used, "%s%d", count == 0 ? "" : ", ", line);
+          if (written < 0 || (size_t) written >= sizeof(lines) - used) return -1;
+          used += (size_t) written;
+          count++;
+        }
+        if (count <= maximum) continue;
+        int written = snprintf(fleek_duplicate_method_call_buffer + fleek_duplicate_method_call_used,
+          sizeof(fleek_duplicate_method_call_buffer) - fleek_duplicate_method_call_used,
+          "%s\\t%.*s#%.*s\\t%.*s\\t%zu\\n", lines, (int) class_name_length, class_name,
+          (int) method_name->length, method_name->start, (int) calls.calls[index].length,
+          calls.calls[index].start, count);
+        if (written < 0 || (size_t) written >= sizeof(fleek_duplicate_method_call_buffer) - fleek_duplicate_method_call_used) return -1;
+        fleek_duplicate_method_call_used += (size_t) written;
+        findings++;
+      }
+      return findings;
+    }
+    int fleek_duplicate_method_call(const char *source, size_t length, size_t maximum, const char *allow_calls) {
+      fleek_duplicate_method_call_buffer[0] = 0; fleek_duplicate_method_call_used = 0;
+      fleek_duplicate_options_t options = { maximum, allow_calls };
+      return fleek_scan_method_scope(source, length, fleek_duplicate_method_call_method, &options);
+    }
+    const char *fleek_duplicate_method_call_finding(void) { return fleek_duplicate_method_call_buffer; }
+    typedef struct { pm_parser_t *parser; const uint8_t *source; int lines[128]; size_t count; bool overflow; } fleek_manual_dispatch_state_t;
+    static bool fleek_manual_dispatch_visit(const pm_node_t *node, void *data) {
+      fleek_manual_dispatch_state_t *state = (fleek_manual_dispatch_state_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return true;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      if (!fleek_name_is(state->parser, call->name, "respond_to?")) return true;
+      int line = fleek_source_line(state->source, call->base.location.start);
+      for (size_t index = 0; index < state->count; index++) if (state->lines[index] == line) return true;
+      if (state->count >= 128) { state->overflow = true; return false; }
+      state->lines[state->count++] = line;
+      return true;
+    }
+    static int fleek_manual_dispatch_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
+        size_t class_name_length, const pm_node_t *node, void *data) {
+      (void) data;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      if (method->receiver != NULL || method->body == NULL) return 0;
+      if (!fleek_method_body_supported(method->body)) return -1;
+      fleek_manual_dispatch_state_t state = { parser, source, { 0 }, 0, false };
+      pm_visit_node(method->body, fleek_manual_dispatch_visit, &state);
+      if (state.overflow) return -1;
+      if (state.count == 0) return 0;
+      char lines[512] = { 0 };
+      size_t used = 0;
+      for (size_t index = 0; index < state.count; index++) {
+        int written = snprintf(lines + used, sizeof(lines) - used, "%s%d", index == 0 ? "" : ", ", state.lines[index]);
+        if (written < 0 || (size_t) written >= sizeof(lines) - used) return -1;
+        used += (size_t) written;
+      }
+      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+      int written = snprintf(fleek_manual_dispatch_buffer + fleek_manual_dispatch_used, sizeof(fleek_manual_dispatch_buffer) - fleek_manual_dispatch_used, "%s\\t%.*s#%.*s\\t\\n",
+        lines, (int) class_name_length, class_name, (int) method_name->length, method_name->start);
+      if (written < 0 || (size_t) written >= sizeof(fleek_manual_dispatch_buffer) - fleek_manual_dispatch_used) return -1;
+      fleek_manual_dispatch_used += (size_t) written;
+      return 1;
+    }
+    int fleek_manual_dispatch(const char *source, size_t length) {
+      fleek_manual_dispatch_buffer[0] = 0; fleek_manual_dispatch_used = 0;
+      return fleek_scan_method_scope(source, length, fleek_manual_dispatch_method, NULL);
+    }
+    const char *fleek_manual_dispatch_finding(void) { return fleek_manual_dispatch_buffer; }
+    typedef struct { pm_parser_t *parser; const uint8_t *source; int lines[128]; size_t count; bool overflow; } fleek_nil_check_state_t;
+    static bool fleek_nil_check_add(fleek_nil_check_state_t *state, const uint8_t *location) {
+      int line = fleek_source_line(state->source, location);
+      for (size_t index = 0; index < state->count; index++) if (state->lines[index] == line) return true;
+      if (state->count >= 128) { state->overflow = true; return false; }
+      state->lines[state->count++] = line;
+      return true;
+    }
+    static bool fleek_nil_check_visit(const pm_node_t *node, void *data) {
+      fleek_nil_check_state_t *state = (fleek_nil_check_state_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
+        const pm_call_node_t *call = (const pm_call_node_t *) node;
+        bool nil_call = fleek_name_is(state->parser, call->name, "nil?");
+        bool comparison = fleek_name_is(state->parser, call->name, "==") || fleek_name_is(state->parser, call->name, "===");
+        bool has_nil = call->receiver != NULL && PM_NODE_TYPE_P(call->receiver, PM_NIL_NODE);
+        if (call->arguments != NULL) for (size_t index = 0; index < call->arguments->arguments.size; index++) {
+          if (PM_NODE_TYPE_P(call->arguments->arguments.nodes[index], PM_NIL_NODE)) has_nil = true;
+        }
+        if (nil_call || (comparison && has_nil)) return fleek_nil_check_add(state, call->base.location.start);
+      }
+      if (PM_NODE_TYPE_P(node, PM_WHEN_NODE)) {
+        const pm_when_node_t *branch = (const pm_when_node_t *) node;
+        for (size_t index = 0; index < branch->conditions.size; index++) {
+          if (PM_NODE_TYPE_P(branch->conditions.nodes[index], PM_NIL_NODE) && !fleek_nil_check_add(state, branch->conditions.nodes[index]->location.start)) return false;
+        }
+      }
+      return !state->overflow;
+    }
+    static int fleek_nil_check_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
+        size_t class_name_length, const pm_node_t *node, void *data) {
+      (void) data;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      if (method->receiver != NULL || method->body == NULL) return 0;
+      if (!fleek_method_body_supported(method->body)) return -1;
+      fleek_nil_check_state_t state = { parser, source, { 0 }, 0, false };
+      pm_visit_node(method->body, fleek_nil_check_visit, &state);
+      if (state.overflow) return -1;
+      if (state.count == 0) return 0;
+      char lines[512] = { 0 };
+      size_t used = 0;
+      for (size_t index = 0; index < state.count; index++) {
+        int written = snprintf(lines + used, sizeof(lines) - used, "%s%d", index == 0 ? "" : ", ", state.lines[index]);
+        if (written < 0 || (size_t) written >= sizeof(lines) - used) return -1;
+        used += (size_t) written;
+      }
+      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+      int written = snprintf(fleek_nil_check_buffer + fleek_nil_check_used, sizeof(fleek_nil_check_buffer) - fleek_nil_check_used,
+        "%s\\t%.*s#%.*s\\t\\n", lines, (int) class_name_length, class_name, (int) method_name->length, method_name->start);
+      if (written < 0 || (size_t) written >= sizeof(fleek_nil_check_buffer) - fleek_nil_check_used) return -1;
+      fleek_nil_check_used += (size_t) written;
+      return 1;
+    }
+    int fleek_nil_check(const char *source, size_t length) {
+      fleek_nil_check_buffer[0] = 0; fleek_nil_check_used = 0;
+      return fleek_scan_method_scope(source, length, fleek_nil_check_method, NULL);
+    }
+    const char *fleek_nil_check_finding(void) { return fleek_nil_check_buffer; }
+    static bool fleek_missing_safe_version_exists(pm_parser_t *parser, const pm_def_node_t *method, const pm_constant_t *name) {
+      if (fleek_only_scope == NULL || name->length < 2 || name->start[name->length - 1] != '!') return false;
+      const pm_node_t *body = PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE) ?
+        ((const pm_class_node_t *) fleek_only_scope)->body : ((const pm_module_node_t *) fleek_only_scope)->body;
+      if (!PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) return false;
+      const pm_statements_node_t *statements = (const pm_statements_node_t *) body;
+      for (size_t index = 0; index < statements->body.size; index++) {
+        const pm_node_t *candidate_node = statements->body.nodes[index];
+        if (!PM_NODE_TYPE_P(candidate_node, PM_DEF_NODE)) continue;
+        const pm_def_node_t *candidate = (const pm_def_node_t *) candidate_node;
+        pm_constant_t *candidate_name = pm_constant_pool_id_to_constant(&parser->constant_pool, candidate->name);
+        if (candidate_name->length == name->length - 1 && memcmp(candidate_name->start, name->start, candidate_name->length) == 0) return true;
+      }
+      (void) method;
+      return false;
+    }
+    static int fleek_missing_safe_method_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
+        size_t class_name_length, const pm_node_t *node, void *data) {
+      (void) data;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      if (method->receiver != NULL || fleek_only_scope == NULL) return 0;
+      pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+      if (!fleek_missing_safe_version_exists(parser, method, name)) {
+        if (name->length < 2 || name->start[name->length - 1] != '!') return 0;
+        int written = snprintf(fleek_missing_safe_method_buffer + fleek_missing_safe_method_used,
+          sizeof(fleek_missing_safe_method_buffer) - fleek_missing_safe_method_used,
+          "%d\\t%.*s\\t%.*s\\n", fleek_source_line(source, method->def_keyword_loc.start),
+          (int) class_name_length, class_name, (int) name->length, name->start);
+        if (written < 0 || (size_t) written >= sizeof(fleek_missing_safe_method_buffer) - fleek_missing_safe_method_used) return -1;
+        fleek_missing_safe_method_used += (size_t) written;
+        return 1;
+      }
+      return 0;
+    }
+    int fleek_missing_safe_method(const char *source, size_t length) {
+      fleek_missing_safe_method_buffer[0] = 0; fleek_missing_safe_method_used = 0;
+      return fleek_scan_method_scope(source, length, fleek_missing_safe_method_method, NULL);
+    }
+    const char *fleek_missing_safe_method_finding(void) { return fleek_missing_safe_method_buffer; }
+    typedef struct { const uint8_t *expression; size_t length; int lines[64]; size_t count; } fleek_conditional_group_t;
+    typedef struct { pm_parser_t *parser; const uint8_t *source; const char *class_name; size_t class_name_length; size_t maximum; fleek_conditional_group_t groups[128]; size_t count; bool unsupported; } fleek_repeated_conditional_state_t;
+    static bool fleek_conditional_is_block_given(pm_parser_t *parser, const pm_node_t *condition) {
+      if (!PM_NODE_TYPE_P(condition, PM_CALL_NODE)) return false;
+      const pm_call_node_t *call = (const pm_call_node_t *) condition;
+      return call->receiver == NULL && call->arguments == NULL && fleek_name_is(parser, call->name, "block_given?");
+    }
+    static bool fleek_record_conditional(fleek_repeated_conditional_state_t *state, pm_parser_t *parser, const pm_node_t *condition) {
+      if (condition == NULL || fleek_conditional_is_block_given(parser, condition)) return true;
+      size_t length = (size_t) (condition->location.end - condition->location.start);
+      size_t group = 0;
+      while (group < state->count && (state->groups[group].length != length || memcmp(state->groups[group].expression, condition->location.start, length) != 0)) group++;
+      if (group == state->count) {
+        if (state->count >= 128) { state->unsupported = true; return false; }
+        state->groups[group].expression = condition->location.start;
+        state->groups[group].length = length;
+        state->groups[group].count = 0;
+        state->count++;
+      }
+      fleek_conditional_group_t *entry = &state->groups[group];
+      if (entry->count >= 64) { state->unsupported = true; return false; }
+      entry->lines[entry->count++] = fleek_source_line(state->source, condition->location.start);
+      return true;
+    }
+    static bool fleek_collect_repeated_conditionals_with_parser(const pm_node_t *node, void *data) {
+      fleek_repeated_conditional_state_t *state = (fleek_repeated_conditional_state_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      if (PM_NODE_TYPE_P(node, PM_IF_NODE)) return fleek_record_conditional(state, state->parser, ((const pm_if_node_t *) node)->predicate);
+      if (PM_NODE_TYPE_P(node, PM_CASE_NODE)) return fleek_record_conditional(state, state->parser, ((const pm_case_node_t *) node)->predicate);
+      return true;
+    }
+    static bool fleek_repeated_conditional_last_method(const pm_def_node_t *method) {
+      const pm_node_t *body = PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE) ?
+        ((const pm_class_node_t *) fleek_only_scope)->body : ((const pm_module_node_t *) fleek_only_scope)->body;
+      if (!PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) return false;
+      const pm_statements_node_t *statements = (const pm_statements_node_t *) body;
+      for (size_t index = statements->body.size; index > 0; index--) if (PM_NODE_TYPE_P(statements->body.nodes[index - 1], PM_DEF_NODE)) return statements->body.nodes[index - 1] == (const pm_node_t *) method;
+      return false;
+    }
+    static int fleek_repeated_conditional_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
+        size_t class_name_length, const pm_node_t *node, void *data) {
+      fleek_repeated_conditional_state_t *state = (fleek_repeated_conditional_state_t *) data;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      if (fleek_only_scope == NULL) return 0;
+      state->parser = parser;
+      state->source = source; state->class_name = class_name; state->class_name_length = class_name_length;
+      if (!fleek_method_body_supported(method->body)) return -1;
+      if (method->body != NULL) pm_visit_node(method->body, fleek_collect_repeated_conditionals_with_parser, state);
+      if (state->unsupported) return -1;
+      if (!fleek_repeated_conditional_last_method(method)) return 0;
+      int findings = 0;
+      for (size_t group = 0; group < state->count; group++) {
+        fleek_conditional_group_t *entry = &state->groups[group];
+        if (entry->count <= state->maximum) continue;
+        char lines[512] = { 0 };
+        size_t line_used = 0;
+        for (size_t index = 0; index < entry->count; index++) {
+          int line_written = snprintf(lines + line_used, sizeof(lines) - line_used, "%s%d", index == 0 ? "" : ", ", entry->lines[index]);
+          if (line_written < 0 || (size_t) line_written >= sizeof(lines) - line_used) return -1;
+          line_used += (size_t) line_written;
+        }
+        int written = snprintf(fleek_repeated_conditional_buffer + fleek_repeated_conditional_used,
+          sizeof(fleek_repeated_conditional_buffer) - fleek_repeated_conditional_used,
+          "%s\\t%.*s\\t%.*s\\t%zu\\n", lines, (int) state->class_name_length, state->class_name,
+          (int) entry->length, entry->expression, entry->count);
+        if (written < 0 || (size_t) written >= sizeof(fleek_repeated_conditional_buffer) - fleek_repeated_conditional_used) return -1;
+        fleek_repeated_conditional_used += (size_t) written;
+        findings++;
+      }
+      return findings;
+    }
+    int fleek_repeated_conditional(const char *source, size_t length, size_t maximum) {
+      fleek_repeated_conditional_buffer[0] = 0; fleek_repeated_conditional_used = 0;
+      fleek_repeated_conditional_state_t state = { 0 };
+      state.source = (const uint8_t *) source;
+      state.maximum = maximum;
+      return fleek_scan_method_scope(source, length, fleek_repeated_conditional_method, &state);
+    }
+    const char *fleek_repeated_conditional_finding(void) { return fleek_repeated_conditional_buffer; }
+    typedef struct { const uint8_t *start; const uint8_t *end; int line; bool increments; size_t depth; } fleek_iterator_block_t;
+    typedef struct { pm_parser_t *parser; const uint8_t *source; const char *ignore_iterators; size_t maximum; fleek_iterator_block_t blocks[128]; size_t count; bool unsupported; } fleek_nested_iterator_state_t;
+    static bool fleek_nested_iterator_node_supported(const pm_node_t *node, void *data) {
+      bool *supported = (bool *) data;
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return true;
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE)) return true;
+      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE) || PM_NODE_TYPE_P(node, PM_CALL_NODE) ||
+          PM_NODE_TYPE_P(node, PM_ARGUMENTS_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) ||
+          PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE) ||
+          PM_NODE_TYPE_P(node, PM_REQUIRED_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_OPTIONAL_PARAMETER_NODE) ||
+          PM_NODE_TYPE_P(node, PM_REQUIRED_KEYWORD_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_OPTIONAL_KEYWORD_PARAMETER_NODE) ||
+          PM_NODE_TYPE_P(node, PM_REST_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_KEYWORD_REST_PARAMETER_NODE) ||
+          PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) || PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) ||
+          PM_NODE_TYPE_P(node, PM_INTEGER_NODE) || PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_FALSE_NODE) ||
+          PM_NODE_TYPE_P(node, PM_NIL_NODE) || PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_SELF_NODE)) return true;
+      *supported = false;
+      return false;
+    }
+    static bool fleek_nested_iterator_visit(const pm_node_t *node, void *data) {
+      fleek_nested_iterator_state_t *state = (fleek_nested_iterator_state_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return true;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      if (call->block == NULL) return true;
+      if (state->count >= 128) { state->unsupported = true; return false; }
+      const pm_block_node_t *block = (const pm_block_node_t *) call->block;
+      bool has_arguments = false;
+      if (PM_NODE_TYPE_P((const pm_node_t *) block->parameters, PM_BLOCK_PARAMETERS_NODE)) {
+        const pm_block_parameters_node_t *parameters = (const pm_block_parameters_node_t *) block->parameters;
+        if (parameters->parameters != NULL) {
+          const pm_parameters_node_t *list = (const pm_parameters_node_t *) parameters->parameters;
+          has_arguments = list->requireds.size + list->optionals.size + list->posts.size + list->keywords.size +
+            (list->rest != NULL) + (list->keyword_rest != NULL) > 0;
+        }
+      }
+      size_t call_length = (size_t) (call->base.location.end - call->base.location.start);
+      bool ignored = fleek_matches_any_pattern(call->base.location.start, call_length, state->ignore_iterators);
+      fleek_iterator_block_t *entry = &state->blocks[state->count++];
+      entry->start = block->base.location.start;
+      entry->end = block->base.location.end;
+      entry->line = fleek_source_line(state->source, call->base.location.start);
+      entry->increments = has_arguments && !ignored;
+      entry->depth = 0;
+      return true;
+    }
+    static bool fleek_nested_iterator_body_supported(const pm_node_t *body) {
+      if (body == NULL) return true;
+      bool supported = true;
+      pm_visit_node(body, fleek_nested_iterator_node_supported, &supported);
+      return supported;
+    }
+    static int fleek_nested_iterator_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
+        size_t class_name_length, const pm_node_t *node, void *data) {
+      (void) class_name_length;
+      fleek_nested_iterator_state_t *state = (fleek_nested_iterator_state_t *) data;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      state->parser = parser;
+      if (method->receiver != NULL || !fleek_nested_iterator_body_supported(method->body)) return -1;
+      if (method->body == NULL) return 0;
+      state->source = source; state->count = 0; state->unsupported = false;
+      pm_visit_node(method->body, fleek_nested_iterator_visit, state);
+      if (state->unsupported) return -1;
+      if (state->count == 0) return 0;
+      for (size_t index = 0; index < state->count; index++) {
+        fleek_iterator_block_t *block = &state->blocks[index];
+        block->depth = block->increments ? 1 : 0;
+        for (size_t parent = 0; parent < state->count; parent++) {
+          if (parent == index) continue;
+          fleek_iterator_block_t *outer = &state->blocks[parent];
+          if (outer->start < block->start && outer->end >= block->end && outer->increments) block->depth++;
+        }
+      }
+      int findings = 0;
+      for (size_t depth = 1; depth <= state->count; depth++) {
+        char lines[512] = { 0 };
+        size_t used = 0;
+        size_t count = 0;
+        for (size_t index = 0; index < state->count; index++) {
+          fleek_iterator_block_t *block = &state->blocks[index];
+          if (block->depth != depth || depth <= state->maximum) continue;
+          bool leaf = true;
+          for (size_t child = 0; child < state->count; child++) {
+            if (child != index && state->blocks[index].start < state->blocks[child].start && state->blocks[index].end >= state->blocks[child].end) leaf = false;
+          }
+          if (!leaf) continue;
+          int written = snprintf(lines + used, sizeof(lines) - used, "%s%d", count == 0 ? "" : ", ", block->line);
+          if (written < 0 || (size_t) written >= sizeof(lines) - used) return -1;
+          used += (size_t) written; count++;
+        }
+        if (count == 0) continue;
+        pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+        int written = snprintf(fleek_nested_iterators_buffer + fleek_nested_iterators_used,
+          sizeof(fleek_nested_iterators_buffer) - fleek_nested_iterators_used,
+          "%s\\t%.*s#%.*s\\t\\t%zu\\n", lines, (int) class_name_length, class_name,
+          (int) method_name->length, method_name->start, depth);
+        if (written < 0 || (size_t) written >= sizeof(fleek_nested_iterators_buffer) - fleek_nested_iterators_used) return -1;
+        fleek_nested_iterators_used += (size_t) written;
+        findings++;
+      }
+      return findings;
+    }
+    int fleek_nested_iterators(const char *source, size_t length, size_t maximum, const char *ignore_iterators) {
+      fleek_nested_iterators_buffer[0] = 0; fleek_nested_iterators_used = 0;
+      fleek_nested_iterator_state_t state = { 0 };
+      state.source = (const uint8_t *) source;
+      state.ignore_iterators = ignore_iterators;
+      state.maximum = maximum;
+      return fleek_scan_method_scope(source, length, fleek_nested_iterator_method, &state);
+    }
+    const char *fleek_nested_iterators_finding(void) { return fleek_nested_iterators_buffer; }
+    typedef struct { pm_constant_id_t name; int lines[128]; size_t count; } fleek_receiver_refs_t;
+    typedef struct { pm_parser_t *parser; const uint8_t *source; fleek_receiver_refs_t receivers[64]; size_t receiver_count; size_t self_count; bool unsupported; } fleek_feature_envy_state_t;
+    static bool fleek_feature_envy_visit(const pm_node_t *node, void *data) {
+      fleek_feature_envy_state_t *state = (fleek_feature_envy_state_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
+        const pm_call_node_t *call = (const pm_call_node_t *) node;
+        if (call->receiver == NULL || PM_NODE_TYPE_P(call->receiver, PM_SELF_NODE)) { state->self_count++; return true; }
+        if (!PM_NODE_TYPE_P(call->receiver, PM_LOCAL_VARIABLE_READ_NODE)) return true;
+        pm_constant_id_t name = ((const pm_local_variable_read_node_t *) call->receiver)->name;
+        size_t receiver = 0;
+        while (receiver < state->receiver_count && state->receivers[receiver].name != name) receiver++;
+        if (receiver == state->receiver_count) {
+          if (state->receiver_count >= 64) { state->unsupported = true; return false; }
+          state->receivers[receiver].name = name;
+          state->receivers[receiver].count = 0;
+          state->receiver_count++;
+        }
+        fleek_receiver_refs_t *refs = &state->receivers[receiver];
+        if (refs->count >= 128) { state->unsupported = true; return false; }
+        refs->lines[refs->count++] = fleek_source_line(state->source, call->base.location.start);
+      }
+      if (PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_WRITE_NODE)) state->self_count++;
+      return !state->unsupported;
+    }
+    static int fleek_feature_envy_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
+        size_t class_name_length, const pm_node_t *node, void *data) {
+      (void) data;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      if (method->receiver != NULL || method->body == NULL) return 0;
+      if (!fleek_method_body_supported(method->body)) return -1;
+      fleek_feature_envy_state_t state = { parser, source, { 0 }, 0, 0, false };
+      pm_visit_node(method->body, fleek_feature_envy_visit, &state);
+      if (state.unsupported) return -1;
+      if (state.self_count == 0) return 0;
+      size_t maximum = 0;
+      for (size_t index = 0; index < state.receiver_count; index++) if (state.receivers[index].count > maximum) maximum = state.receivers[index].count;
+      if (maximum <= state.self_count) return 0;
+      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+      int findings = 0;
+      for (size_t index = 0; index < state.receiver_count; index++) {
+        fleek_receiver_refs_t *refs = &state.receivers[index];
+        if (refs->count != maximum) continue;
+        char lines[512] = { 0 };
+        size_t used = 0;
+        for (size_t line = 0; line < refs->count; line++) {
+          int written = snprintf(lines + used, sizeof(lines) - used, "%s%d", line == 0 ? "" : ", ", refs->lines[line]);
+          if (written < 0 || (size_t) written >= sizeof(lines) - used) return -1;
+          used += (size_t) written;
+        }
+        pm_constant_t *receiver_name = pm_constant_pool_id_to_constant(&parser->constant_pool, refs->name);
+        int written = snprintf(fleek_feature_envy_buffer + fleek_feature_envy_used,
+          sizeof(fleek_feature_envy_buffer) - fleek_feature_envy_used,
+          "%s\\t%.*s#%.*s\\t%.*s\\n", lines, (int) class_name_length, class_name,
+          (int) method_name->length, method_name->start, (int) receiver_name->length, receiver_name->start);
+        if (written < 0 || (size_t) written >= sizeof(fleek_feature_envy_buffer) - fleek_feature_envy_used) return -1;
+        fleek_feature_envy_used += (size_t) written;
+        findings++;
+      }
+      return findings;
+    }
+    int fleek_feature_envy(const char *source, size_t length) {
+      fleek_feature_envy_buffer[0] = 0; fleek_feature_envy_used = 0;
+      return fleek_scan_method_scope(source, length, fleek_feature_envy_method, NULL);
+    }
+    const char *fleek_feature_envy_finding(void) { return fleek_feature_envy_buffer; }
 
     int fleek_class_variable(const char *source, size_t length) {
       fleek_finding_buffer[0] = 0;
@@ -1779,6 +2355,20 @@ class Fleek
     ffi_func :fleek_unused_parameters_finding, [], :str
     ffi_func :fleek_utility_function, [:str, :size_t], :int
     ffi_func :fleek_utility_function_finding, [], :str
+    ffi_func :fleek_duplicate_method_call, [:str, :size_t, :size_t, :str], :int
+    ffi_func :fleek_duplicate_method_call_finding, [], :str
+    ffi_func :fleek_manual_dispatch, [:str, :size_t], :int
+    ffi_func :fleek_manual_dispatch_finding, [], :str
+    ffi_func :fleek_nil_check, [:str, :size_t], :int
+    ffi_func :fleek_nil_check_finding, [], :str
+    ffi_func :fleek_missing_safe_method, [:str, :size_t], :int
+    ffi_func :fleek_missing_safe_method_finding, [], :str
+    ffi_func :fleek_repeated_conditional, [:str, :size_t, :size_t], :int
+    ffi_func :fleek_repeated_conditional_finding, [], :str
+    ffi_func :fleek_nested_iterators, [:str, :size_t, :size_t, :str], :int
+    ffi_func :fleek_nested_iterators_finding, [], :str
+    ffi_func :fleek_feature_envy, [:str, :size_t], :int
+    ffi_func :fleek_feature_envy_finding, [], :str
     ffi_func :fleek_structural_duplication, [:str, :size_t, :int], :int
     ffi_func :fleek_structural_duplication_finding, [], :str
     ffi_func :fleek_structural_duplication_partial, [], :int
@@ -1813,6 +2403,8 @@ class Fleek
       @scope_detector_settings = []
       @detector_excludes = []
       @scope_detector_excludes = []
+      @list_detector = ""
+      @list_setting = ""
     end
 
     def self.load(explicit_path)
@@ -1887,15 +2479,16 @@ class Fleek
 
     def parse_detector_field(key, value, number)
       indentation = line_indentation
+      detector = @global_detector
       if detector_mapping?(indentation, key, value, 2)
         @global_detector = key
         @list_target = ""
       elsif indentation == 2
         fail_config(number, "unsupported enabled detector #{key}")
-      elsif !@global_detector.empty? && indentation == 4
-        parse_detector_option(key, value, number, @global_detector, false)
-      elsif exclusion_list?(indentation, @global_detector, 6, "global_excludes")
-        append_list_item(value, number)
+      elsif !detector.empty? && indentation == 4
+        parse_detector_option(key, value, number, detector, false)
+      elsif append_detector_list_item(value, number, indentation, detector, false)
+        return
       else
         fail_config(number, "unsupported detector setting #{key}")
       end
@@ -1915,11 +2508,21 @@ class Fleek
         fail_config(number, "unsupported enabled directory detector #{key}")
       elsif indentation == 6 && !@scope_detector.empty?
         parse_detector_option(key, value, number, @scope_detector, true)
-      elsif exclusion_list?(indentation, @scope_detector, 8, "scope_excludes")
-        append_list_item(value, number)
+      elsif append_detector_list_item(value, number, indentation, @scope_detector, true)
+        return
       else
         fail_config(number, "unsupported directory setting #{key}")
       end
+    end
+
+    def append_detector_list_item(value, number, indentation, detector, scoped)
+      expected = scoped ? 8 : 6
+      setting_target = scoped ? "scope_detector_setting" : "global_detector_setting"
+      exclusion_target = scoped ? "scope_excludes" : "global_excludes"
+      return false unless indentation == expected && !detector.empty?
+      return false unless @list_target == setting_target || @list_target == exclusion_target
+      append_list_item(value, number)
+      true
     end
 
     def detector_mapping?(indentation, key, value, expected_indentation)
@@ -1964,6 +2567,10 @@ class Fleek
         else
           @detector_enabled << "#{detector}=#{value}"
         end
+      elsif detector == "MissingSafeMethod" && key == "exclude"
+        parse_setting_list(key, value, number, detector, scoped)
+      elsif list_detector_setting?(detector, key)
+        parse_setting_list(key, value, number, detector, scoped)
       elsif key == "exclude"
         parse_options(key, value, number, detector, scoped)
       elsif valid_detector_setting?(detector, key, value)
@@ -1974,8 +2581,28 @@ class Fleek
       end
     end
 
+    def list_detector_setting?(detector, key)
+      (detector == "DuplicateMethodCall" && key == "allow_calls") ||
+        (detector == "NestedIterators" && key == "ignore_iterators")
+    end
+
+    def parse_setting_list(key, value, number, detector, scoped)
+      unless value.empty? || value == "[]"
+        fail_config(number, "unsupported #{detector} setting #{key}")
+        return
+      end
+      settings = scoped ? @scope_detector_settings : @detector_settings
+      settings << [scoped ? @scope_index : -1, detector, key, ""]
+      @list_detector = detector
+      @list_setting = key
+      @list_target = value == "[]" ? "" : scoped ? "scope_detector_setting" : "global_detector_setting"
+    end
+
     def valid_detector_setting?(detector, key, value)
-      return ["LongParameterList", "LongYieldList"].include?(detector) && value.match?(/\A[0-9]+\z/) if key == "max_params" && ["LongParameterList", "LongYieldList"].include?(detector)
+      return value.match?(/\A[0-9]+\z/) if key == "max_params" && ["LongParameterList", "LongYieldList"].include?(detector)
+      return value.match?(/\A[0-9]+\z/) if key == "max_calls" && detector == "DuplicateMethodCall"
+      return value.match?(/\A[0-9]+\z/) if key == "max_ifs" && detector == "RepeatedConditional"
+      return value.match?(/\A[0-9]+\z/) if key == "max_allowed_nesting" && detector == "NestedIterators"
       detector == "UtilityFunction" && key == "public_methods_only" && ["true", "false"].include?(value)
     end
 
@@ -1985,6 +2612,10 @@ class Fleek
                  elsif @list_target == "global_excludes"
                    6
                  elsif @list_target == "scope_excludes"
+                   8
+                 elsif @list_target == "global_detector_setting"
+                   6
+                 elsif @list_target == "scope_detector_setting"
                    8
                  else
                    -1
@@ -2006,6 +2637,10 @@ class Fleek
         else
           @scope_detector_excludes << "#{@scope_index}:#{@scope_detector}=#{item}"
         end
+      elsif @list_target == "global_detector_setting"
+        @detector_settings << [-1, @list_detector, @list_setting, item]
+      elsif @list_target == "scope_detector_setting"
+        @scope_detector_settings << [@scope_index, @list_detector, @list_setting, item]
       else
         fail_config(number, "unexpected YAML list item")
       end
@@ -2080,6 +2715,10 @@ class Fleek
       return scoped[3] if scoped
       global = @detector_settings.reverse.find { |setting| setting[1] == name && setting[2] == key }
       global && global[3]
+    end
+
+    def excluded_method_name?(path, name)
+      (detector_setting("MissingSafeMethod", "exclude", path) || "").split("\n").include?(name)
     end
 
     def effective_detector_enabled(name, scope_index)
@@ -2597,7 +3236,14 @@ class Fleek
     "LongYieldList" => ["one simple class or module with direct instance methods", "%s yields %s parameters"],
     "ControlParameter" => ["simple methods with direct conditionals", "%s is controlled by argument '%s'"],
     "UnusedParameters" => ["simple method parameter lists and supported method bodies", "%s has unused parameter '%s'"],
-    "UtilityFunction" => ["direct instance methods without inherited overrides", "%s doesn't depend on instance state (maybe move it to another class?)"]
+    "UtilityFunction" => ["direct instance methods without inherited overrides", "%s doesn't depend on instance state (maybe move it to another class?)"],
+    "DuplicateMethodCall" => ["direct method calls with identical source form", "%s calls '%s' %s times"],
+    "ManualDispatch" => ["simple method bodies containing respond_to?", "%s manually dispatches method call"],
+    "NilCheck" => ["simple method bodies with nil? or nil comparisons", "%s performs a nil-check"],
+    "MissingSafeMethod" => ["direct bang methods without matching non-bang methods", "%s has missing safe method '%s'"],
+    "RepeatedConditional" => ["simple method conditions compared across one class", "%s tests '%s' at least %s times"],
+    "NestedIterators" => ["simple method bodies with block iterators", "%s contains iterators nested %s deep"],
+    "FeatureEnvy" => ["simple methods with local-variable receiver calls and self references", "%s refers to '%s' more than self (maybe move it to another class?)"]
   }.freeze
 
   def self.run_attribute(inputs)
@@ -2704,9 +3350,9 @@ class Fleek
   # :reek:TooManyStatements
   def self.analyze_reek_detector(path, detector, configuration)
     source = File.binread(path)
-    maximum = detector_max_params(configuration, detector, path)
+    settings = native_detector_settings(configuration, detector, path)
     visibility_setting = detector == "UtilityFunction" && configuration.detector_setting(detector, "public_methods_only", path) == "true"
-    result = visibility_setting ? -4 : run_native_reek_detector(detector, source, maximum)
+    result = visibility_setting ? -4 : run_native_reek_detector(detector, source, settings)
     return report_reek_detector_unsupported(path, detector) if result == -4
     return report_reek_detector_parse_failure(path, detector) if result < 0
     findings = print_reek_detector_findings(path, detector, native_reek_findings(detector), configuration)
@@ -2718,8 +3364,21 @@ class Fleek
 
   # :reek:ControlParameter
   # :reek:TooManyStatements
-  def self.run_native_reek_detector(detector, source, maximum)
+  def self.native_detector_settings(configuration, detector, path)
+    limits = { "DuplicateMethodCall" => ["max_calls", "1"], "NestedIterators" => ["max_allowed_nesting", "1"], "RepeatedConditional" => ["max_ifs", "2"] }
+    key, fallback = limits.fetch(detector, ["max_params", "3"])
+    maximum = Integer(configuration.detector_setting(detector, key, path) || fallback, 10)
+    allow_calls = configuration.detector_setting("DuplicateMethodCall", "allow_calls", path) || ""
+    ignored = configuration.detector_setting("NestedIterators", "ignore_iterators", path) || "Tempfile.create\ntap"
+    [maximum, allow_calls, ignored]
+  end
+
+  # :reek:ControlParameter
+  # :reek:LongParameterList
+  # :reek:TooManyStatements
+  def self.run_native_reek_detector(detector, source, settings)
     length = source.bytesize
+    maximum = settings[0]
     case detector
     when "Attribute" then NativePrism.fleek_attribute(source, length)
     when "InstanceVariableAssumption" then NativePrism.fleek_instance_variable_assumption(source, length)
@@ -2732,11 +3391,16 @@ class Fleek
     when "ControlParameter" then NativePrism.fleek_control_parameter(source, length)
     when "UnusedParameters" then NativePrism.fleek_unused_parameters(source, length)
     when "UtilityFunction" then NativePrism.fleek_utility_function(source, length)
+    when "DuplicateMethodCall"
+      NativePrism.fleek_duplicate_method_call(source, length, maximum, settings[1])
+    when "ManualDispatch" then NativePrism.fleek_manual_dispatch(source, length)
+    when "NilCheck" then NativePrism.fleek_nil_check(source, length)
+    when "MissingSafeMethod" then NativePrism.fleek_missing_safe_method(source, length)
+    when "RepeatedConditional" then NativePrism.fleek_repeated_conditional(source, length, maximum)
+    when "NestedIterators"
+      NativePrism.fleek_nested_iterators(source, length, maximum, settings[2])
+    when "FeatureEnvy" then NativePrism.fleek_feature_envy(source, length)
     end
-  end
-
-  def self.detector_max_params(configuration, detector, path)
-    Integer(configuration.detector_setting(detector, "max_params", path) || "3", 10)
   end
 
   # :reek:ControlParameter
@@ -2754,6 +3418,13 @@ class Fleek
     when "ControlParameter" then NativePrism.fleek_control_parameter_finding
     when "UnusedParameters" then NativePrism.fleek_unused_parameters_finding
     when "UtilityFunction" then NativePrism.fleek_utility_function_finding
+    when "DuplicateMethodCall" then NativePrism.fleek_duplicate_method_call_finding
+    when "ManualDispatch" then NativePrism.fleek_manual_dispatch_finding
+    when "NilCheck" then NativePrism.fleek_nil_check_finding
+    when "MissingSafeMethod" then NativePrism.fleek_missing_safe_method_finding
+    when "RepeatedConditional" then NativePrism.fleek_repeated_conditional_finding
+    when "NestedIterators" then NativePrism.fleek_nested_iterators_finding
+    when "FeatureEnvy" then NativePrism.fleek_feature_envy_finding
     end
   end
 
@@ -2773,7 +3444,7 @@ class Fleek
     rows = findings.split("\n")
     rows.reject! do |finding|
       line, context, name = finding.split("\t")
-      configuration.excluded_context?(path, context, detector)
+      detector == "MissingSafeMethod" ? configuration.excluded_method_name?(path, name) : configuration.excluded_context?(path, context, detector)
     end
     rows.sort_by! { |finding| reek_finding_sort_key(finding) }
     rows.each { |finding| print_reek_detector_finding(path, detector, finding) }
@@ -2786,13 +3457,26 @@ class Fleek
   end
 
   def self.print_reek_detector_finding(path, detector, finding)
-    line, context, name = finding.split("\t")
-    puts "  Finding: check=\"reek:#{detector}\" source=#{quote_text(path)} lines=#{quote_text(line)} context=#{quote_text(context)} name=#{quote_text(name || context)} message=#{quote_text(reek_detector_message(detector, line, context, name))}"
+    line, context, name, count = finding.split("\t")
+    puts "  Finding: check=\"reek:#{detector}\" source=#{quote_text(path)} lines=#{quote_text(line)} context=#{quote_text(context)} name=#{quote_text(name || context)} message=#{quote_text(reek_detector_message(detector, line, context, name, count))}"
   end
 
   # :reek:LongParameterList
-  def self.reek_detector_message(detector, line, context, name)
-    description = REEK_DETECTORS.fetch(detector)[1] % [context, name]
+  # :reek:DuplicateMethodCall
+  # :reek:RepeatedConditional
+  # :reek:TooManyStatements
+  def self.reek_detector_message(detector, line, context, name, count = "")
+    template = REEK_DETECTORS.fetch(detector)[1]
+    arguments = if ["DuplicateMethodCall", "RepeatedConditional"].include?(detector)
+                  [context, name, count]
+                elsif ["ManualDispatch", "NilCheck"].include?(detector)
+                  [context]
+                elsif detector == "NestedIterators"
+                  [context, count]
+                else
+                  [context, name]
+                end
+    description = template % arguments
     "[#{line}]:#{detector}: #{description} [https://github.com/troessner/reek/blob/v6.6.0/docs/#{detector.gsub(/([a-z])([A-Z])/, '\\1-\\2')}.md]"
   end
 

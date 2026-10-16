@@ -1,0 +1,4 @@
+detectors:
+  NestedIterators:
+    ignore_iterators:
+      - each

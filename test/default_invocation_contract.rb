@@ -97,7 +97,7 @@ class DefaultInvocationContract
   end
 
   def self.verify_default_sections(output)
-    verify(output.include?("Checks run: flay:StructuralDuplication,reek:Attribute,reek:BooleanParameter,reek:ClassVariable,reek:ControlParameter,reek:InstanceVariableAssumption,reek:IrresponsibleModule,reek:LongParameterList,reek:LongYieldList,reek:ModuleInitialize,reek:SubclassedFromCoreClass,reek:UnusedParameters,reek:UtilityFunction"), "supported default checks did not run")
+    verify(output.include?("Checks run: flay:StructuralDuplication,reek:Attribute,reek:BooleanParameter,reek:ClassVariable,reek:ControlParameter,reek:DuplicateMethodCall,reek:FeatureEnvy,reek:InstanceVariableAssumption,reek:IrresponsibleModule,reek:LongParameterList,reek:LongYieldList,reek:ManualDispatch,reek:MissingSafeMethod,reek:ModuleInitialize,reek:NestedIterators,reek:NilCheck,reek:RepeatedConditional,reek:SubclassedFromCoreClass,reek:UnusedParameters,reek:UtilityFunction"), "supported default checks did not run")
     verify(output.include?("Checks disabled: none"), "disabled default checks were not reported")
     verify(output.include?("Overall status: incomplete"), "unsupported defaults did not keep the report incomplete")
     verify_default_sources(output)
