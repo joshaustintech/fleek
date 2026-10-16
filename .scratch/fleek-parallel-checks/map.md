@@ -10,6 +10,7 @@
 - Concurrent workers use private project copies and temporary-output namespaces.
 - Mutation labels are partitioned across workers; each mutant must be caught once.
 - Worker count defaults to logical CPU count and accepts a lower `JOBS` cap.
+- Ticket 01 is implemented and pushed in `dacf834`; see its Answer for validation limits.
 
 ## Fog
 

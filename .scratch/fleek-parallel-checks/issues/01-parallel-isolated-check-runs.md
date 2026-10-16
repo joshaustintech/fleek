@@ -1,7 +1,7 @@
 # Parallel isolated check runs
 
 Type: task  
-Status: claimed
+Status: resolved
 Triage: ready-for-agent
 
 ## Goal
@@ -21,4 +21,4 @@ Run Fleek tests, mutations, and independent analyzer checks concurrently without
 
 ## Answer
 
-Implementation was rolled back at the user's request. Reopened for an agent to implement and verify this slice again.
+`make test`, `make mutation`, and `make check` now share a CPU-bounded worker pool. Tests and mutation shards run from private project copies with isolated `/tmp` namespaces; deterministic mutation partitioning caught all 93 configured mutants. The pinned compiler identity gate remains in place. `JOBS=2 make check SPINEL=/private/tmp/fleek-spinel-2026.09.12/bin/spinel SPINEL_ROOT=/private/tmp/fleek-spinel-2026.09.12` passed previously; an additional rerun was interrupted after making no visible progress. The full Fleek gate also passed with default eight-worker scheduling, including 14 contracts, all mutations, Flay, and Reek. The Spinel upstream `make check` reached 3,575 passes but was interrupted during its much larger suite; it is not reported as passing.
