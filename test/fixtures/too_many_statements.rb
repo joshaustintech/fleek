@@ -7,4 +7,13 @@ class Workflow
     fifth
     sixth
   end
+
+  def self.dispatch
+    first
+    second
+    third
+    fourth
+    fifth
+    sixth
+  end
 end

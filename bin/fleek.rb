@@ -1306,7 +1306,7 @@ class Fleek
         size_t class_name_length, const pm_node_t *node, void *data) {
       (void) data;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver != NULL || method->body == NULL) return 0;
+      if (method->body == NULL) return 0;
       if (!fleek_method_body_supported(method->body)) return -1;
       fleek_utility_state_t state = { false, false };
       pm_visit_node(method->body, fleek_utility_visit, &state);
@@ -1348,7 +1348,7 @@ class Fleek
       fleek_duplicate_options_t *options = (fleek_duplicate_options_t *) data;
       size_t maximum = options->maximum;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver != NULL || method->body == NULL) return 0;
+      if (method->body == NULL) return 0;
       if (!fleek_method_body_supported(method->body)) return -1;
       fleek_duplicate_calls_t calls = { 0 };
       calls.allow_calls = options->allow_calls;
@@ -1864,7 +1864,7 @@ class Fleek
     const char *fleek_too_many_constants_finding(void) { return fleek_too_many_constants_buffer; }
     static int fleek_too_many_statements_method(pm_parser_t *parser, const uint8_t *source, const char *class_name, size_t class_name_length, const pm_node_t *node, void *data) {
       const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver != NULL || method->body == NULL) return 0;
+      if (method->body == NULL) return 0;
       if (!PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return -1;
       size_t count = ((const pm_statements_node_t *) method->body)->body.size;
       const pm_statements_node_t *body = (const pm_statements_node_t *) method->body;
@@ -1874,7 +1874,7 @@ class Fleek
       }
       if (fleek_name_is(parser, method->name, "initialize") || count <= *(size_t *) data) return 0;
       pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
-      int written = snprintf(fleek_too_many_statements_buffer + fleek_too_many_statements_used, sizeof(fleek_too_many_statements_buffer) - fleek_too_many_statements_used, "%d\\t%.*s#%.*s\\t%zu\\t\\n", fleek_source_line(source, method->def_keyword_loc.start), (int) class_name_length, class_name, (int) method_name->length, method_name->start, count);
+      int written = snprintf(fleek_too_many_statements_buffer + fleek_too_many_statements_used, sizeof(fleek_too_many_statements_buffer) - fleek_too_many_statements_used, "%d\\t%.*s#%s%.*s\\t%zu\\t\\n", fleek_source_line(source, method->def_keyword_loc.start), (int) class_name_length, class_name, method->receiver == NULL ? "" : "self.", (int) method_name->length, method_name->start, count);
       if (written < 0 || (size_t) written >= sizeof(fleek_too_many_statements_buffer) - fleek_too_many_statements_used) return -1;
       fleek_too_many_statements_used += (size_t) written;
       return 1;

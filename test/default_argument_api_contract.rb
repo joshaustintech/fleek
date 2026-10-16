@@ -38,16 +38,16 @@ class DefaultArgumentApiContract
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
     verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
     verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
+    verify_too_many_statements_class_method
+    verify_configured_detector("TooManyStatements", "test/fixtures/too_many_statements.rb", "test/fixtures/config_too_many_statements.yml")
     verify_configured_detector("DataClump", "test/fixtures/data_clump.rb", "test/fixtures/config_data_clump.yml")
     verify_configured_detector("TooManyConstants", "test/fixtures/too_many_constants.rb", "test/fixtures/config_too_many_constants.yml")
     verify_configured_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb", "test/fixtures/config_too_many_instance_variables.yml")
     verify_configured_detector("TooManyMethods", "test/fixtures/too_many_methods.rb", "test/fixtures/config_too_many_methods.yml")
-    verify_configured_detector("TooManyStatements", "test/fixtures/too_many_statements.rb", "test/fixtures/config_too_many_statements.yml")
     verify_configured_detector("DataClump", "test/fixtures/data_clump.rb", "test/fixtures/config_data_and_size_exclusions.yml")
     verify_configured_detector("TooManyConstants", "test/fixtures/too_many_constants.rb", "test/fixtures/config_data_and_size_exclusions.yml")
     verify_configured_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb", "test/fixtures/config_data_and_size_exclusions.yml")
     verify_configured_detector("TooManyMethods", "test/fixtures/too_many_methods.rb", "test/fixtures/config_data_and_size_exclusions.yml")
-    verify_configured_detector("TooManyStatements", "test/fixtures/too_many_statements.rb", "test/fixtures/config_data_and_size_exclusions.yml")
     verify_unsupported_data_and_size_scopes
     verify_utility_configuration_limit
     verify_control_parameter_suppression
@@ -178,6 +178,17 @@ class DefaultArgumentApiContract
       result = run_fleek(source, "", "reek:#{detector}")
       AnalysisRunner.assert_unsupported(result, detector)
     end
+  end
+
+  def self.verify_too_many_statements_class_method
+    verify_detector_parity("TooManyStatements", "test/fixtures/too_many_statements.rb", true)
+    verify_class_method_finding
+  end
+
+  def self.verify_class_method_finding
+    reference = run_reek("test/fixtures/too_many_statements.rb", "TooManyStatements")
+    findings = AnalysisRunner.detector_warnings(reference, "TooManyStatements")
+    verify(findings.any? { |finding| finding.include?("Workflow#self.dispatch") }, "pinned Reek class-method fixture has no finding")
   end
 
   # :reek:ControlParameter
