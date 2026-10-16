@@ -267,6 +267,30 @@ DuplicationProcess.verify_output(nested_module_actual, DuplicationProcess::Outpu
 nested_module_reference_fields = ["Similar code found in :module (mass = 34)", "#{nested_module_path}:1", "#{nested_module_path}:11", "Total score (lower is better) = 34"]
 DuplicationProcess.verify_output(nested_module_reference, DuplicationProcess::OutputExpectation.new(0, nested_module_reference_fields, "nested Flay module group changed"))
 
+deep_nested_module_path = "test/fixtures/duplication_deep_nested_module_group.rb"
+deep_nested_module_actual = DuplicationProcess.run(DuplicationProcess::Input.new(deep_nested_module_path, "fleek", ""))
+deep_nested_module_reference = DuplicationProcess.run(DuplicationProcess::Input.new(deep_nested_module_path, "flay", ""))
+deep_nested_module_actual_fields = ["node=\"module\" kind=\"similar\" locations=\"#{deep_nested_module_path}:1,#{deep_nested_module_path}:13\" mass=36 score=36", "Total duplication score: 36", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(deep_nested_module_actual, DuplicationProcess::OutputExpectation.new(2, deep_nested_module_actual_fields, "deep nested Flay module candidates differed"))
+deep_nested_module_reference_fields = ["Similar code found in :module (mass = 36)", "#{deep_nested_module_path}:1", "#{deep_nested_module_path}:13", "Total score (lower is better) = 36"]
+DuplicationProcess.verify_output(deep_nested_module_reference, DuplicationProcess::OutputExpectation.new(0, deep_nested_module_reference_fields, "deep nested Flay module group changed"))
+
+eight_level_module_path = "test/fixtures/duplication_eight_level_module_group.rb"
+eight_level_module_actual = DuplicationProcess.run(DuplicationProcess::Input.new(eight_level_module_path, "fleek", ""))
+eight_level_module_reference = DuplicationProcess.run(DuplicationProcess::Input.new(eight_level_module_path, "flay", ""))
+eight_level_module_fields = ["node=\"module\" kind=\"similar\" locations=\"#{eight_level_module_path}:1,#{eight_level_module_path}:23\" mass=46 score=46", "Total duplication score: 46", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(eight_level_module_actual, DuplicationProcess::OutputExpectation.new(2, eight_level_module_fields, "eight-level Flay module candidates differed"))
+eight_level_module_reference_fields = ["Similar code found in :module (mass = 46)", "#{eight_level_module_path}:1", "#{eight_level_module_path}:23", "Total score (lower is better) = 46"]
+DuplicationProcess.verify_output(eight_level_module_reference, DuplicationProcess::OutputExpectation.new(0, eight_level_module_reference_fields, "eight-level Flay module group changed"))
+
+nine_level_module_path = "test/fixtures/duplication_nine_level_module_boundary.rb"
+nine_level_module_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nine_level_module_path, "fleek", ""))
+nine_level_module_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nine_level_module_path, "flay", ""))
+nine_level_module_fields = ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(nine_level_module_actual, DuplicationProcess::OutputExpectation.new(1, nine_level_module_fields, "ninth module level partial source scope was not reported"))
+nine_level_module_reference_fields = ["Similar code found in :module (mass = 48)", "#{nine_level_module_path}:1", "#{nine_level_module_path}:25", "Total score (lower is better) = 48"]
+DuplicationProcess.verify_output(nine_level_module_reference, DuplicationProcess::OutputExpectation.new(0, nine_level_module_reference_fields, "ninth-level Flay module group changed"))
+
 clean_scope_path = "test/fixtures/duplication_class_scopes_clean.rb"
 clean_scope_actual = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "fleek", ""))
 clean_scope_reference = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "flay", ""))

@@ -93,6 +93,8 @@ class MutationCase
     "Flay class method candidate collection" => "test/duplication_contract.rb",
     "Flay module method candidate collection" => "test/duplication_contract.rb",
     "Flay nested module candidate collection" => "test/duplication_contract.rb",
+    "Flay deep nested module candidate collection" => "test/duplication_contract.rb",
+    "Flay nested module depth boundary" => "test/duplication_contract.rb",
     "Flay outer scope identity" => "test/duplication_contract.rb",
     "Flay module group kind" => "test/duplication_contract.rb",
     "Flay multiple class method candidates" => "test/duplication_contract.rb",
@@ -668,8 +670,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay required parameter candidates",
   "required-parameter class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE)) return fleek_duplication_collect_namespace_methods(module_node, module_node, 0, body, source, set);",
-  "if (false) return fleek_duplication_collect_namespace_methods(module_node, module_node, 0, body, source, set);",
+  "return fleek_duplication_collect_namespace_methods(module_node, scope_names, 1, body, source, set);",
+  "return true;",
   "Flay module method candidate collection",
   "multi-method Flay module group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -678,7 +680,17 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay nested module candidate collection",
   "nested Flay module group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (include_scope_name && !fleek_constants_equal(parser, set->candidates[left].scope_name, set->candidates[right].scope_name)) return false;",
+  "return fleek_duplication_collect_nested_module_methods(scope_node, (const pm_module_node_t *) body->body.nodes[0], scope_names, depth + 1, source, set);",
+  "return true;",
+  "Flay deep nested module candidate collection",
+  "deep nested Flay module candidates differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (depth == 8 || !PM_NODE_TYPE_P(current->constant_path, PM_CONSTANT_READ_NODE))",
+  "if (depth == 7 || !PM_NODE_TYPE_P(current->constant_path, PM_CONSTANT_READ_NODE))",
+  "Flay nested module depth boundary",
+  "eight-level Flay module candidates differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (!fleek_constants_equal(parser, set->candidates[left].scope_names[name], set->candidates[right].scope_names[name])) return false;",
   "if (false) return false;",
   "Flay outer scope identity",
   "multi-method Flay class group differed")).run
@@ -843,8 +855,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method score",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "fleek_duplication_scope_method_mass(set, first) + 1",
-  "fleek_duplication_scope_method_mass(set, first) - 1",
+  "fleek_duplication_scope_method_mass(set, first) + set->candidates[first].scope_depth",
+  "fleek_duplication_scope_method_mass(set, first) + set->candidates[first].scope_depth - 1",
   "Flay outer scope mass",
   "cross-class Flay group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -866,7 +878,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'print_duplication_source(path, report.source_scope)',
   'print_duplication_source(path, "included")',
   "Flay partial source label",
-  "partial Rails class results were hidden or reported complete")).run
+  "ninth module level partial source scope was not reported")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'report.paths.length - report.partial_paths.length',
   'report.paths.length',
