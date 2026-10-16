@@ -39,6 +39,7 @@ class DefaultArgumentApiContract
     verify_data_clump_preserves_supported_findings
     verify_supported_default_detector("TooManyConstants", "test/fixtures/too_many_constants.rb")
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
+    verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variable_operator_writes.rb")
     verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
     verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
     verify_too_many_statements_class_method
