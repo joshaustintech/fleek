@@ -1,6 +1,6 @@
 # Fleek
 
-**Status:** open
+**Status:** resolved
 **Category:** enhancement
 
 ## Problem Statement
@@ -71,3 +71,7 @@ Source research, not runtime proof, established parser/config/CLI conflicts. The
 - [Structural duplication and combined analysis](specs/03-structural-duplication.md)
 - [Language support and project parity](specs/04-language-and-project-parity.md)
 - [Standalone native release](specs/05-native-release.md)
+
+## Delivery status
+
+Tickets 01–20 are resolved. Fleek 0.2.0 is published and its downloaded macOS arm64 archive and extracted CLI are verified; see the [release receipt](../../docs/research/native-archive-0.2.0.md). The supported checks remain explicitly selected Flay StructuralDuplication and Reek ClassVariable. On the pinned 25-file Rails corpus, Reek completes cleanly on all 25 files and Flay preserves the score-48 finding, but Flay reports all 25 as partial and combined analysis exits 1. Full Rails Flay parity is not claimed.

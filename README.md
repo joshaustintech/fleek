@@ -42,4 +42,4 @@ SPINEL=/path/to/pinned-spinel/bin/spinel SPINEL_ROOT=/path/to/pinned-spinel BUND
 
 The full check builds the native executable, runs CLI and reference contracts, proves behavioral mutations are caught, and requires zero Flay/Reek findings in Fleek’s own source. `make rails-manifest-parity` verifies identical pinned Rails inputs against upstream tools. `make runtime-evidence` records repeated cold-process comparisons after semantic equivalence passes.
 
-The [Spinel toolchain guide](docs/agents/spinel.md), [runtime receipt](docs/research/cold-runtime-2026-10-15.md), [v0.2.0 release notes](release/0.2.0.md), and [decision records](docs/adr/) describe reproducibility and known limits.
+The [Spinel toolchain guide](docs/agents/spinel.md), [runtime receipt](docs/research/cold-runtime-2026-10-15.md), [v0.2.0 archive receipt](docs/research/native-archive-0.2.0.md), [release notes](release/0.2.0.md), and [decision records](docs/adr/) describe reproducibility and known limits.

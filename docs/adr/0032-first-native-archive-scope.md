@@ -14,6 +14,6 @@ Build the versioned macOS arm64 archive for Fleek 0.1.0 from the current native 
 
 ## Consequences
 
-An extracted archive passes representative CLI checks with an empty child `PATH`, and its only dynamic library is macOS `libSystem`. Its Mach-O carries an ad hoc linker signature with no Team ID and is not notarized. The archive SHA-256, installation evidence, and downloaded GitHub release verification are recorded in the native archive receipt. Ticket 19 remains open for full Rails Flay parity; ticket 17 is resolved.
+An extracted archive passes representative CLI checks with an empty child `PATH`, and its only dynamic library is macOS `libSystem`. Its Mach-O carries an ad hoc linker signature with no Team ID and is not notarized. The archive SHA-256, installation evidence, and downloaded GitHub release verification are recorded in the native archive receipt. Full Rails Flay parity remains outside the accepted release scope; ticket 17 is resolved.
 
-Later status: ADR 0037 accepted a bounded first release while keeping unsupported Flay candidates partial; ADR 0038 refreshes the downloadable artifact to v0.2.0.
+Later status: ADR 0037 accepted a bounded first release while keeping unsupported Flay candidates partial; ADR 0038 records the published v0.2.0 refresh. The downloaded archive and extracted CLI are verified in the [v0.2.0 receipt](../research/native-archive-0.2.0.md).

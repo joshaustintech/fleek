@@ -14,4 +14,4 @@ Preserve `v0.1.0` and publish the current bounded analyzer as `v0.2.0`. Build th
 
 ## Consequences
 
-The release tag, archive identity, installation guide, CLI version, root README, performance receipt, project spec status, and downloaded-artifact proof must all identify the same current release. The old tag and assets remain reproducible historical artifacts. The release still supports only macOS arm64 and is not Developer ID signed or notarized.
+The release tag, archive identity, installation guide, CLI version, root README, performance receipt, project spec status, and downloaded-artifact proof identify the same current release. Tag `v0.2.0` points to source commit `45b60d25bfa28c4ef5735c62fbc317644faa47b5`; its downloaded 471089-byte archive matches SHA-256 `f27b518c877913b1383295aa8a0a2436e1352b5a8f39ad40af62ee002146a4fe`. The [archive receipt](../research/native-archive-0.2.0.md) records the release assets and extracted-runtime proof. The old tag and assets remain reproducible historical artifacts. The release still supports only macOS arm64 and is not Developer ID signed or notarized.

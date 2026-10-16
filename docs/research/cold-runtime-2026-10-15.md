@@ -3,9 +3,9 @@
 ## Identity
 
 - Host: Darwin arm64; macOS 27.0.1 (26A434).
-- Source revision: 110f81ae8fe73cf4d14c45076383e4097ce3aaef.
+- Source revision: `45b60d25bfa28c4ef5735c62fbc317644faa47b5` (`v0.2.0`).
 - Release measured: Fleek 0.2.0 working-tree build, with versioned package and module-method archive example.
-- Source `bin/fleek.rb` SHA-256: `89dc20e961c2fd9c024a51921f9e65cc7f555f8f51b48909d3f8d86d3d016aaf`. The file had uncommitted v0.2.0 release edits at measurement time; `Source revision` identifies its clean base commit.
+- Source `bin/fleek.rb` SHA-256: `89dc20e961c2fd9c024a51921f9e65cc7f555f8f51b48909d3f8d86d3d016aaf`; it matches the committed file at the source revision. The measurements ran from the release worktree before commit, with this exact source file and executable hash.
 - Fleek executable SHA-256 (before and after): b4da0770300edc4d5f79bd902c7b5d57cdbe01f30661321021582dfd4c6bde0b.
 - Spinel measurement helper SHA-256 (before and after): c4dc03c3bb47eaa51c79898f124e8fd350715c8b9b8bd748008d3d878de46877.
 - Compiler: Spinel 2026.09.12; reference analyzers: Flay 2.14.4 and Reek 6.6.0; reference Ruby: ruby 3.4.9 (2026-03-11 revision 76cca827ab) +PRISM [arm64-darwin23].

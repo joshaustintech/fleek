@@ -6,9 +6,9 @@
 - One local Markdown issue per ticket in `issues/`, numbered globally in dependency order.
 - Category `enhancement`; triage state `ready-for-agent` until completion. `Status` tracks open/claimed/resolved workflow.
 - Triage comments begin with the required AI disclaimer.
-- Tickets 01–19 resolved and pushed. Tickets 15 and 17 record bounded runtime evidence and verified downloadable release evidence.
+- Tickets 01–20 resolved and pushed. Tickets 15 and 17–20 record bounded runtime evidence and verified downloadable release evidence.
 - Ticket 19 closes bounded class/module method parity for the first-release scope. The pinned 25-file comparison matches the supported Flay finding and Reek clean result while Flay remains explicitly incomplete; full Rails Flay parity is not claimed. ADR 0037 records the accepted boundary.
-- Ticket 20 is claimed: published v0.1.0 predates the latest bounded Flay implementation. Keep its tag/assets immutable; release the current analyzer under a new version and prove the retrieved artifact contains the added module-method behavior.
+- Ticket 20 published v0.2.0 from the current bounded analyzer and verified the downloaded archive, sidecar, and extracted runtime. The v0.1.0 tag/assets remain immutable; see [issue 20](issues/20-release-current-bounded-cli.md), [ADR 0038](../../docs/adr/0038-release-current-bounded-analyzer.md), and the [v0.2.0 archive receipt](../../docs/research/native-archive-0.2.0.md).
 
 ## Decisions-so-far
 
@@ -19,6 +19,7 @@
 - Ticket 17 verifies GitHub release `v0.1.0` and its retrieved arm64 archive; see [issue 17](issues/17-downloadable-release-verification.md), [ADR 0034](../../docs/adr/0034-publish-bounded-native-first-release.md), and the [release receipt](../../docs/research/native-archive-0.1.0.md). ADR 0037 accepts the explicitly incomplete Rails Flay result within first-release scope; no full-parity claim is made.
 - Ticket 19 adds bounded literal-default optional positional parameters with Flay-matched mass and similarity; see [ADR 0035](../../docs/adr/0035-literal-optional-parameter-defaults.md). The pinned 25-file corpus remains incomplete.
 - Ticket 19 also analyzes bounded direct methods in one simple module scope; see [ADR 0036](../../docs/adr/0036-direct-module-method-candidates.md). Rails helper coverage still has unsupported bodies and defaults.
+- Ticket 20 closes the current-release synchronization gap: v0.2.0 is published and its downloaded archive and extracted CLI are verified; see [issue 20](issues/20-release-current-bounded-cli.md), [ADR 0038](../../docs/adr/0038-release-current-bounded-analyzer.md), and the [archive receipt](../../docs/research/native-archive-0.2.0.md).
 - Ticket 07 imports a bounded Reek YAML subset without a YAML library; see ADR 0013 for supported keys and deliberate no-analysis exit differences.
 - Ticket 08 defines stable text report v1 and explicit coverage/status fields; see ADR 0014 for layout, escaping, stream, and unsupported-format behavior.
 - Ticket 09 adds bounded, separately selectable default Flay structural groups; see ADR 0016. Threshold boundaries and combined reporting remain tickets 10 and 12.
@@ -42,7 +43,7 @@
 - Native analyzer coverage starts with tickets 03–04's bounded ClassVariable slice; broader parity remains open.
 - Flay/Reek repository/tag identity and locked Ruby are established; future output-parity evidence remains open.
 - Ticket 02 proved only its named Ruby 4 newline-`&&` form and Spinel FFI declaration syntax; ticket 13 adds bounded ClassVariable/Flay behavior and reference parity, while broader grammar remains open.
-- Real Rails corpus is pinned by ticket 14. Ticket 18 makes ClassVariable complete on all 25 Ruby files; Flay remains visibly partial on all 25 under the bounded first-release scope recorded in ADR 0037. The native archive, bounded runtime evidence, and external v0.1.0 release are verified; Developer ID signing and notarization remain out of scope.
+- Real Rails corpus is pinned by ticket 14. Ticket 18 makes ClassVariable complete on all 25 Ruby files; Flay remains visibly partial on all 25 under the bounded first-release scope recorded in ADR 0037. The native archive, bounded runtime evidence, and external v0.2.0 release are verified; Developer ID signing and notarization remain out of scope. See the [archive receipt](../../docs/research/native-archive-0.2.0.md).
 
 ## Ticket 01 receipt
 
