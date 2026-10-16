@@ -1,0 +1,3 @@
+detectors:
+  LongYieldList:
+    max_params: 4

@@ -88,7 +88,7 @@ class AnalysisRunner
       return unless marker
       value = line[(marker + 9)..].strip
       value[1...-1]
-    elsif line.include?("ClassVariable:") || line.include?("Attribute:") || line.include?("InstanceVariableAssumption:") || line.include?("SubclassedFromCoreClass:") || line.include?("ModuleInitialize:") || line.include?("IrresponsibleModule:")
+    elsif line.include?("ClassVariable:") || line.include?("Attribute:") || line.include?("InstanceVariableAssumption:") || line.include?("SubclassedFromCoreClass:") || line.include?("ModuleInitialize:") || line.include?("IrresponsibleModule:") || line.include?("LongParameterList:") || line.include?("BooleanParameter:") || line.include?("LongYieldList:") || line.include?("ControlParameter:") || line.include?("UnusedParameters:") || line.include?("UtilityFunction:")
       line.strip
     end
   end

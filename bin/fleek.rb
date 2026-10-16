@@ -46,7 +46,7 @@ class Fleek
       reek:UncommunicativeParameterName reek:UncommunicativeVariableName
       reek:UnusedParameters reek:UtilityFunction
     ].freeze
-    RUNNABLE_DEFAULT_CHECKS = %w[flay:StructuralDuplication reek:Attribute reek:ClassVariable reek:InstanceVariableAssumption reek:IrresponsibleModule reek:ModuleInitialize reek:SubclassedFromCoreClass].freeze
+    RUNNABLE_DEFAULT_CHECKS = %w[flay:StructuralDuplication reek:Attribute reek:BooleanParameter reek:ClassVariable reek:ControlParameter reek:InstanceVariableAssumption reek:IrresponsibleModule reek:LongParameterList reek:LongYieldList reek:ModuleInitialize reek:SubclassedFromCoreClass reek:UnusedParameters reek:UtilityFunction].freeze
     EXPLICIT_CHECKS = %w[flay:StructuralDuplication reek:ClassVariable].freeze
     EXPLICIT = AnalysisProfile.new(EXPLICIT_CHECKS, EXPLICIT_CHECKS, [], [], false)
 
@@ -91,6 +91,18 @@ class Fleek
     static char fleek_subclassed_from_core_class_buffer[1024];
     static char fleek_module_initialize_buffer[1024];
     static char fleek_irresponsible_module_buffer[1024];
+    static char fleek_long_parameter_list_buffer[8192];
+    static size_t fleek_long_parameter_list_used;
+    static char fleek_boolean_parameter_buffer[8192];
+    static size_t fleek_boolean_parameter_used;
+    static char fleek_long_yield_list_buffer[8192];
+    static size_t fleek_long_yield_list_used;
+    static char fleek_control_parameter_buffer[8192];
+    static size_t fleek_control_parameter_used;
+    static char fleek_unused_parameters_buffer[8192];
+    static size_t fleek_unused_parameters_used;
+    static char fleek_utility_function_buffer[8192];
+    static size_t fleek_utility_function_used;
     static int fleek_duplication_partial;
     static int fleek_class_count;
     static int fleek_module_count;
@@ -721,6 +733,452 @@ class Fleek
 
     const char *fleek_irresponsible_module_finding(void) { return fleek_irresponsible_module_buffer; }
 
+    static size_t fleek_parameter_count(const pm_parameters_node_t *parameters) {
+      if (parameters == NULL) return 0;
+      return parameters->requireds.size + parameters->optionals.size + parameters->posts.size +
+        parameters->keywords.size + (parameters->rest != NULL) + (parameters->keyword_rest != NULL) +
+        (parameters->block != NULL);
+    }
+
+    typedef int (*fleek_method_analyzer_t)(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
+
+    static int fleek_scan_method_scope(const char *source, size_t length, fleek_method_analyzer_t analyze, void *state) {
+      fleek_class_count = fleek_module_count = 0;
+      fleek_only_scope = NULL;
+      if (memchr(source, 0, length) != NULL) return -2;
+      fleek_source_start = (const uint8_t *) source;
+      pm_options_t options = {0};
+      options.line = 1;
+      options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
+      pm_parser_t parser;
+      pm_parser_init(&parser, (const uint8_t *) source, length, &options);
+      pm_node_t *root = pm_parse(&parser);
+      if (parser.error_list.head != NULL) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1; }
+      pm_visit_node(root, fleek_collect_classes, NULL);
+      if (fleek_class_count + fleek_module_count > 1 || (fleek_class_count + fleek_module_count == 1 && fleek_only_scope == NULL)) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+      }
+      const pm_node_t *body;
+      const char *class_name_text;
+      size_t class_name_length;
+      if (fleek_class_count + fleek_module_count == 0) {
+        if (!PM_NODE_TYPE_P(root, PM_PROGRAM_NODE)) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
+        body = (const pm_node_t *) ((const pm_program_node_t *) root)->statements;
+        class_name_text = "Object";
+        class_name_length = 6;
+      } else {
+        const pm_node_t *constant_path;
+        if (PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE)) {
+          const pm_class_node_t *class_node = (const pm_class_node_t *) fleek_only_scope;
+          constant_path = class_node->constant_path;
+          body = class_node->body;
+        } else {
+          const pm_module_node_t *module_node = (const pm_module_node_t *) fleek_only_scope;
+          constant_path = module_node->constant_path;
+          body = module_node->body;
+        }
+        if (!PM_NODE_TYPE_P(constant_path, PM_CONSTANT_READ_NODE)) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
+        pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) constant_path)->name);
+        class_name_text = (const char *) class_name->start;
+        class_name_length = class_name->length;
+      }
+      int findings = 0;
+      if (body != NULL && !PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) findings = -1;
+      if (findings >= 0 && body != NULL) {
+        const pm_statements_node_t *statements = (const pm_statements_node_t *) body;
+        if (statements->body.size > 128) findings = -1;
+        for (size_t index = 0; findings >= 0 && index < statements->body.size; index++) {
+          if (!PM_NODE_TYPE_P(statements->body.nodes[index], PM_DEF_NODE)) continue;
+          int result = analyze(&parser, (const uint8_t *) source, class_name_text,
+            class_name_length, statements->body.nodes[index], state);
+          if (result < 0) findings = -1;
+          else findings += result;
+        }
+      }
+      pm_node_destroy(&parser, root);
+      pm_parser_free(&parser);
+      pm_options_free(&options);
+      return findings < 0 ? -4 : findings;
+    }
+
+    typedef struct { size_t maximum; } fleek_long_parameter_state_t;
+    static bool fleek_has_block(const pm_node_t *node, void *data) {
+      bool *found = (bool *) data;
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) { *found = true; return false; }
+      return !PM_NODE_TYPE_P(node, PM_DEF_NODE);
+    }
+
+    static int fleek_long_parameter_list_method(pm_parser_t *parser, const uint8_t *source,
+        const char *class_name, size_t class_name_length, const pm_node_t *node, void *data) {
+      if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return 0;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      bool class_method = method->receiver != NULL;
+      if ((class_method && !PM_NODE_TYPE_P(method->receiver, PM_SELF_NODE)) || (method->parameters != NULL && !PM_NODE_TYPE_P((const pm_node_t *) method->parameters, PM_PARAMETERS_NODE))) return -1;
+      bool has_block = false;
+      if (method->body != NULL) pm_visit_node(method->body, fleek_has_block, &has_block);
+      if (has_block) return -1;
+      size_t count = fleek_parameter_count((const pm_parameters_node_t *) method->parameters);
+      const fleek_long_parameter_state_t *state = (const fleek_long_parameter_state_t *) data;
+      size_t method_maximum = fleek_name_is(parser, method->name, "initialize") ? 5 : state->maximum;
+      if (count <= method_maximum) return 0;
+      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+      int line = fleek_source_line(source, method->def_keyword_loc.start);
+      int written = snprintf(fleek_long_parameter_list_buffer + fleek_long_parameter_list_used,
+        sizeof(fleek_long_parameter_list_buffer) - fleek_long_parameter_list_used,
+        "%d\\t%.*s#%s%.*s\\t%zu\\n", line, (int) class_name_length, class_name, class_method ? "self." : "",
+        (int) method_name->length, method_name->start, count);
+      if (written < 0 || (size_t) written >= sizeof(fleek_long_parameter_list_buffer) - fleek_long_parameter_list_used) return -1;
+      fleek_long_parameter_list_used += (size_t) written;
+      return 1;
+    }
+
+    int fleek_long_parameter_list(const char *source, size_t length, size_t maximum) {
+      fleek_long_parameter_list_buffer[0] = 0;
+      fleek_long_parameter_list_used = 0;
+      fleek_long_parameter_state_t state = { maximum };
+      return fleek_scan_method_scope(source, length, fleek_long_parameter_list_method, &state);
+    }
+
+    const char *fleek_long_parameter_list_finding(void) { return fleek_long_parameter_list_buffer; }
+
+    static int fleek_boolean_parameter_method(pm_parser_t *parser, const uint8_t *source,
+        const char *class_name, size_t class_name_length, const pm_node_t *node, void *data) {
+      (void) data;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      bool class_method = method->receiver != NULL;
+      if (class_method && !PM_NODE_TYPE_P(method->receiver, PM_SELF_NODE)) return -1;
+      if (method->parameters == NULL) return 0;
+      const pm_parameters_node_t *parameters = method->parameters;
+      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+      int method_line = fleek_source_line(source, method->def_keyword_loc.start);
+      size_t count = parameters->optionals.size + parameters->keywords.size;
+      int findings = 0;
+      for (size_t index = 0; index < count; index++) {
+        const pm_node_t *parameter = index < parameters->optionals.size ? parameters->optionals.nodes[index] : parameters->keywords.nodes[index - parameters->optionals.size];
+        pm_constant_id_t parameter_name;
+        const pm_node_t *value;
+        if (PM_NODE_TYPE_P(parameter, PM_OPTIONAL_PARAMETER_NODE)) {
+          const pm_optional_parameter_node_t *optional = (const pm_optional_parameter_node_t *) parameter;
+          parameter_name = optional->name;
+          value = optional->value;
+        } else if (PM_NODE_TYPE_P(parameter, PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) {
+          const pm_optional_keyword_parameter_node_t *optional = (const pm_optional_keyword_parameter_node_t *) parameter;
+          parameter_name = optional->name;
+          value = optional->value;
+        } else return -1;
+        if (!PM_NODE_TYPE_P(value, PM_TRUE_NODE) && !PM_NODE_TYPE_P(value, PM_FALSE_NODE)) continue;
+        pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, parameter_name);
+        int written = snprintf(fleek_boolean_parameter_buffer + fleek_boolean_parameter_used,
+          sizeof(fleek_boolean_parameter_buffer) - fleek_boolean_parameter_used,
+          "%d\\t%.*s#%s%.*s\\t%.*s\\n", method_line, (int) class_name_length, class_name, class_method ? "self." : "",
+          (int) method_name->length, method_name->start, (int) name->length, name->start);
+        if (written < 0 || (size_t) written >= sizeof(fleek_boolean_parameter_buffer) - fleek_boolean_parameter_used) return -1;
+        fleek_boolean_parameter_used += (size_t) written;
+        findings++;
+      }
+      return findings;
+    }
+
+    int fleek_boolean_parameter(const char *source, size_t length) {
+      fleek_boolean_parameter_buffer[0] = 0;
+      fleek_boolean_parameter_used = 0;
+      return fleek_scan_method_scope(source, length, fleek_boolean_parameter_method, NULL);
+    }
+
+    const char *fleek_boolean_parameter_finding(void) { return fleek_boolean_parameter_buffer; }
+
+    typedef struct {
+      pm_parser_t *parser;
+      const uint8_t *source;
+      const char *class_name;
+      size_t class_name_length;
+      const pm_def_node_t *method;
+      size_t maximum;
+      int findings;
+      bool overflow;
+    } fleek_long_yield_state_t;
+
+    static bool fleek_long_yield_visit(const pm_node_t *node, void *data) {
+      fleek_long_yield_state_t *state = (fleek_long_yield_state_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      if (!PM_NODE_TYPE_P(node, PM_YIELD_NODE)) return true;
+      const pm_yield_node_t *yield_node = (const pm_yield_node_t *) node;
+      size_t count = yield_node->arguments == NULL ? 0 : yield_node->arguments->arguments.size;
+      if (count <= state->maximum) return false;
+      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&state->parser->constant_pool, state->method->name);
+      int line = fleek_source_line(state->source, yield_node->keyword_loc.start);
+      int written = snprintf(fleek_long_yield_list_buffer + fleek_long_yield_list_used,
+        sizeof(fleek_long_yield_list_buffer) - fleek_long_yield_list_used,
+        "%d\\t%.*s#%s%.*s\\t%zu\\n", line, (int) state->class_name_length, state->class_name, state->method->receiver == NULL ? "" : "self.",
+        (int) method_name->length, method_name->start, count);
+      if (written < 0 || (size_t) written >= sizeof(fleek_long_yield_list_buffer) - fleek_long_yield_list_used) { state->overflow = true; return false; }
+      fleek_long_yield_list_used += (size_t) written;
+      state->findings++;
+      return false;
+    }
+
+    static int fleek_long_yield_list_method(pm_parser_t *parser, const uint8_t *source,
+        const char *class_name, size_t class_name_length, const pm_node_t *node, void *data) {
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      fleek_long_yield_state_t state = { parser, source, class_name, class_name_length, method, *(size_t *) data, 0, false };
+      if (method->receiver != NULL && !PM_NODE_TYPE_P(method->receiver, PM_SELF_NODE)) return -1;
+      if (method->body != NULL) pm_visit_node(method->body, fleek_long_yield_visit, &state);
+      if (state.overflow) return -1;
+      return state.findings;
+    }
+
+    int fleek_long_yield_list(const char *source, size_t length, size_t maximum) {
+      fleek_long_yield_list_buffer[0] = 0;
+      fleek_long_yield_list_used = 0;
+      return fleek_scan_method_scope(source, length, fleek_long_yield_list_method, &maximum);
+    }
+
+    const char *fleek_long_yield_list_finding(void) { return fleek_long_yield_list_buffer; }
+
+    static bool fleek_constants_equal(pm_parser_t *parser, pm_constant_id_t left, pm_constant_id_t right);
+    typedef struct { pm_parser_t *parser; pm_constant_id_t name; bool found; } fleek_name_search_t;
+    static bool fleek_find_body_name(const pm_node_t *node, void *data) {
+      fleek_name_search_t *search = (fleek_name_search_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return false;
+      pm_constant_id_t name = 0;
+      if (PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE)) name = ((const pm_local_variable_read_node_t *) node)->name;
+      if (PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE)) name = ((const pm_local_variable_write_node_t *) node)->name;
+      if (name != 0 && fleek_constants_equal(search->parser, search->name, name)) { search->found = true; return false; }
+      return true;
+    }
+    static bool fleek_body_uses_name(pm_parser_t *parser, const pm_node_t *body, pm_constant_id_t name) {
+      if (body == NULL) return false;
+      fleek_name_search_t search = { parser, name, false };
+      pm_visit_node(body, fleek_find_body_name, &search);
+      return search.found;
+    }
+    static bool fleek_find_implicit_super(const pm_node_t *node, void *data);
+    static bool fleek_body_has_implicit_super(const pm_node_t *body) {
+      if (body == NULL) return false;
+      bool found = false;
+      pm_visit_node(body, fleek_find_implicit_super, &found);
+      return found;
+    }
+    static bool fleek_method_body_node_supported(const pm_node_t *node, void *data) {
+      bool *supported = (bool *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) { *supported = false; return false; }
+      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE) || PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) ||
+          PM_NODE_TYPE_P(node, PM_CASE_NODE) || PM_NODE_TYPE_P(node, PM_WHEN_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) ||
+          PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) ||
+          PM_NODE_TYPE_P(node, PM_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_CALL_NODE) || PM_NODE_TYPE_P(node, PM_ARGUMENTS_NODE) ||
+          PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) || PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) ||
+          PM_NODE_TYPE_P(node, PM_INTEGER_NODE) || PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_FALSE_NODE) ||
+          PM_NODE_TYPE_P(node, PM_NIL_NODE) || PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_AND_NODE) ||
+          PM_NODE_TYPE_P(node, PM_OR_NODE) || PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) ||
+          PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_PARENTHESES_NODE)) return true;
+      *supported = false;
+      return false;
+    }
+    static bool fleek_method_body_supported(const pm_node_t *body) {
+      if (body == NULL) return true;
+      bool supported = true;
+      pm_visit_node(body, fleek_method_body_node_supported, &supported);
+      return supported;
+    }
+    static bool fleek_find_implicit_super(const pm_node_t *node, void *data) {
+      bool *found = (bool *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return false;
+      if (PM_NODE_TYPE_P(node, PM_SUPER_NODE) && ((const pm_super_node_t *) node)->arguments == NULL) { *found = true; return false; }
+      return true;
+    }
+    typedef struct { pm_parser_t *parser; const pm_parameters_node_t *parameters; } fleek_method_parameters_t;
+    static pm_constant_id_t fleek_parameter_name(const pm_node_t *parameter) {
+      if (PM_NODE_TYPE_P(parameter, PM_REQUIRED_PARAMETER_NODE)) return ((const pm_required_parameter_node_t *) parameter)->name;
+      if (PM_NODE_TYPE_P(parameter, PM_OPTIONAL_PARAMETER_NODE)) return ((const pm_optional_parameter_node_t *) parameter)->name;
+      if (PM_NODE_TYPE_P(parameter, PM_REQUIRED_KEYWORD_PARAMETER_NODE)) return ((const pm_required_keyword_parameter_node_t *) parameter)->name;
+      if (PM_NODE_TYPE_P(parameter, PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) return ((const pm_optional_keyword_parameter_node_t *) parameter)->name;
+      return 0;
+    }
+    static bool fleek_name_in_parameters(pm_parser_t *parser, pm_constant_id_t name, const pm_parameters_node_t *parameters) {
+      if (parameters == NULL) return false;
+      const pm_node_list_t *lists[] = { &parameters->requireds, &parameters->optionals, &parameters->posts, &parameters->keywords };
+      for (size_t list = 0; list < 4; list++) for (size_t index = 0; index < lists[list]->size; index++) {
+        pm_constant_id_t candidate = fleek_parameter_name(lists[list]->nodes[index]);
+        if (candidate != 0 && fleek_constants_equal(parser, candidate, name)) return true;
+      }
+      return false;
+    }
+    static bool fleek_control_condition(const pm_node_t *node, pm_constant_id_t name, pm_parser_t *parser, bool conditional) {
+      if (node == NULL) return false;
+      if (PM_NODE_TYPE_P(node, PM_IF_NODE)) {
+        const pm_if_node_t *branch = (const pm_if_node_t *) node;
+        return fleek_control_condition(branch->predicate, name, parser, true) || fleek_control_condition((const pm_node_t *) branch->statements, name, parser, conditional) || fleek_control_condition(branch->subsequent, name, parser, conditional);
+      }
+      if (PM_NODE_TYPE_P(node, PM_UNLESS_NODE)) {
+        const pm_unless_node_t *branch = (const pm_unless_node_t *) node;
+        return fleek_control_condition(branch->predicate, name, parser, true) || fleek_control_condition((const pm_node_t *) branch->statements, name, parser, conditional) || fleek_control_condition((const pm_node_t *) branch->else_clause, name, parser, conditional);
+      }
+      if (PM_NODE_TYPE_P(node, PM_CASE_NODE)) {
+        const pm_case_node_t *branch = (const pm_case_node_t *) node;
+        if (fleek_control_condition(branch->predicate, name, parser, true)) return true;
+        for (size_t index = 0; index < branch->conditions.size; index++) if (fleek_control_condition(branch->conditions.nodes[index], name, parser, true)) return true;
+        return fleek_control_condition((const pm_node_t *) branch->else_clause, name, parser, conditional);
+      }
+      if (PM_NODE_TYPE_P(node, PM_WHEN_NODE)) {
+        const pm_when_node_t *branch = (const pm_when_node_t *) node;
+        for (size_t index = 0; index < branch->conditions.size; index++) if (fleek_control_condition(branch->conditions.nodes[index], name, parser, true)) return true;
+        return fleek_control_condition((const pm_node_t *) branch->statements, name, parser, conditional);
+      }
+      if (PM_NODE_TYPE_P(node, PM_ELSE_NODE)) return fleek_control_condition((const pm_node_t *) ((const pm_else_node_t *) node)->statements, name, parser, conditional);
+      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {
+        const pm_statements_node_t *items = (const pm_statements_node_t *) node;
+        for (size_t index = 0; index < items->body.size; index++) if (fleek_control_condition(items->body.nodes[index], name, parser, conditional)) return true;
+        return false;
+      }
+      if (PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE)) return conditional && fleek_constants_equal(parser, ((const pm_local_variable_read_node_t *) node)->name, name);
+      if (PM_NODE_TYPE_P(node, PM_AND_NODE)) {
+        const pm_and_node_t *logical = (const pm_and_node_t *) node;
+        return fleek_control_condition(logical->left, name, parser, true) || fleek_control_condition(logical->right, name, parser, true);
+      }
+      if (PM_NODE_TYPE_P(node, PM_OR_NODE)) {
+        const pm_or_node_t *logical = (const pm_or_node_t *) node;
+        return fleek_control_condition(logical->left, name, parser, true) || fleek_control_condition(logical->right, name, parser, true);
+      }
+      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
+        const pm_call_node_t *call = (const pm_call_node_t *) node;
+        if (!conditional) return false;
+        return fleek_body_uses_name(parser, call->receiver, name) || fleek_body_uses_name(parser, (const pm_node_t *) call->arguments, name);
+      }
+      return false;
+    }
+    static bool fleek_parameter_used_outside_condition(pm_parser_t *parser, const pm_node_t *node, pm_constant_id_t name) {
+      if (node == NULL) return false;
+      if (PM_NODE_TYPE_P(node, PM_IF_NODE)) {
+        const pm_if_node_t *branch = (const pm_if_node_t *) node;
+        return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) branch->statements, name) || fleek_parameter_used_outside_condition(parser, branch->subsequent, name);
+      }
+      if (PM_NODE_TYPE_P(node, PM_UNLESS_NODE)) {
+        const pm_unless_node_t *branch = (const pm_unless_node_t *) node;
+        return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) branch->statements, name) || fleek_parameter_used_outside_condition(parser, (const pm_node_t *) branch->else_clause, name);
+      }
+      if (PM_NODE_TYPE_P(node, PM_CASE_NODE)) {
+        const pm_case_node_t *branch = (const pm_case_node_t *) node;
+        return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) branch->else_clause, name);
+      }
+      if (PM_NODE_TYPE_P(node, PM_AND_NODE) || PM_NODE_TYPE_P(node, PM_OR_NODE)) return false;
+      if (PM_NODE_TYPE_P(node, PM_WHEN_NODE)) return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) ((const pm_when_node_t *) node)->statements, name);
+      if (PM_NODE_TYPE_P(node, PM_ELSE_NODE)) return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) ((const pm_else_node_t *) node)->statements, name);
+      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {
+        const pm_statements_node_t *items = (const pm_statements_node_t *) node;
+        for (size_t index = 0; index < items->body.size; index++) if (fleek_parameter_used_outside_condition(parser, items->body.nodes[index], name)) return true;
+        return false;
+      }
+      return fleek_body_uses_name(parser, node, name);
+    }
+    static bool fleek_any_parameter_used(pm_parser_t *parser, const pm_node_t *body, const pm_parameters_node_t *parameters) {
+      if (parameters == NULL) return false;
+      const pm_node_list_t *lists[] = { &parameters->requireds, &parameters->optionals, &parameters->posts, &parameters->keywords };
+      for (size_t list = 0; list < 4; list++) for (size_t index = 0; index < lists[list]->size; index++) {
+        pm_constant_id_t name = fleek_parameter_name(lists[list]->nodes[index]);
+        if (name != 0 && fleek_body_uses_name(parser, body, name)) return true;
+      }
+      return false;
+    }
+    static int fleek_method_api_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
+        size_t class_name_length, const pm_node_t *node, void *data) {
+      (void) data;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      if (method->receiver != NULL) return -1;
+      if (!fleek_method_body_supported(method->body)) return -1;
+      if (method->parameters == NULL) return 0;
+      if (!PM_NODE_TYPE_P((const pm_node_t *) method->parameters, PM_PARAMETERS_NODE)) return -1;
+      const pm_parameters_node_t *parameters = method->parameters;
+      if (parameters->rest != NULL || parameters->keyword_rest != NULL || parameters->block != NULL) return -1;
+      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+      int line = fleek_source_line(source, method->def_keyword_loc.start);
+      int findings = 0;
+      for (size_t list = 0; list < 4; list++) {
+        const pm_node_list_t *items = list == 0 ? &parameters->requireds : list == 1 ? &parameters->optionals : list == 2 ? &parameters->posts : &parameters->keywords;
+        for (size_t index = 0; index < items->size; index++) {
+          const pm_node_t *parameter = items->nodes[index];
+          pm_constant_id_t name_id = fleek_parameter_name(parameter);
+          if (name_id == 0) return -1;
+          bool unused = !fleek_body_uses_name(parser, method->body, name_id);
+          if (!unused || fleek_body_has_implicit_super(method->body)) continue;
+          pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, name_id);
+          int written = snprintf(fleek_unused_parameters_buffer + fleek_unused_parameters_used,
+            sizeof(fleek_unused_parameters_buffer) - fleek_unused_parameters_used,
+            "%d\\t%.*s#%.*s\\t%.*s\\n", line, (int) class_name_length, class_name,
+            (int) method_name->length, method_name->start, (int) name->length, name->start);
+          if (written < 0 || (size_t) written >= sizeof(fleek_unused_parameters_buffer) - fleek_unused_parameters_used) return -1;
+          fleek_unused_parameters_used += (size_t) written;
+          findings++;
+        }
+      }
+      bool has_control = false;
+      for (size_t list = 0; list < 4; list++) {
+        const pm_node_list_t *items = list == 0 ? &parameters->requireds : list == 1 ? &parameters->optionals : list == 2 ? &parameters->posts : &parameters->keywords;
+        for (size_t index = 0; index < items->size; index++) {
+          pm_constant_id_t name_id = fleek_parameter_name(items->nodes[index]);
+          if (name_id == 0) return -1;
+          if (fleek_control_condition(method->body, name_id, parser, false) && !fleek_parameter_used_outside_condition(parser, method->body, name_id)) {
+            pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, name_id);
+            int written = snprintf(fleek_control_parameter_buffer + fleek_control_parameter_used,
+              sizeof(fleek_control_parameter_buffer) - fleek_control_parameter_used,
+              "%d\\t%.*s#%.*s\\t%.*s\\n", method->body == NULL ? line : fleek_source_line(source, method->body->location.start), (int) class_name_length, class_name,
+              (int) method_name->length, method_name->start, (int) name->length, name->start);
+            if (written < 0 || (size_t) written >= sizeof(fleek_control_parameter_buffer) - fleek_control_parameter_used) return -1;
+            fleek_control_parameter_used += (size_t) written;
+            findings++;
+            has_control = true;
+          }
+        }
+      }
+      (void) has_control;
+      return findings;
+    }
+    int fleek_control_parameter(const char *source, size_t length) {
+      fleek_control_parameter_buffer[0] = 0; fleek_control_parameter_used = 0;
+      return fleek_scan_method_scope(source, length, fleek_method_api_method, NULL);
+    }
+    const char *fleek_control_parameter_finding(void) { return fleek_control_parameter_buffer; }
+    int fleek_unused_parameters(const char *source, size_t length) {
+      fleek_unused_parameters_buffer[0] = 0; fleek_unused_parameters_used = 0;
+      return fleek_scan_method_scope(source, length, fleek_method_api_method, NULL);
+    }
+    const char *fleek_unused_parameters_finding(void) { return fleek_unused_parameters_buffer; }
+    typedef struct { bool has_send; bool uses_self; } fleek_utility_state_t;
+    static bool fleek_utility_visit(const pm_node_t *node, void *data) {
+      fleek_utility_state_t *state = (fleek_utility_state_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return false;
+      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
+        const pm_call_node_t *call = (const pm_call_node_t *) node;
+        state->has_send = true;
+        if (call->receiver == NULL) state->uses_self = true;
+      }
+      if (PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_SELF_NODE)) state->uses_self = true;
+      return true;
+    }
+    static int fleek_utility_function_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
+        size_t class_name_length, const pm_node_t *node, void *data) {
+      (void) data;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      if (method->receiver != NULL || method->body == NULL) return 0;
+      if (!fleek_method_body_supported(method->body)) return -1;
+      fleek_utility_state_t state = { false, false };
+      pm_visit_node(method->body, fleek_utility_visit, &state);
+      if (!state.has_send || state.uses_self) return 0;
+      pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+      int written = snprintf(fleek_utility_function_buffer + fleek_utility_function_used,
+        sizeof(fleek_utility_function_buffer) - fleek_utility_function_used,
+        "%d\\t%.*s#%.*s\\t\\n", fleek_source_line(source, method->def_keyword_loc.start),
+        (int) class_name_length, class_name, (int) name->length, name->start);
+      if (written < 0 || (size_t) written >= sizeof(fleek_utility_function_buffer) - fleek_utility_function_used) return -1;
+      fleek_utility_function_used += (size_t) written;
+      return 1;
+    }
+    int fleek_utility_function(const char *source, size_t length) {
+      fleek_utility_function_buffer[0] = 0; fleek_utility_function_used = 0;
+      return fleek_scan_method_scope(source, length, fleek_utility_function_method, NULL);
+    }
+    const char *fleek_utility_function_finding(void) { return fleek_utility_function_buffer; }
+
     int fleek_class_variable(const char *source, size_t length) {
       fleek_finding_buffer[0] = 0;
       fleek_class_count = fleek_module_count = fleek_finding_count = fleek_unsupported = 0;
@@ -1309,6 +1767,18 @@ class Fleek
     ffi_func :fleek_module_initialize_finding, [], :str
     ffi_func :fleek_irresponsible_module, [:str, :size_t], :int
     ffi_func :fleek_irresponsible_module_finding, [], :str
+    ffi_func :fleek_long_parameter_list, [:str, :size_t, :size_t], :int
+    ffi_func :fleek_long_parameter_list_finding, [], :str
+    ffi_func :fleek_boolean_parameter, [:str, :size_t], :int
+    ffi_func :fleek_boolean_parameter_finding, [], :str
+    ffi_func :fleek_long_yield_list, [:str, :size_t, :size_t], :int
+    ffi_func :fleek_long_yield_list_finding, [], :str
+    ffi_func :fleek_control_parameter, [:str, :size_t], :int
+    ffi_func :fleek_control_parameter_finding, [], :str
+    ffi_func :fleek_unused_parameters, [:str, :size_t], :int
+    ffi_func :fleek_unused_parameters_finding, [], :str
+    ffi_func :fleek_utility_function, [:str, :size_t], :int
+    ffi_func :fleek_utility_function_finding, [], :str
     ffi_func :fleek_structural_duplication, [:str, :size_t, :int], :int
     ffi_func :fleek_structural_duplication_finding, [], :str
     ffi_func :fleek_structural_duplication_partial, [], :int
@@ -1339,6 +1809,8 @@ class Fleek
       @scope_excludes = []
       @detector_enabled = []
       @scope_detector_enabled = []
+      @detector_settings = []
+      @scope_detector_settings = []
       @detector_excludes = []
       @scope_detector_excludes = []
     end
@@ -1494,9 +1966,17 @@ class Fleek
         end
       elsif key == "exclude"
         parse_options(key, value, number, detector, scoped)
+      elsif valid_detector_setting?(detector, key, value)
+        settings = scoped ? @scope_detector_settings : @detector_settings
+        settings << [scoped ? @scope_index : -1, detector, key, value]
       else
         fail_config(number, "unsupported detector setting #{key}")
       end
+    end
+
+    def valid_detector_setting?(detector, key, value)
+      return ["LongParameterList", "LongYieldList"].include?(detector) && value.match?(/\A[0-9]+\z/) if key == "max_params" && ["LongParameterList", "LongYieldList"].include?(detector)
+      detector == "UtilityFunction" && key == "public_methods_only" && ["true", "false"].include?(value)
     end
 
     def parse_list_item(content, indentation, number)
@@ -1592,6 +2072,14 @@ class Fleek
 
     def enabled_opt_in_detectors(paths)
       OPT_IN_DETECTORS.select { |name| detector_enabled_anywhere?(name, paths) }
+    end
+
+    def detector_setting(name, key, path)
+      scope_index = best_scope(path)
+      scoped = @scope_detector_settings.reverse.find { |setting| setting[0] == scope_index && setting[1] == name && setting[2] == key }
+      return scoped[3] if scoped
+      global = @detector_settings.reverse.find { |setting| setting[1] == name && setting[2] == key }
+      global && global[3]
     end
 
     def effective_detector_enabled(name, scope_index)
@@ -2103,7 +2591,13 @@ class Fleek
     "InstanceVariableAssumption" => ["direct instance methods in one simple class", "%s assumes too much for instance variable '%s'"],
     "SubclassedFromCoreClass" => ["one simple class inheriting directly from Array, Hash, or String", "%s inherits from core class '%s'"],
     "ModuleInitialize" => ["one simple module with direct instance methods", "%s has initialize method"],
-    "IrresponsibleModule" => ["one simple class or module", "%s has no descriptive comment"]
+    "IrresponsibleModule" => ["one simple class or module", "%s has no descriptive comment"],
+    "LongParameterList" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has %s parameters"],
+    "BooleanParameter" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has boolean parameter '%s'"],
+    "LongYieldList" => ["one simple class or module with direct instance methods", "%s yields %s parameters"],
+    "ControlParameter" => ["simple methods with direct conditionals", "%s is controlled by argument '%s'"],
+    "UnusedParameters" => ["simple method parameter lists and supported method bodies", "%s has unused parameter '%s'"],
+    "UtilityFunction" => ["direct instance methods without inherited overrides", "%s doesn't depend on instance state (maybe move it to another class?)"]
   }.freeze
 
   def self.run_attribute(inputs)
@@ -2124,6 +2618,30 @@ class Fleek
 
   def self.run_irresponsible_module(inputs)
     run_reek_detector(inputs, "IrresponsibleModule", :single)
+  end
+
+  def self.run_long_parameter_list(inputs)
+    run_reek_detector(inputs, "LongParameterList", :single)
+  end
+
+  def self.run_boolean_parameter(inputs)
+    run_reek_detector(inputs, "BooleanParameter", :single)
+  end
+
+  def self.run_long_yield_list(inputs)
+    run_reek_detector(inputs, "LongYieldList", :single)
+  end
+
+  def self.run_control_parameter(inputs)
+    run_reek_detector(inputs, "ControlParameter", :single)
+  end
+
+  def self.run_unused_parameters(inputs)
+    run_reek_detector(inputs, "UnusedParameters", :single)
+  end
+
+  def self.run_utility_function(inputs)
+    run_reek_detector(inputs, "UtilityFunction", :single)
   end
 
   # :reek:TooManyStatements
@@ -2186,7 +2704,9 @@ class Fleek
   # :reek:TooManyStatements
   def self.analyze_reek_detector(path, detector, configuration)
     source = File.binread(path)
-    result = run_native_reek_detector(detector, source)
+    maximum = detector_max_params(configuration, detector, path)
+    visibility_setting = detector == "UtilityFunction" && configuration.detector_setting(detector, "public_methods_only", path) == "true"
+    result = visibility_setting ? -4 : run_native_reek_detector(detector, source, maximum)
     return report_reek_detector_unsupported(path, detector) if result == -4
     return report_reek_detector_parse_failure(path, detector) if result < 0
     findings = print_reek_detector_findings(path, detector, native_reek_findings(detector), configuration)
@@ -2198,7 +2718,7 @@ class Fleek
 
   # :reek:ControlParameter
   # :reek:TooManyStatements
-  def self.run_native_reek_detector(detector, source)
+  def self.run_native_reek_detector(detector, source, maximum)
     length = source.bytesize
     case detector
     when "Attribute" then NativePrism.fleek_attribute(source, length)
@@ -2206,10 +2726,21 @@ class Fleek
     when "SubclassedFromCoreClass" then NativePrism.fleek_subclassed_from_core_class(source, length)
     when "ModuleInitialize" then NativePrism.fleek_module_initialize(source, length)
     when "IrresponsibleModule" then NativePrism.fleek_irresponsible_module(source, length)
+    when "LongParameterList" then NativePrism.fleek_long_parameter_list(source, length, maximum)
+    when "BooleanParameter" then NativePrism.fleek_boolean_parameter(source, length)
+    when "LongYieldList" then NativePrism.fleek_long_yield_list(source, length, maximum)
+    when "ControlParameter" then NativePrism.fleek_control_parameter(source, length)
+    when "UnusedParameters" then NativePrism.fleek_unused_parameters(source, length)
+    when "UtilityFunction" then NativePrism.fleek_utility_function(source, length)
     end
   end
 
+  def self.detector_max_params(configuration, detector, path)
+    Integer(configuration.detector_setting(detector, "max_params", path) || "3", 10)
+  end
+
   # :reek:ControlParameter
+  # :reek:TooManyStatements
   def self.native_reek_findings(detector)
     case detector
     when "Attribute" then NativePrism.fleek_attribute_finding
@@ -2217,6 +2748,12 @@ class Fleek
     when "SubclassedFromCoreClass" then NativePrism.fleek_subclassed_from_core_class_finding
     when "ModuleInitialize" then NativePrism.fleek_module_initialize_finding
     when "IrresponsibleModule" then NativePrism.fleek_irresponsible_module_finding
+    when "LongParameterList" then NativePrism.fleek_long_parameter_list_finding
+    when "BooleanParameter" then NativePrism.fleek_boolean_parameter_finding
+    when "LongYieldList" then NativePrism.fleek_long_yield_list_finding
+    when "ControlParameter" then NativePrism.fleek_control_parameter_finding
+    when "UnusedParameters" then NativePrism.fleek_unused_parameters_finding
+    when "UtilityFunction" then NativePrism.fleek_utility_function_finding
     end
   end
 
@@ -2238,8 +2775,14 @@ class Fleek
       line, context, name = finding.split("\t")
       configuration.excluded_context?(path, context, detector)
     end
+    rows.sort_by! { |finding| reek_finding_sort_key(finding) }
     rows.each { |finding| print_reek_detector_finding(path, detector, finding) }
     rows
+  end
+
+  def self.reek_finding_sort_key(finding)
+    fields = finding.split("\t")
+    [fields[1], fields[0].to_i]
   end
 
   def self.print_reek_detector_finding(path, detector, finding)
@@ -2881,15 +3424,41 @@ class Fleek
   def self.run_selected_checks(arguments)
     inputs = arguments[2..]
     check = arguments[1]
+    return run_unsupported_opt_in(inputs, "UnusedPrivateMethod") if check == "reek:UnusedPrivateMethod"
     return run_class_variable(inputs) if check == "reek:ClassVariable"
     return run_attribute(inputs) if check == "reek:Attribute"
     return run_instance_variable_assumption(inputs) if check == "reek:InstanceVariableAssumption"
     return run_irresponsible_module(inputs) if check == "reek:IrresponsibleModule"
+    return run_long_parameter_list(inputs) if check == "reek:LongParameterList"
+    return run_boolean_parameter(inputs) if check == "reek:BooleanParameter"
+    return run_long_yield_list(inputs) if check == "reek:LongYieldList"
+    return run_control_parameter(inputs) if check == "reek:ControlParameter"
+    return run_unused_parameters(inputs) if check == "reek:UnusedParameters"
+    return run_utility_function(inputs) if check == "reek:UtilityFunction"
     return run_module_initialize(inputs) if check == "reek:ModuleInitialize"
     return run_subclassed_from_core_class(inputs) if check == "reek:SubclassedFromCoreClass"
     return run_structural_duplication(inputs) if check == "flay:StructuralDuplication"
     return run_combined_checks(inputs) if check == "flay:StructuralDuplication,reek:ClassVariable" || check == "reek:ClassVariable,flay:StructuralDuplication"
     print_usage_error(input_error(arguments))
+  end
+
+  def self.run_unsupported_opt_in(inputs, detector)
+    profile, error = unsupported_opt_in_profile(inputs, detector)
+    return report_configuration_error(error) unless error.empty?
+    run_combined_checks(inputs, profile)
+  end
+
+  # :reek:TooManyStatements
+  def self.unsupported_opt_in_profile(inputs, detector)
+    configuration, sources, error = parse_reek_configuration(inputs)
+    return [nil, error] unless error.empty?
+    files, = discover_sources(sources, ReekConfiguration.new)
+    enabled_by_config = configuration.detector_enabled_anywhere?(detector, files)
+    check = "reek:#{detector}"
+    configured = inputs.include?("--reek-config") || !ReekConfiguration.discovered_path.empty?
+    disabled = configured && !enabled_by_config ? [check] : []
+    unsupported = disabled.empty? ? [check] : []
+    [AnalysisProfile.new([check], [], disabled, unsupported, true), ""]
   end
 end
 
