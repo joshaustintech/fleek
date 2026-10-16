@@ -1,0 +1,16 @@
+detectors:
+  DataClump:
+    exclude:
+      - Shipment
+  TooManyConstants:
+    exclude:
+      - Palette
+  TooManyInstanceVariables:
+    exclude:
+      - Record
+  TooManyMethods:
+    exclude:
+      - Service
+  TooManyStatements:
+    exclude:
+      - Workflow#process

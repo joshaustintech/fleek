@@ -90,7 +90,7 @@ class DefaultObjectScopeContract
     reference = run_reek_for(detector, source)
     actual = run_fleek_check(detector, source)
     verify_reek_finding(reference, reference_finding, "pinned Reek #{detector} unsupported-shape behavior changed")
-    verify(actual[0] == 1 && actual[2].include?("unsupported"), "#{detector} unsupported shape appeared clean")
+    AnalysisRunner.assert_unsupported(actual, detector)
   end
 
   def self.verify_comment_overflow

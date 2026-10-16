@@ -33,6 +33,22 @@ class DefaultArgumentApiContract
     verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators_ignore.yml")
     verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators_multiple_ignore.yml")
     verify_default_detector("FeatureEnvy", "test/fixtures/feature_envy.rb")
+    verify_supported_default_detector("DataClump", "test/fixtures/data_clump.rb")
+    verify_supported_default_detector("TooManyConstants", "test/fixtures/too_many_constants.rb")
+    verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
+    verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
+    verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
+    verify_configured_detector("DataClump", "test/fixtures/data_clump.rb", "test/fixtures/config_data_clump.yml")
+    verify_configured_detector("TooManyConstants", "test/fixtures/too_many_constants.rb", "test/fixtures/config_too_many_constants.yml")
+    verify_configured_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb", "test/fixtures/config_too_many_instance_variables.yml")
+    verify_configured_detector("TooManyMethods", "test/fixtures/too_many_methods.rb", "test/fixtures/config_too_many_methods.yml")
+    verify_configured_detector("TooManyStatements", "test/fixtures/too_many_statements.rb", "test/fixtures/config_too_many_statements.yml")
+    verify_configured_detector("DataClump", "test/fixtures/data_clump.rb", "test/fixtures/config_data_and_size_exclusions.yml")
+    verify_configured_detector("TooManyConstants", "test/fixtures/too_many_constants.rb", "test/fixtures/config_data_and_size_exclusions.yml")
+    verify_configured_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb", "test/fixtures/config_data_and_size_exclusions.yml")
+    verify_configured_detector("TooManyMethods", "test/fixtures/too_many_methods.rb", "test/fixtures/config_data_and_size_exclusions.yml")
+    verify_configured_detector("TooManyStatements", "test/fixtures/too_many_statements.rb", "test/fixtures/config_data_and_size_exclusions.yml")
+    verify_unsupported_data_and_size_scopes
     verify_utility_configuration_limit
     verify_control_parameter_suppression
     verify_control_parameter_logical_condition
@@ -148,10 +164,36 @@ class DefaultArgumentApiContract
   end
 
   def self.verify_default_detector(detector, source)
+    verify_detector_parity(detector, source, false)
+  end
+
+  def self.verify_supported_default_detector(detector, source)
+    verify_detector_parity(detector, source, true)
+  end
+
+  def self.verify_unsupported_data_and_size_scopes
+    source = "test/fixtures/class_variable_nested.rb"
+    detectors = %w[DataClump TooManyConstants TooManyInstanceVariables TooManyMethods TooManyStatements]
+    detectors.each do |detector|
+      result = run_fleek(source, "", "reek:#{detector}")
+      AnalysisRunner.assert_unsupported(result, detector)
+    end
+  end
+
+  # :reek:ControlParameter
+  # :reek:TooManyStatements
+  def self.verify_detector_parity(detector, source, require_finding)
     reference = run_reek(source, detector)
     actual = run_fleek(source)
+    explicit = run_fleek(source, "", "reek:#{detector}")
     verify_default_coverage(actual, detector)
     AnalysisRunner.assert_detector_findings(actual, reference, detector)
+    AnalysisRunner.assert_detector_findings(explicit, reference, detector)
+    return unless require_finding
+
+    expected = AnalysisRunner.detector_warnings(reference, detector)
+    verify(!expected.empty?, "pinned #{detector} fixture has no finding")
+    verify(AnalysisRunner.detector_warnings(actual, detector) == expected, "#{detector} finding was not preserved")
   end
 
   def self.verify_initializer_override

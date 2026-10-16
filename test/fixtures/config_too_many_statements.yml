@@ -1,0 +1,3 @@
+detectors:
+  TooManyStatements:
+    max_statements: 6

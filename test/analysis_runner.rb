@@ -55,6 +55,10 @@ class AnalysisRunner
     raise "#{expectation.label} report status or coverage differs" unless valid
   end
 
+  def self.assert_unsupported(result, label)
+    raise "#{label} unsupported shape appeared clean" unless result[0] == 1 && result[2].include?("unsupported")
+  end
+
   def self.assert_findings(actual, reference, label)
     reports = [actual, reference].map { |result| warning_lines(result[1]) }
     raise "#{label} findings differ from Reek" unless reports[0] == reports[1]
@@ -88,7 +92,7 @@ class AnalysisRunner
       return unless marker
       value = line[(marker + 9)..].strip
       value[1...-1]
-    elsif line.include?("ClassVariable:") || line.include?("Attribute:") || line.include?("InstanceVariableAssumption:") || line.include?("SubclassedFromCoreClass:") || line.include?("ModuleInitialize:") || line.include?("IrresponsibleModule:") || line.include?("LongParameterList:") || line.include?("BooleanParameter:") || line.include?("LongYieldList:") || line.include?("ControlParameter:") || line.include?("UnusedParameters:") || line.include?("UtilityFunction:") || line.include?("DuplicateMethodCall:") || line.include?("ManualDispatch:") || line.include?("NilCheck:") || line.include?("MissingSafeMethod:") || line.include?("RepeatedConditional:") || line.include?("NestedIterators:") || line.include?("FeatureEnvy:")
+    elsif line.include?("ClassVariable:") || line.include?("Attribute:") || line.include?("InstanceVariableAssumption:") || line.include?("SubclassedFromCoreClass:") || line.include?("ModuleInitialize:") || line.include?("IrresponsibleModule:") || line.include?("LongParameterList:") || line.include?("BooleanParameter:") || line.include?("LongYieldList:") || line.include?("ControlParameter:") || line.include?("UnusedParameters:") || line.include?("UtilityFunction:") || line.include?("DuplicateMethodCall:") || line.include?("ManualDispatch:") || line.include?("NilCheck:") || line.include?("MissingSafeMethod:") || line.include?("RepeatedConditional:") || line.include?("NestedIterators:") || line.include?("FeatureEnvy:") || line.include?("DataClump:") || line.include?("TooManyConstants:") || line.include?("TooManyInstanceVariables:") || line.include?("TooManyMethods:") || line.include?("TooManyStatements:")
       line.strip
     end
   end

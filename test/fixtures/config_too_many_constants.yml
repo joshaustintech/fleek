@@ -1,0 +1,3 @@
+detectors:
+  TooManyConstants:
+    max_constants: 6
