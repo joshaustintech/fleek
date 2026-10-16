@@ -4,9 +4,14 @@ export SPINEL SPINEL_ROOT
 FLEEK = build/fleek
 RUNTIME_REPETITIONS ?= 20
 
-.PHONY: all test verify-spinel mutation reference flay reek check rails-controller-parity rails-manifest-parity runtime-evidence package-macos-arm64 verify-macos-arm64-archive
+.PHONY: all setup-git test verify-spinel mutation reference flay reek check rails-controller-parity rails-manifest-parity runtime-evidence package-macos-arm64 verify-macos-arm64-archive
 
 all: verify-spinel $(FLEEK)
+
+setup-git:
+	git config core.hooksPath .githooks
+	git config user.name "Josh Austin"
+	git config user.email "83935880+joshaustintech@users.noreply.github.com"
 
 $(FLEEK): bin/fleek.rb
 	mkdir -p build
@@ -17,6 +22,7 @@ verify-spinel:
 
 test: verify-spinel $(FLEEK)
 	$(SPINEL) -E test/cli_contract.rb
+	$(SPINEL) -E test/commit_identity_contract.rb
 	$(SPINEL) -E test/text_report_contract.rb
 	$(SPINEL) -E test/duplication_contract.rb
 	$(SPINEL) -E test/combined_contract.rb

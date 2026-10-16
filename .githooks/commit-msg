@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+if ! git var GIT_AUTHOR_IDENT | grep -Fq 'Josh Austin <83935880+joshaustintech@users.noreply.github.com> '; then
+  echo 'commit author must be Josh Austin <83935880+joshaustintech@users.noreply.github.com>' >&2
+  exit 1
+fi
+
+exec git -c trailer.co-authored-by.ifexists=replace interpret-trailers --in-place --trailer 'Co-authored-by: Codex <codex@openai.com>' "$1"

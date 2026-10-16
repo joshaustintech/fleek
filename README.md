@@ -40,6 +40,8 @@ bundle install
 SPINEL=/path/to/pinned-spinel/bin/spinel SPINEL_ROOT=/path/to/pinned-spinel BUNDLE_PATH=/path/to/bundle make -B check
 ```
 
+Run `make setup-git` once per clone to set the required author identity and enable the repository commit hook. The hook rejects other authors and writes the Codex co-author trailer on every commit.
+
 The full check builds the native executable, runs CLI and reference contracts, proves behavioral mutations are caught, and requires zero Flay/Reek findings in Fleek’s own source. `make rails-manifest-parity` verifies identical pinned Rails inputs against upstream tools. `make runtime-evidence` records repeated cold-process comparisons after semantic equivalence passes.
 
 The [Spinel toolchain guide](docs/agents/spinel.md), [runtime receipt](docs/research/cold-runtime-2026-10-15.md), [v0.2.0 archive receipt](docs/research/native-archive-0.2.0.md), [release notes](release/0.2.0.md), and [decision records](docs/adr/) describe reproducibility and known limits.
