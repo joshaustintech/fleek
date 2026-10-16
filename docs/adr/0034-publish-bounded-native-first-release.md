@@ -15,3 +15,5 @@ Publish Fleek 0.1.0 as the first downloadable release for macOS arm64 with expli
 ## Consequences
 
 This lets users install and evaluate the supported subset while preserving truthful coverage status. The Mach-O is ad hoc signed and not notarized. Release `v0.1.0` was published from source commit `f5380ebad9e07958f659a1820d03060622d58b97`; the downloaded asset matched the expected digest and passed the extracted-runtime contract. Ticket 19 remains open for full Rails Flay parity.
+
+Later status: ADR 0037 accepted the bounded Flay coverage, while preserving the full-parity limitation. ADR 0038 records the v0.2.0 refresh because v0.1.0 predates resolved Ticket 19 behavior.

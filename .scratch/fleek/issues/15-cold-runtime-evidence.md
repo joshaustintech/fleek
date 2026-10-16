@@ -2,7 +2,7 @@
 
 **What to build:** Maintainers can compare measured cold CLI runtime against pinned originals on identical proven source and choose a target from evidence. Parent specification: Standalone native release and performance evidence.
 
-**Workaround scope:** Ticket 14 resolves Reek ClassVariable parity on the pinned Rails corpus. Ticket 19 remains open, so Flay and combined runtime comparisons use bounded fixtures that Fleek analyzes completely; Rails Flay timings are excluded.
+**Workaround scope:** Reek ClassVariable uses the pinned Rails corpus. Flay and combined runtime comparisons use bounded fixtures that Fleek analyzes completely; Rails Flay timings are excluded because candidate coverage remains partial, as accepted by ADR 0037.
 
 **Status:** resolved
 **Type:** task
@@ -18,7 +18,7 @@
 
 ## Answer
 
-Bounded cold runtime evidence is complete. Flay, Reek, and combined workloads all pass their evidence-derived p95 targets. Flay's deliberate exit difference (Flay 0 with a finding, Fleek 2) is recorded; broad Rails Flay timing remains excluded until ticket 19 closes.
+Bounded cold runtime evidence is complete. Flay, Reek, and combined workloads all pass their evidence-derived p95 targets. Flay's deliberate exit difference (Flay 0 with a finding, Fleek 2) is recorded; broad Rails Flay timing remains excluded because the workload is not fully analyzed.
 
 ## Comments
 

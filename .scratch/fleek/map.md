@@ -8,6 +8,7 @@
 - Triage comments begin with the required AI disclaimer.
 - Tickets 01–19 resolved and pushed. Tickets 15 and 17 record bounded runtime evidence and verified downloadable release evidence.
 - Ticket 19 closes bounded class/module method parity for the first-release scope. The pinned 25-file comparison matches the supported Flay finding and Reek clean result while Flay remains explicitly incomplete; full Rails Flay parity is not claimed. ADR 0037 records the accepted boundary.
+- Ticket 20 is claimed: published v0.1.0 predates the latest bounded Flay implementation. Keep its tag/assets immutable; release the current analyzer under a new version and prove the retrieved artifact contains the added module-method behavior.
 
 ## Decisions-so-far
 

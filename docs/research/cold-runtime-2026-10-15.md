@@ -3,8 +3,10 @@
 ## Identity
 
 - Host: Darwin arm64; macOS 27.0.1 (26A434).
-- Source revision: 8c083dc4875a70ecb213f652e62c4e4b7597e787.
-- Fleek executable SHA-256 (before and after): e920ca3ed8da115adde10bf5adc865d994ea5235ac37dd4b1ce14df3f3fadcff.
+- Source revision: 110f81ae8fe73cf4d14c45076383e4097ce3aaef.
+- Release measured: Fleek 0.2.0 working-tree build, with versioned package and module-method archive example.
+- Source `bin/fleek.rb` SHA-256: `89dc20e961c2fd9c024a51921f9e65cc7f555f8f51b48909d3f8d86d3d016aaf`. The file had uncommitted v0.2.0 release edits at measurement time; `Source revision` identifies its clean base commit.
+- Fleek executable SHA-256 (before and after): b4da0770300edc4d5f79bd902c7b5d57cdbe01f30661321021582dfd4c6bde0b.
 - Spinel measurement helper SHA-256 (before and after): c4dc03c3bb47eaa51c79898f124e8fd350715c8b9b8bd748008d3d878de46877.
 - Compiler: Spinel 2026.09.12; reference analyzers: Flay 2.14.4 and Reek 6.6.0; reference Ruby: ruby 3.4.9 (2026-03-11 revision 76cca827ab) +PRISM [arm64-darwin23].
 - Flay and combined input: `test/fixtures/duplication_class_methods_or.rb`; SHA-256 (before and after): afb763c97a9bec713ca1fc21de035220f813e0f5714491d9177dbb9f0c450570; immutable one-file fixture with one duplicated class-method group.
@@ -27,140 +29,140 @@ Equivalence is semantic; reference and Fleek stdout formats are intentionally di
 
 Variant | n | median ms | p95 ms | min ms | max ms
 ---|---:|---:|---:|---:|---:
-flay-reference | 20 | 170.672 | 178.776 | 157.662 | 181.855
-flay-fleek | 20 | 3.584 | 3.897 | 3.323 | 3.986
-reek-rails-reference | 20 | 360.236 | 376.211 | 339.934 | 380.032
-reek-rails-fleek | 20 | 6.055 | 6.606 | 5.778 | 7.124
-combined-reference | 20 | 489.727 | 693.7 | 467.998 | 704.781
-combined-fleek | 20 | 3.75 | 4.323 | 2.941 | 4.357
+flay-reference | 20 | 157.233 | 165.433 | 156.373 | 169.982
+flay-fleek | 20 | 3.478 | 3.854 | 3.318 | 3.935
+reek-rails-reference | 20 | 342.344 | 358.99 | 334.593 | 360.033
+reek-rails-fleek | 20 | 5.969 | 6.432 | 5.829 | 9.652
+combined-reference | 20 | 465.396 | 476.859 | 457.077 | 490.496
+combined-fleek | 20 | 3.604 | 4.01 | 2.989 | 4.074
 
 Target: Fleek p95 must be no slower than the corresponding pinned reference p95 for the same complete work. This ties target to observed upstream CLI cost and keeps combined work comparable.
 
-- Flay fixture: target <= 178.776 ms p95; observed 3.897 ms; met.
-- Reek ClassVariable Rails corpus: target <= 376.211 ms p95; observed 6.606 ms; met.
-- Combined fixture: target <= 693.7 ms p95; observed 4.323 ms; met.
+- Flay fixture: target <= 165.433 ms p95; observed 3.854 ms; met.
+- Reek ClassVariable Rails corpus: target <= 358.99 ms p95; observed 6.432 ms; met.
+- Combined fixture: target <= 476.859 ms p95; observed 4.01 ms; met.
 
 ## Raw observations
 
 order | repetition | variant | ms
 ---:|---:|---|---:
-1 | 1 | flay-reference | 168.55
-2 | 1 | flay-fleek | 3.427
-3 | 1 | reek-rails-reference | 344.953
-4 | 1 | reek-rails-fleek | 5.935
-5 | 1 | combined-reference | 500.678
-6 | 1 | combined-fleek | 3.918
-7 | 2 | combined-fleek | 3.432
-8 | 2 | combined-reference | 503.961
-9 | 2 | reek-rails-fleek | 6.606
-10 | 2 | reek-rails-reference | 366.032
-11 | 2 | flay-fleek | 3.762
-12 | 2 | flay-reference | 175.042
-13 | 3 | flay-reference | 174.43
-14 | 3 | flay-fleek | 3.897
-15 | 3 | reek-rails-reference | 364.994
-16 | 3 | reek-rails-fleek | 6.275
-17 | 3 | combined-reference | 520.005
-18 | 3 | combined-fleek | 4.065
-19 | 4 | combined-fleek | 3.798
-20 | 4 | combined-reference | 489.727
-21 | 4 | reek-rails-fleek | 6.51
-22 | 4 | reek-rails-reference | 368.448
-23 | 4 | flay-fleek | 3.529
-24 | 4 | flay-reference | 165.46
-25 | 5 | flay-reference | 162.571
-26 | 5 | flay-fleek | 3.559
-27 | 5 | reek-rails-reference | 351.14
-28 | 5 | reek-rails-fleek | 5.935
-29 | 5 | combined-reference | 693.7
-30 | 5 | combined-fleek | 3.811
-31 | 6 | combined-fleek | 2.944
-32 | 6 | combined-reference | 704.781
-33 | 6 | reek-rails-fleek | 6.006
-34 | 6 | reek-rails-reference | 342.489
-35 | 6 | flay-fleek | 3.613
-36 | 6 | flay-reference | 157.662
-37 | 7 | flay-reference | 172.156
-38 | 7 | flay-fleek | 3.986
-39 | 7 | reek-rails-reference | 376.088
-40 | 7 | reek-rails-fleek | 5.997
-41 | 7 | combined-reference | 497.526
-42 | 7 | combined-fleek | 4.357
-43 | 8 | combined-fleek | 3.196
-44 | 8 | combined-reference | 490.925
-45 | 8 | reek-rails-fleek | 5.942
-46 | 8 | reek-rails-reference | 347.221
-47 | 8 | flay-fleek | 3.323
-48 | 8 | flay-reference | 162.917
-49 | 9 | flay-reference | 160.165
-50 | 9 | flay-fleek | 3.62
-51 | 9 | reek-rails-reference | 365.846
-52 | 9 | reek-rails-fleek | 6.495
-53 | 9 | combined-reference | 467.998
-54 | 9 | combined-fleek | 3.667
-55 | 10 | combined-fleek | 2.941
-56 | 10 | combined-reference | 486.535
-57 | 10 | reek-rails-fleek | 5.778
-58 | 10 | reek-rails-reference | 353.708
-59 | 10 | flay-fleek | 3.545
-60 | 10 | flay-reference | 167.372
-61 | 11 | flay-reference | 172.766
-62 | 11 | flay-fleek | 3.78
-63 | 11 | reek-rails-reference | 380.032
-64 | 11 | reek-rails-fleek | 7.124
-65 | 11 | combined-reference | 480.36
-66 | 11 | combined-fleek | 3.661
-67 | 12 | combined-fleek | 2.947
-68 | 12 | combined-reference | 484.47
-69 | 12 | reek-rails-fleek | 5.912
-70 | 12 | reek-rails-reference | 339.934
-71 | 12 | flay-fleek | 3.476
-72 | 12 | flay-reference | 161.203
-73 | 13 | flay-reference | 178.776
-74 | 13 | flay-fleek | 3.781
-75 | 13 | reek-rails-reference | 376.211
-76 | 13 | reek-rails-fleek | 6.204
-77 | 13 | combined-reference | 492.014
-78 | 13 | combined-fleek | 3.904
-79 | 14 | combined-fleek | 3.75
-80 | 14 | combined-reference | 498.312
-81 | 14 | reek-rails-fleek | 6.537
-82 | 14 | reek-rails-reference | 358.579
-83 | 14 | flay-fleek | 3.595
-84 | 14 | flay-reference | 176.012
-85 | 15 | flay-reference | 174.857
-86 | 15 | flay-fleek | 3.51
-87 | 15 | reek-rails-reference | 369.739
-88 | 15 | reek-rails-fleek | 6.027
-89 | 15 | combined-reference | 482.074
-90 | 15 | combined-fleek | 4.204
-91 | 16 | combined-fleek | 4.323
-92 | 16 | combined-reference | 481.865
-93 | 16 | reek-rails-fleek | 6.055
-94 | 16 | reek-rails-reference | 352.794
-95 | 16 | flay-fleek | 3.484
-96 | 16 | flay-reference | 170.672
-97 | 17 | flay-reference | 172.187
-98 | 17 | flay-fleek | 3.604
-99 | 17 | reek-rails-reference | 348.747
-100 | 17 | reek-rails-fleek | 6.3
-101 | 17 | combined-reference | 473.61
-102 | 17 | combined-fleek | 4.052
-103 | 18 | combined-fleek | 3.478
-104 | 18 | combined-reference | 476.526
-105 | 18 | reek-rails-fleek | 6.265
-106 | 18 | reek-rails-reference | 362.707
-107 | 18 | flay-fleek | 3.584
-108 | 18 | flay-reference | 181.855
-109 | 19 | flay-reference | 173.88
-110 | 19 | flay-fleek | 3.636
-111 | 19 | reek-rails-reference | 366.084
-112 | 19 | reek-rails-fleek | 6.173
-113 | 19 | combined-reference | 507.047
-114 | 19 | combined-fleek | 3.897
-115 | 20 | combined-fleek | 3.376
-116 | 20 | combined-reference | 482.712
-117 | 20 | reek-rails-fleek | 5.982
-118 | 20 | reek-rails-reference | 360.236
-119 | 20 | flay-fleek | 3.359
-120 | 20 | flay-reference | 168.626
+1 | 1 | flay-reference | 164.524
+2 | 1 | flay-fleek | 3.367
+3 | 1 | reek-rails-reference | 341.36
+4 | 1 | reek-rails-fleek | 5.889
+5 | 1 | combined-reference | 464.999
+6 | 1 | combined-fleek | 3.671
+7 | 2 | combined-fleek | 2.989
+8 | 2 | combined-reference | 460.349
+9 | 2 | reek-rails-fleek | 5.999
+10 | 2 | reek-rails-reference | 352.259
+11 | 2 | flay-fleek | 3.499
+12 | 2 | flay-reference | 157.188
+13 | 3 | flay-reference | 156.935
+14 | 3 | flay-fleek | 3.373
+15 | 3 | reek-rails-reference | 346.891
+16 | 3 | reek-rails-fleek | 5.921
+17 | 3 | combined-reference | 460.978
+18 | 3 | combined-fleek | 3.958
+19 | 4 | combined-fleek | 3.106
+20 | 4 | combined-reference | 457.077
+21 | 4 | reek-rails-fleek | 5.838
+22 | 4 | reek-rails-reference | 339.089
+23 | 4 | flay-fleek | 3.489
+24 | 4 | flay-reference | 157.233
+25 | 5 | flay-reference | 161.809
+26 | 5 | flay-fleek | 3.524
+27 | 5 | reek-rails-reference | 349.355
+28 | 5 | reek-rails-fleek | 6.218
+29 | 5 | combined-reference | 470.448
+30 | 5 | combined-fleek | 3.651
+31 | 6 | combined-fleek | 3.254
+32 | 6 | combined-reference | 462.227
+33 | 6 | reek-rails-fleek | 5.99
+34 | 6 | reek-rails-reference | 339.757
+35 | 6 | flay-fleek | 3.478
+36 | 6 | flay-reference | 156.555
+37 | 7 | flay-reference | 158.952
+38 | 7 | flay-fleek | 3.377
+39 | 7 | reek-rails-reference | 344.05
+40 | 7 | reek-rails-fleek | 5.969
+41 | 7 | combined-reference | 470.523
+42 | 7 | combined-fleek | 3.646
+43 | 8 | combined-fleek | 3.064
+44 | 8 | combined-reference | 461.488
+45 | 8 | reek-rails-fleek | 6.346
+46 | 8 | reek-rails-reference | 347.295
+47 | 8 | flay-fleek | 3.503
+48 | 8 | flay-reference | 156.52
+49 | 9 | flay-reference | 157.661
+50 | 9 | flay-fleek | 3.47
+51 | 9 | reek-rails-reference | 345.744
+52 | 9 | reek-rails-fleek | 5.851
+53 | 9 | combined-reference | 466.048
+54 | 9 | combined-fleek | 4.074
+55 | 10 | combined-fleek | 3.604
+56 | 10 | combined-reference | 490.496
+57 | 10 | reek-rails-fleek | 6.42
+58 | 10 | reek-rails-reference | 339.745
+59 | 10 | flay-fleek | 3.521
+60 | 10 | flay-reference | 156.876
+61 | 11 | flay-reference | 157.147
+62 | 11 | flay-fleek | 3.389
+63 | 11 | reek-rails-reference | 336.307
+64 | 11 | reek-rails-fleek | 6.432
+65 | 11 | combined-reference | 469.145
+66 | 11 | combined-fleek | 3.668
+67 | 12 | combined-fleek | 3.24
+68 | 12 | combined-reference | 464.521
+69 | 12 | reek-rails-fleek | 5.939
+70 | 12 | reek-rails-reference | 340.662
+71 | 12 | flay-fleek | 3.935
+72 | 12 | flay-reference | 157.101
+73 | 13 | flay-reference | 156.815
+74 | 13 | flay-fleek | 3.495
+75 | 13 | reek-rails-reference | 338.891
+76 | 13 | reek-rails-fleek | 5.989
+77 | 13 | combined-reference | 476.859
+78 | 13 | combined-fleek | 4.01
+79 | 14 | combined-fleek | 3.059
+80 | 14 | combined-reference | 457.684
+81 | 14 | reek-rails-fleek | 5.841
+82 | 14 | reek-rails-reference | 358.99
+83 | 14 | flay-fleek | 3.699
+84 | 14 | flay-reference | 158.128
+85 | 15 | flay-reference | 156.373
+86 | 15 | flay-fleek | 3.387
+87 | 15 | reek-rails-reference | 345.028
+88 | 15 | reek-rails-fleek | 5.907
+89 | 15 | combined-reference | 462.938
+90 | 15 | combined-fleek | 3.717
+91 | 16 | combined-fleek | 3.007
+92 | 16 | combined-reference | 468.626
+93 | 16 | reek-rails-fleek | 5.984
+94 | 16 | reek-rails-reference | 342.344
+95 | 16 | flay-fleek | 3.54
+96 | 16 | flay-reference | 165.433
+97 | 17 | flay-reference | 158.235
+98 | 17 | flay-fleek | 3.367
+99 | 17 | reek-rails-reference | 334.593
+100 | 17 | reek-rails-fleek | 5.872
+101 | 17 | combined-reference | 466.074
+102 | 17 | combined-fleek | 3.637
+103 | 18 | combined-fleek | 3.051
+104 | 18 | combined-reference | 474.764
+105 | 18 | reek-rails-fleek | 9.652
+106 | 18 | reek-rails-reference | 349.577
+107 | 18 | flay-fleek | 3.854
+108 | 18 | flay-reference | 169.982
+109 | 19 | flay-reference | 159.991
+110 | 19 | flay-fleek | 3.318
+111 | 19 | reek-rails-reference | 335.156
+112 | 19 | reek-rails-fleek | 5.829
+113 | 19 | combined-reference | 465.396
+114 | 19 | combined-fleek | 3.903
+115 | 20 | combined-fleek | 3.155
+116 | 20 | combined-reference | 466.736
+117 | 20 | reek-rails-fleek | 6.108
+118 | 20 | reek-rails-reference | 360.033
+119 | 20 | flay-fleek | 3.327
+120 | 20 | flay-reference | 158.638

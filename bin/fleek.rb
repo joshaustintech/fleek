@@ -1,6 +1,6 @@
 # Fleek exposes native CLI usage and reference identities.
 class Fleek
-  VERSION = "0.1.0"
+  VERSION = "0.2.0"
   # Retains source identity alongside its diagnostic for the text report.
   SourceFailure = Struct.new(:path, :message, :kind)
   # Carries inputs and locations through structural duplication reporting.

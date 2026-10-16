@@ -35,8 +35,8 @@
 
 ## Answer
 
-The pinned Rails Tutorial corpus now has a reproducible same-input receipt. Reek is clean; Flay reports a score-48 class-method group; the T14 Fleek baseline was incomplete on two namespaced ClassVariable files and all 25 Flay inputs. Ticket 18 closes the namespace gap; the Flay class-method gap in ticket 19 remains the release blocker. See ADR 0020 and `docs/research/rails-project-parity.md`.
+The pinned Rails Tutorial corpus has a reproducible same-input receipt. Reek is clean; Flay reports a score-48 class-method group; the T14 Fleek baseline was incomplete on two namespaced ClassVariable files and all 25 Flay inputs. Ticket 18 closes the namespace gap. ADR 0037 later accepts a bounded release with Flay marked partial; full Flay candidate parity remains unclaimed. See ADR 0020 and `docs/research/rails-project-parity.md`.
 
 ### Triage outcome
 
-Corpus selection and identical-input comparisons are complete; full Rails parity is not. The receipt records unchanged Reek clean, unchanged Flay score 48, and Fleek incomplete with 2 namespaced ClassVariable files and all 25 Flay inputs unsupported at the T14 baseline. Inheritance rejection found during the first run was fixed with a failing-then-passing Reek contract and a caught mutation. Ticket 18 subsequently closes ClassVariable coverage; ticket 19 carries the remaining Flay gap, so release and runtime claims stay blocked.
+Corpus selection and identical-input comparisons are complete; full Rails Flay parity is not claimed. The receipt records unchanged Reek clean, unchanged Flay score 48, and Fleek incomplete at the T14 baseline. Inheritance rejection found during the first run was fixed with a failing-then-passing Reek contract and a caught mutation. Ticket 18 subsequently closes ClassVariable coverage; ADR 0037 later records why partial Flay results are acceptable for the bounded release.

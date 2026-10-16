@@ -1,5 +1,7 @@
 # Verifies the extracted arm64 archive without Ruby or reference analyzers on PATH.
 class ArchiveContract
+  # Describes the public status and report fields of an installed Flay example.
+  FlayExampleExpectation = Struct.new(:status, :fields, :message)
   # :reek:ControlParameter
   def self.verify(condition, message)
     raise message unless condition
@@ -39,7 +41,7 @@ class ArchiveContract
     Dir.mkdir(destination)
     result = extract_result(archive, destination)
     verify(result[0] == 0, "archive extraction failed")
-    File.join(destination, "fleek-0.1.0-macos-arm64")
+    File.join(destination, "fleek-0.2.0-macos-arm64")
   end
 
   def self.extract_result(archive, destination)
@@ -93,7 +95,7 @@ class ArchiveContract
   def self.verify_version(executable)
     version = run(executable, ["--version"])
     verify(version[0] == 0 && version[2].empty?, "installed version status differs")
-    verify_fields(version[1], ["Fleek 0.1.0", "Spinel 2026.09.12"], "installed version identity differs")
+    verify_fields(version[1], ["Fleek 0.2.0", "Spinel 2026.09.12"], "installed version identity differs")
   end
 
   def self.verify_help(executable)
@@ -113,18 +115,26 @@ class ArchiveContract
     verify_fields(result[1], ["lines=\"2\"", "context=\"Counter\"", "name=\"@@count\"", "Status: findings"], "installed finding fields differed")
   end
 
-  def self.verify_incomplete_example(executable, source)
+  def self.verify_flay_example(executable, source, expectation)
     result = run(executable, ["--checks", "flay:StructuralDuplication", source])
-    verify(result[0] == 1, "installed incomplete exit status differed")
-    verify_fields(result[1], ["examples/incomplete.rb:4", "examples/incomplete.rb:15", "mass=48 score=48",
-      "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete", "scope=partial"], "installed incomplete fields differed")
+    message = expectation.message
+    verify(result[0] == expectation.status, message)
+    verify_fields(result[1], expectation.fields, message)
   end
 
+  # :reek:TooManyStatements
   def self.verify_examples(root, executable)
     examples = File.join(root, "examples")
     verify_clean_example(executable, File.join(examples, "clean.rb"))
     verify_finding_example(executable, File.join(examples, "finding.rb"))
-    verify_incomplete_example(executable, File.join(examples, "incomplete.rb"))
+    incomplete_fields = ["examples/incomplete.rb:4", "examples/incomplete.rb:15", "mass=48 score=48",
+      "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete", "scope=partial"]
+    incomplete = FlayExampleExpectation.new(1, incomplete_fields, "installed incomplete example differed")
+    verify_flay_example(executable, File.join(examples, "incomplete.rb"), incomplete)
+    module_fields = ["kind=\"similar\"", "module-methods.rb:2,", "module-methods.rb:9\"", "mass=48 score=48",
+      "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+    module_example = FlayExampleExpectation.new(2, module_fields, "installed module-method example differed")
+    verify_flay_example(executable, File.join(examples, "module-methods.rb"), module_example)
   end
 
   def self.verify_notices(root)
@@ -136,7 +146,7 @@ class ArchiveContract
   end
 end
 
-archive = "dist/fleek-0.1.0-macos-arm64.tar.gz"
+archive = "dist/fleek-0.2.0-macos-arm64.tar.gz"
 checksum = "#{archive}.sha256"
 ArchiveContract.verify(File.file?(archive) && File.file?(checksum), "versioned archive or checksum missing")
 output = ArchiveContract.output_path

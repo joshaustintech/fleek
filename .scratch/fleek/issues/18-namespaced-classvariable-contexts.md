@@ -12,8 +12,8 @@
 - [x] Mutation checks prove namespace traversal/context changes are detected.
 - [x] Full project build, tests, Flay, Reek, mutation, and both code-review axes pass.
 
-**Release gate:** Closed for ClassVariable: the exact 25-file Rails corpus now completes with the same clean result as Reek. Overall Rails parity remains blocked by ticket 19's Flay gap.
+**Release gate:** Closed for ClassVariable: the exact 25-file Rails corpus completes with the same clean result as Reek. Full Flay candidate parity is not claimed; ADR 0037 accepts that limit for the bounded release.
 
 ## Answer
 
-ClassVariable now supports a single module namespace around one simple class or module, with qualified Reek contexts, and reports incomplete for deeper/sibling namespaces or class variables declared on the outer namespace. The pinned Rails app's complete 25-file Ruby manifest now matches Reek's clean ClassVariable result (25 analyzed, 0 failed). ADR 0021 records the boundary. Flay's class-method gap remains ticket 19 and continues to block release.
+ClassVariable now supports a single module namespace around one simple class or module, with qualified Reek contexts, and reports incomplete for deeper/sibling namespaces or class variables declared on the outer namespace. The pinned Rails app's complete 25-file Ruby manifest now matches Reek's clean ClassVariable result (25 analyzed, 0 failed). ADR 0021 records the boundary. Ticket 19 later accepted a bounded release while documenting unsupported Flay candidates.

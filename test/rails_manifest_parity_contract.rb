@@ -24,7 +24,7 @@ class RailsManifestParityContract
     fleek = run_fleek
     puts "Rails manifest Fleek status: #{fleek[0]}"
     verify_flay(flay, fleek, paths)
-    verify_reek(reek, fleek_reek, paths)
+    verify_reek([reek, fleek_reek, fleek], paths)
     puts "Pinned Rails 25-file parity contract: pass (Flay explicitly incomplete)"
   end
 
@@ -99,12 +99,17 @@ class RailsManifestParityContract
 
   # :reek:DuplicateMethodCall
   # :reek:TooManyStatements
-  def self.verify_reek(reference, actual, paths)
+  def self.verify_reek(runs, paths)
+    reference = runs[0]
+    standalone = runs[1]
+    combined = runs[2]
     raise "Reek reference invocation failed" unless reference[0] == 0 && reference[2].empty?
     raise "Reek Rails reference was not clean" unless reference[1].include?("0 total warnings")
-    raise "Fleek Reek invocation failed" unless actual[0] == 0 && actual[2].empty?
-    raise "Fleek changed Reek's Rails result" unless actual[1].include?("Coverage: 25 selected; 25 analyzed; 0 failed; 0 excluded") && !actual[1].include?("Finding: check=\"reek:ClassVariable\"")
-    raise "Fleek Reek manifest omitted sources" unless paths.all? { |path| actual[1].include?("Source: \"#{path}\" scope=included") }
+    raise "Fleek Reek invocation failed" unless standalone[0] == 0 && standalone[2].empty?
+    raise "Fleek changed Reek's standalone Rails result" unless standalone[1].include?("Coverage: 25 selected; 25 analyzed; 0 failed; 0 excluded") && !standalone[1].include?("Finding: check=\"reek:ClassVariable\"")
+    raise "Fleek Reek manifest omitted sources" unless paths.all? { |path| standalone[1].include?("Source: \"#{path}\" scope=included") }
+    raise "Fleek combined Reek coverage differed" unless combined[1].include?("Smell coverage: 25 selected; 25 analyzed; 0 failed; 0 excluded")
+    raise "Fleek combined Reek findings differed" if combined[1].include?("Finding: check=\"reek:ClassVariable\"")
   end
 end
 

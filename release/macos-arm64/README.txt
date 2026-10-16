@@ -1,4 +1,4 @@
-Fleek 0.1.0 for macOS Apple silicon (arm64)
+Fleek 0.2.0 for macOS Apple silicon (arm64)
 
 Install
 
@@ -15,7 +15,7 @@ Developer ID, and is not notarized.
 
 Identity
 
-Version: Fleek 0.1.0
+Version: Fleek 0.2.0
 Implementation compiler: Spinel 2026.09.12
 Parser: Prism 1.9.0, statically linked
 Reference behavior: Flay 2.14.4 and Reek 6.6.0
@@ -53,6 +53,8 @@ Examples
 `examples/finding.rb` demonstrates a Reek ClassVariable finding.
 `examples/incomplete.rb` demonstrates preserved Flay findings with explicit
 incomplete status.
+`examples/module-methods.rb` demonstrates supported module instance-method
+duplication with matching locations, mass, and score.
 
 Notices
 

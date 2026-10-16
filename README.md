@@ -1,18 +1,45 @@
 # Fleek
 
-Fleek is a native Ruby analysis CLI implemented in Spinel. Its first analysis check reproduces Reek's `ClassVariable` smell for a bounded Ruby source subset. Unsupported checks and source contexts fail explicitly.
+Fleek is a native macOS arm64 CLI, implemented in Spinel, that analyzes Ruby source with explicitly selected Flay structural-duplication and Reek ClassVariable checks. Analyzed Ruby source does not need to compile as Spinel. Fleek does not execute source or load the project’s dependencies.
 
-Pass Reek settings with `--reek-config FILE`; otherwise Fleek discovers `.reek.yml` from the current directory upward, then from the home directory. Supported YAML is bounded to `detectors`, `directories`, and `exclude_paths`, with ClassVariable `enabled` and `exclude` settings. Unsupported YAML constructs, settings, and detectors fail before source analysis. Suppression comments support `:reek:ClassVariable` and `enabled: false|true`. If exclusions remove every source, Fleek reports zero analyzed and exits 1; Reek exits 0 in that case. See [ADR 0013](docs/adr/0013-reek-configuration-and-suppression.md) for exact limits.
+## Install
 
-Analysis uses a stable, color-free text report with quoted source fields, separate stderr diagnostics, explicit selected/run check fields, source coverage, and completion status. Only `reek:ClassVariable` and text output are supported; unsupported checks and formats fail. See [ADR 0014](docs/adr/0014-stable-text-report.md) for fields and escaping.
+Download [Fleek 0.2.0](https://github.com/joshaustintech/fleek/releases/tag/v0.2.0), verify the adjacent SHA-256 file, then extract the archive:
 
-Build and verify with the pinned Spinel executable and locked reference tools:
+```sh
+shasum -a 256 -c fleek-0.2.0-macos-arm64.tar.gz.sha256
+tar -xzf fleek-0.2.0-macos-arm64.tar.gz
+cd fleek-0.2.0-macos-arm64
+./fleek --help
+```
+
+The executable is a native arm64 Mach-O and needs no Ruby, Flay, Reek, Spinel, project checkout, or network connection at runtime. It has an ad hoc linker signature and is not notarized.
+
+## Run checks
+
+Select every check explicitly. Fleek never treats an omitted or unsupported check as successfully run.
+
+```sh
+./fleek --checks flay:StructuralDuplication,reek:ClassVariable app/
+./fleek --checks flay:StructuralDuplication lib/one.rb lib/two.rb
+./fleek --checks reek:ClassVariable --stdin snippet.rb < snippet.rb
+```
+
+Exit status is 0 for complete clean analysis, 2 for complete analysis with findings, and 1 for invalid or incomplete analysis. Findings can remain visible when coverage is partial, but partial analysis exits 1. Reports separate duplication groups and smell findings, list selected checks and source coverage, and put diagnostics on stderr.
+
+Flay supports bounded syntax: selected top-level parameterless methods and simple class or module methods with required positional parameters, plus documented bounded expressions and control flow. Unsupported candidates make coverage partial. Reek support is limited to ClassVariable with the documented configuration subset. Unsupported checks, options, settings, formats, and syntax are reported explicitly. See [the supported language and parity boundaries](docs/research/rails-project-parity.md) and [ADRs](docs/adr/).
+
+The pinned 25-file Rails corpus demonstrates exact Flay group, mass, score, and locations plus clean Reek ClassVariable findings. Fleek reports all 25 Flay sources as partial because class-level declarations and other syntax remain unsupported; it reports 0/25 fully analyzed, warns about omitted candidates, and exits 1. This is useful partial coverage, not full Rails Flay parity.
+
+## Build and verify
+
+Fleek is implemented in Spinel 2026.09.12. Ruby input uses Ruby 4 grammar and need not be valid Spinel source. With the pinned compiler and locked reference bundle available:
 
 ```sh
 bundle install
-SPINEL=/path/to/pinned-spinel/bin/spinel SPINEL_ROOT=/path/to/pinned-spinel make check
+SPINEL=/path/to/pinned-spinel/bin/spinel SPINEL_ROOT=/path/to/pinned-spinel BUNDLE_PATH=/path/to/bundle make -B check
 ```
 
-`make check` builds the native executable, compares selected ClassVariable findings with locked Reek, verifies parser and CLI contracts, runs mutation checks, executes the locked Flay/Reek reference fixture, then requires zero Flay score and zero Reek warnings for project code. Explicit `.rb` paths and recursive directories are accepted by `build/fleek --checks reek:ClassVariable path.rb`. Hidden directories and directory symlinks are skipped during scans; `.rb` file symlinks are included; repeated explicit paths are analyzed repeatedly. An explicit directory symlink, non-Ruby path, missing/unreadable path, or input set with no Ruby sources is an error. Mixed good and failed inputs retain findings but report incomplete coverage and exit 1. Named stdin uses `build/fleek --checks reek:ClassVariable --stdin SOURCE [PATH...]`; its source label is required, empty stdin is analyzed as a named clean source, and explicit paths may accompany it. See ADRs 0009–0012 for check limits and input policy. The parser probe is `build/fleek --parse-ruby4 path.rb`; its success reports parsing only, never that an analysis check ran.
+The full check builds the native executable, runs CLI and reference contracts, proves behavioral mutations are caught, and requires zero Flay/Reek findings in Fleek’s own source. `make rails-manifest-parity` verifies identical pinned Rails inputs against upstream tools. `make runtime-evidence` records repeated cold-process comparisons after semantic equivalence passes.
 
-The Spinel release and its dependency identities are recorded in [the toolchain guide](docs/agents/spinel.md). Parser scope and ClassVariable boundaries are recorded in [ADR 0008](docs/adr/0008-native-parser-prototype.md), [ADR 0009](docs/adr/0009-classvariable-native-slice.md), [ADR 0010](docs/adr/0010-classvariable-occurrence-groups.md), [ADR 0011](docs/adr/0011-file-and-directory-scan-contract.md), and [ADR 0012](docs/adr/0012-named-stdin-analysis.md). Reference versions and transitive dependency checksums are locked in `Gemfile.lock`.
+The [Spinel toolchain guide](docs/agents/spinel.md), [runtime receipt](docs/research/cold-runtime-2026-10-15.md), [v0.2.0 release notes](release/0.2.0.md), and [decision records](docs/adr/) describe reproducibility and known limits.
