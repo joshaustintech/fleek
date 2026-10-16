@@ -291,6 +291,14 @@ DuplicationProcess.verify_output(nine_level_module_actual, DuplicationProcess::O
 nine_level_module_reference_fields = ["Similar code found in :module (mass = 48)", "#{nine_level_module_path}:1", "#{nine_level_module_path}:25", "Total score (lower is better) = 48"]
 DuplicationProcess.verify_output(nine_level_module_reference, DuplicationProcess::OutputExpectation.new(0, nine_level_module_reference_fields, "ninth-level Flay module group changed"))
 
+nested_namespace_class_path = "test/fixtures/duplication_nested_namespace_class_group.rb"
+nested_namespace_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_namespace_class_path, "fleek", ""))
+nested_namespace_class_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_namespace_class_path, "flay", ""))
+nested_namespace_class_fields = ["node=\"module\" kind=\"similar\" locations=\"#{nested_namespace_class_path}:1,#{nested_namespace_class_path}:14\" mass=54 score=54", "Total duplication score: 54", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(nested_namespace_class_actual, DuplicationProcess::OutputExpectation.new(2, nested_namespace_class_fields, "nested-namespace class group differed"))
+nested_namespace_class_reference_fields = ["Similar code found in :module (mass = 54)", "#{nested_namespace_class_path}:1", "#{nested_namespace_class_path}:14", "Total score (lower is better) = 54"]
+DuplicationProcess.verify_output(nested_namespace_class_reference, DuplicationProcess::OutputExpectation.new(0, nested_namespace_class_reference_fields, "nested-namespace class Flay group changed"))
+
 clean_scope_path = "test/fixtures/duplication_class_scopes_clean.rb"
 clean_scope_actual = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "fleek", ""))
 clean_scope_reference = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "flay", ""))
