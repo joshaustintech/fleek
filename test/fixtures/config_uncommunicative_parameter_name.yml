@@ -1,0 +1,6 @@
+detectors:
+  UncommunicativeParameterName:
+    reject:
+      - ^user_id$
+    accept:
+      - ^x$

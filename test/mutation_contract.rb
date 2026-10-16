@@ -54,6 +54,10 @@ class MutationCase
     "missing &&= instance variable writes" => "test/default_argument_api_contract.rb",
     "missing TooManyMethods finding" => "test/default_argument_api_contract.rb",
     "missing TooManyStatements finding" => "test/default_argument_api_contract.rb",
+    "missing UncommunicativeMethodName finding" => "test/default_argument_api_contract.rb",
+    "missing UncommunicativeModuleName finding" => "test/default_argument_api_contract.rb",
+    "missing UncommunicativeParameterName finding" => "test/default_argument_api_contract.rb",
+    "missing UncommunicativeVariableName finding" => "test/default_argument_api_contract.rb",
     "TooManyStatements drops mixed-scope findings" => "test/default_argument_api_contract.rb",
     "TooManyStatements drops findings before unsupported body" => "test/default_argument_api_contract.rb",
     "TooManyMethods partial scope loses incomplete status" => "test/default_argument_api_contract.rb",
@@ -140,7 +144,7 @@ class MutationCase
     "text report failed source identity" => "test/text_report_contract.rb",
     "text report completion state" => "test/text_report_contract.rb",
     "default check selection" => "test/default_invocation_contract.rb",
-    "default incomplete status" => "test/default_invocation_contract.rb",
+    "unsupported opt-in incomplete status" => "test/default_invocation_contract.rb",
     "implicit current directory" => "test/default_invocation_contract.rb"
   }
 
@@ -854,8 +858,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
 MutationCase.new(MutationCase::Configuration.new(source,
   "report_all && !unsupported.empty? ? 1 : status",
   "report_all && !unsupported.empty? ? status : status",
-  "default incomplete status",
-  "clean default run did not remain incomplete")).run
+  "unsupported opt-in incomplete status",
+  "unsupported opt-in check did not keep the default run incomplete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'inputs = arguments.empty? ? [Dir.pwd] : arguments',
   'inputs = arguments',
@@ -906,6 +910,26 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "if (ffi_module_count != 0) {",
   "Spinel FFI module ordering",
   "Spinel FFI module after methods was not rejected as incomplete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (!fleek_matches_any_pattern((const uint8_t *) name->start, name->length, patterns->reject)) return 0;",
+  "if (fleek_matches_any_pattern((const uint8_t *) name->start, name->length, patterns->reject)) return 0;",
+  "missing UncommunicativeMethodName finding",
+  "UncommunicativeMethodName findings differ from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (!fleek_matches_any_pattern((const uint8_t *) name->start, name->length, state->patterns->reject)) return true;",
+  "if (fleek_matches_any_pattern((const uint8_t *) name->start, name->length, state->patterns->reject)) return true;",
+  "missing UncommunicativeModuleName finding",
+  "UncommunicativeModuleName findings differ from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "!fleek_matches_any_pattern((const uint8_t *) name->start, name->length, patterns->reject)) continue;",
+  "fleek_matches_any_pattern((const uint8_t *) name->start, name->length, patterns->reject)) continue;",
+  "missing UncommunicativeParameterName finding",
+  "UncommunicativeParameterName findings differ from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "!fleek_matches_any_pattern((const uint8_t *) name->start, name->length, state->patterns->reject)) return true;",
+  "fleek_matches_any_pattern((const uint8_t *) name->start, name->length, state->patterns->reject)) return true;",
+  "missing UncommunicativeVariableName finding",
+  "UncommunicativeModuleName findings differ from Reek")).run
 
 process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
 _, status = Process.waitpid2(process_id)

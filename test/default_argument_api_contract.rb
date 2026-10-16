@@ -43,6 +43,15 @@ class DefaultArgumentApiContract
     verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
     verify_too_many_methods_mixed_nested_definition
     verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
+    verify_supported_default_detector("UncommunicativeMethodName", "test/fixtures/uncommunicative_method_name.rb")
+    verify_configured_detector("UncommunicativeMethodName", "test/fixtures/uncommunicative_method_name.rb", "test/fixtures/config_uncommunicative_method_name.yml")
+    verify_supported_default_detector("UncommunicativeModuleName", "test/fixtures/uncommunicative_module_name.rb")
+    verify_configured_detector("UncommunicativeModuleName", "test/fixtures/uncommunicative_module_name.rb", "test/fixtures/config_uncommunicative_module_name.yml")
+    verify_supported_default_detector("UncommunicativeParameterName", "test/fixtures/uncommunicative_parameter_name.rb")
+    verify_configured_detector("UncommunicativeParameterName", "test/fixtures/uncommunicative_parameter_name.rb", "test/fixtures/config_uncommunicative_parameter_name.yml")
+    verify_supported_default_detector("UncommunicativeVariableName", "test/fixtures/uncommunicative_variable_name.rb")
+    verify_configured_detector("UncommunicativeVariableName", "test/fixtures/uncommunicative_variable_name.rb", "test/fixtures/config_uncommunicative_variable_name.yml")
+    verify_unsupported_naming_scopes
     verify_too_many_statements_class_method
     verify_unsupported_singleton_class_methods
     verify_too_many_statements_mixed_unsupported_body
@@ -165,7 +174,7 @@ class DefaultArgumentApiContract
   end
 
   def self.verify_configuration_parity(actual, reference, detector)
-    verify(reference[0] == 0 && reference[2].empty?, "pinned #{detector} configuration failed")
+    verify([0, 2].include?(reference[0]) && reference[2].empty?, "pinned #{detector} configuration failed")
     verify(!actual[2].include?("Reek configuration"), "Fleek rejected #{detector} configuration")
     AnalysisRunner.assert_detector_findings(actual, reference, detector)
   end
@@ -185,6 +194,26 @@ class DefaultArgumentApiContract
       result = run_fleek(source, "", "reek:#{detector}")
       AnalysisRunner.assert_unsupported(result, detector)
     end
+  end
+
+  def self.verify_unsupported_naming_scopes
+    source = "test/fixtures/uncommunicative_names_unsupported.rb"
+    verify_unsupported_names(source)
+    verify_partial_variable_names
+  end
+
+  def self.verify_partial_variable_names
+    variable_result = run_fleek("test/fixtures/uncommunicative_variable_name_partial.rb", "", "reek:UncommunicativeVariableName")
+    AnalysisRunner.assert_unsupported(variable_result, "UncommunicativeVariableName block arguments")
+    verify(AnalysisRunner.detector_warnings(variable_result, "UncommunicativeVariableName").any? { |finding| finding.include?("Worker#work") && finding.include?("x") }, "UncommunicativeVariableName discarded a supported finding beside block arguments")
+  end
+
+  def self.verify_unsupported_names(source)
+    %w[UncommunicativeMethodName UncommunicativeModuleName UncommunicativeParameterName].each do |detector|
+      AnalysisRunner.assert_unsupported(run_fleek(source, "", "reek:#{detector}"), detector)
+    end
+    module_result = run_fleek(source, "", "reek:UncommunicativeModuleName")
+    verify(AnalysisRunner.detector_warnings(module_result, "UncommunicativeModuleName").none? { |finding| finding.include?("'B'") || finding.include?("'C'") }, "UncommunicativeModuleName reported an unqualified nested finding")
   end
 
   def self.verify_too_many_statements_class_method

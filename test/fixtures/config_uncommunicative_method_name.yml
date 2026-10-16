@@ -1,0 +1,6 @@
+detectors:
+  UncommunicativeMethodName:
+    reject:
+      - ^dispatch$
+    accept:
+      - ^x$

@@ -1,7 +1,7 @@
 # 07: Reek naming checks
 
 **Type:** task  
-**Status:** open  
+**Status:** resolved
 **Category:** enhancement  
 **Triage:** ready-for-agent
 
@@ -9,6 +9,6 @@
 
 **Blocked by:** 01: Default invocation and CWD scan; 02: Reek default configuration.
 
-- [ ] Support UncommunicativeMethodName, UncommunicativeModuleName, UncommunicativeParameterName, and UncommunicativeVariableName defaults.
-- [ ] Match pinned Reek 6.6.0 findings on shared supported syntax.
-- [ ] List unsupported syntax honestly and preserve supported findings with incomplete status.
+- [x] Support UncommunicativeMethodName, UncommunicativeModuleName, UncommunicativeParameterName, and UncommunicativeVariableName defaults.
+- [x] Match pinned Reek 6.6.0 findings on shared supported syntax.
+- [x] List unsupported syntax honestly and preserve supported findings with incomplete status.
