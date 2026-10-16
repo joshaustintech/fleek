@@ -259,6 +259,14 @@ DuplicationProcess.verify_output(multi_method_module_actual, DuplicationProcess:
 multi_method_module_reference_fields = ["Similar code found in :module (mass = 62)", "#{multi_method_module_path}:1", "#{multi_method_module_path}:15", "Total score (lower is better) = 62"]
 DuplicationProcess.verify_output(multi_method_module_reference, DuplicationProcess::OutputExpectation.new(0, multi_method_module_reference_fields, "multi-method Flay module group changed"))
 
+nested_module_path = "test/fixtures/duplication_nested_module_group.rb"
+nested_module_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_module_path, "fleek", ""))
+nested_module_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_module_path, "flay", ""))
+nested_module_actual_fields = ["node=\"module\" kind=\"similar\" locations=\"#{nested_module_path}:1,#{nested_module_path}:11\" mass=34 score=34", "Total duplication score: 34", "Status: findings"]
+DuplicationProcess.verify_output(nested_module_actual, DuplicationProcess::OutputExpectation.new(2, nested_module_actual_fields, "nested Flay module group differed"))
+nested_module_reference_fields = ["Similar code found in :module (mass = 34)", "#{nested_module_path}:1", "#{nested_module_path}:11", "Total score (lower is better) = 34"]
+DuplicationProcess.verify_output(nested_module_reference, DuplicationProcess::OutputExpectation.new(0, nested_module_reference_fields, "nested Flay module group changed"))
+
 clean_scope_path = "test/fixtures/duplication_class_scopes_clean.rb"
 clean_scope_actual = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "fleek", ""))
 clean_scope_reference = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "flay", ""))

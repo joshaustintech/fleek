@@ -12,7 +12,7 @@ The bounded class-group detector initially had a single-result native boundary. 
 
 Have the native analyzer serialize every verified group as a deterministic record containing node kind, similar/identical classification, mass, weighted score, and source lines. Keep per-file score allocation in the Ruby report layer. Emit complete outer class/module groups only when the supported direct scope candidates completely cover that scope; suppress only method candidates already represented by a verified outer-scope group. Keep unsupported forms incomplete while retaining independent verified groups. Sort findings by descending score, then source location and node; sort locations by path and line.
 
-Support bounded direct class methods at file scope and in one-level module namespaces, plus direct methods in top-level modules. Class/module grouping accepts multiple methods only when every direct body entry is a supported method and each candidate shape matches in source order. Nested namespace recursion, broader class bodies, and general Flay grammar remain outside the implemented bound; do not claim those shapes complete.
+Support bounded direct class methods at file scope and in one-level module namespaces, plus direct module methods at file scope or under one sole nested-module wrapper. Class/module grouping accepts multiple methods only when every direct body entry is a supported method and each candidate shape matches in source order. Deeper namespace recursion, broader class bodies, and general Flay grammar remain outside the implemented bound; do not claim those shapes complete.
 
 ## Consequences
 
@@ -20,4 +20,4 @@ Fleek preserves independent `:defn` and outer-scope findings, reports similar an
 
 ## Evidence
 
-`test/duplication_contract.rb` compares clean nested scopes, module, identical-module, cross-class, nested cross-scope, multi-method class/module, mixed multi-group, and three-candidate method outputs against pinned Flay 2.14.4. `test/mutation_contract.rb` kills mutations for candidate collection, completeness, independent groups, identity, group kind, mass/score, locations, file-score allocation, and ordering. Full acceptance remains tracked in Ticket 21.
+`test/duplication_contract.rb` compares clean nested scopes, module, identical-module, cross-class, nested-module, nested cross-scope, multi-method class/module, mixed multi-group, and three-candidate method outputs against pinned Flay 2.14.4. `test/mutation_contract.rb` kills mutations for candidate collection, completeness, independent groups, identity, group kind, mass/score, locations, file-score allocation, and ordering. Full acceptance remains tracked in Ticket 21.
