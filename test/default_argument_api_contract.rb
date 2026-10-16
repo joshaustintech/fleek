@@ -39,6 +39,7 @@ class DefaultArgumentApiContract
     verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
     verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
     verify_too_many_statements_class_method
+    verify_unsupported_singleton_class_methods
     verify_configured_detector("TooManyStatements", "test/fixtures/too_many_statements.rb", "test/fixtures/config_too_many_statements.yml")
     verify_configured_detector("DataClump", "test/fixtures/data_clump.rb", "test/fixtures/config_data_clump.yml")
     verify_configured_detector("TooManyConstants", "test/fixtures/too_many_constants.rb", "test/fixtures/config_too_many_constants.yml")
@@ -189,6 +190,14 @@ class DefaultArgumentApiContract
     reference = run_reek("test/fixtures/too_many_statements.rb", "TooManyStatements")
     findings = AnalysisRunner.detector_warnings(reference, "TooManyStatements")
     verify(findings.any? { |finding| finding.include?("Workflow#self.dispatch") }, "pinned Reek class-method fixture has no finding")
+  end
+
+  def self.verify_unsupported_singleton_class_methods
+    source = "test/fixtures/too_many_statements_singleton_class.rb"
+    reference = run_reek(source, "TooManyStatements")
+    actual = run_fleek(source, "", "reek:TooManyStatements")
+    verify(reference[0] == 2 && !AnalysisRunner.detector_warnings(reference, "TooManyStatements").empty?, "pinned Reek singleton-class fixture has no finding")
+    AnalysisRunner.assert_unsupported(actual, "TooManyStatements singleton-class method")
   end
 
   # :reek:ControlParameter

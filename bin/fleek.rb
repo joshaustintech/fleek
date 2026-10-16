@@ -1879,7 +1879,25 @@ class Fleek
       fleek_too_many_statements_used += (size_t) written;
       return 1;
     }
-    int fleek_too_many_statements(const char *source, size_t length, size_t maximum) { fleek_too_many_statements_buffer[0] = 0; fleek_too_many_statements_used = 0; return fleek_scan_method_scope(source, length, fleek_too_many_statements_method, &maximum); }
+    static bool fleek_has_singleton_class(const pm_node_t *node, void *data) {
+      bool *found = (bool *) data;
+      if (PM_NODE_TYPE_P(node, PM_SINGLETON_CLASS_NODE)) { *found = true; return false; }
+      return !PM_NODE_TYPE_P(node, PM_DEF_NODE);
+    }
+    static int fleek_scan_too_many_statements(const char *source, size_t length, size_t maximum) {
+      if (memchr(source, 0, length) != NULL) return -2;
+      pm_options_t options = {0}; options.line = 1; options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
+      pm_parser_t parser; pm_parser_init(&parser, (const uint8_t *) source, length, &options);
+      pm_node_t *root = pm_parse(&parser);
+      bool found = false;
+      bool parse_error = parser.error_list.head != NULL;
+      if (!parse_error) pm_visit_node(root, fleek_has_singleton_class, &found);
+      pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
+      if (parse_error) return -1;
+      if (found) return -4;
+      return fleek_scan_method_scope(source, length, fleek_too_many_statements_method, &maximum);
+    }
+    int fleek_too_many_statements(const char *source, size_t length, size_t maximum) { fleek_too_many_statements_buffer[0] = 0; fleek_too_many_statements_used = 0; return fleek_scan_too_many_statements(source, length, maximum); }
     const char *fleek_too_many_statements_finding(void) { return fleek_too_many_statements_buffer; }
     static bool fleek_data_clump_method_has(const fleek_data_clump_state_t *state, size_t method, pm_constant_id_t name) {
       for (size_t parameter = 0; parameter < state->counts[method]; parameter++) if (state->names[method][parameter] == name) return true;
