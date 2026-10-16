@@ -35,6 +35,8 @@ class DefaultArgumentApiContract
     verify_default_detector("FeatureEnvy", "test/fixtures/feature_envy.rb")
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump.rb")
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump_after_empty_method.rb")
+    verify_supported_default_detector("DataClump", "test/fixtures/data_clump_multiple_groups.rb")
+    verify_data_clump_preserves_supported_findings
     verify_supported_default_detector("TooManyConstants", "test/fixtures/too_many_constants.rb")
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
     verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
@@ -201,6 +203,32 @@ class DefaultArgumentApiContract
     AnalysisRunner.assert_unsupported(actual, "TooManyStatements singleton-class method")
   end
 
+  def self.verify_data_clump_preserves_supported_findings
+    verify_data_clump_mixed_syntax_parity
+  end
+
+  def self.verify_data_clump_mixed_syntax_parity
+    actual, reference = data_clump_mixed_syntax_runs
+    verify_data_clump_mixed_result(actual, reference)
+  end
+
+  def self.data_clump_mixed_syntax_runs
+    source = "test/fixtures/data_clump_with_unsupported_method.rb"
+    reference = run_reek(source, "DataClump")
+    actual = run_fleek(source, "", "reek:DataClump")
+    [actual, reference]
+  end
+
+  def self.verify_data_clump_mixed_result(actual, reference)
+    verify_data_clump_mixed_findings(actual, reference)
+    AnalysisRunner.assert_unsupported(actual, "DataClump unsupported method")
+    verify(actual[1].include?("Status: incomplete"), "DataClump mixed syntax did not report incomplete status")
+  end
+
+  def self.verify_data_clump_mixed_findings(actual, reference)
+    AnalysisRunner.assert_detector_findings(actual, reference, "DataClump")
+  end
+
   # :reek:ControlParameter
   # :reek:TooManyStatements
   def self.verify_detector_parity(detector, source, require_finding)
@@ -214,7 +242,7 @@ class DefaultArgumentApiContract
 
     expected = AnalysisRunner.detector_warnings(reference, detector)
     verify(!expected.empty?, "pinned #{detector} fixture has no finding")
-    verify(AnalysisRunner.detector_warnings(actual, detector) == expected, "#{detector} finding was not preserved")
+    verify(AnalysisRunner.detector_warnings(actual, detector).sort == expected.sort, "#{detector} finding was not preserved")
   end
 
   def self.verify_initializer_override

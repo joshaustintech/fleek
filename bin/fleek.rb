@@ -867,8 +867,8 @@ class Fleek
       if (method->parameters == NULL) { if (state->methods == 128) { state->unsupported = true; return false; } state->methods++; return true; }
       if (!PM_NODE_TYPE_P((const pm_node_t *) method->parameters, PM_PARAMETERS_NODE)) { state->unsupported = true; return false; }
       const pm_parameters_node_t *parameters = method->parameters;
-      if (parameters->requireds.size + parameters->optionals.size > 64 || parameters->rest != NULL || parameters->posts.size != 0 || parameters->keywords.size != 0 || parameters->keyword_rest != NULL || parameters->block != NULL) { state->unsupported = true; return false; }
-      if (state->methods == 128) { state->unsupported = true; return false; }
+      if (parameters->requireds.size + parameters->optionals.size > 64 || parameters->rest != NULL || parameters->posts.size != 0 || parameters->keywords.size != 0 || parameters->keyword_rest != NULL || parameters->block != NULL) { state->unsupported = true; return true; }
+      if (state->methods == 128) { state->unsupported = true; return true; }
       size_t method_index = state->methods++;
       state->lines[method_index] = 1;
       for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') state->lines[method_index]++;
@@ -1940,8 +1940,7 @@ class Fleek
           }
         }
       }
-      if (state.unsupported) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
-      if (state.methods == 128 && body != NULL && ((const pm_statements_node_t *) body)->body.size > 128) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
+      if (state.methods == 128 && body != NULL && ((const pm_statements_node_t *) body)->body.size > 128) state.unsupported = true;
       size_t findings = 0;
       for (size_t method = 0; method < state.methods; method++) for (size_t parameter = 0; parameter < state.counts[method]; parameter++) {
         pm_constant_id_t name = state.names[method][parameter];
@@ -1958,8 +1957,19 @@ class Fleek
         for (size_t candidate = 0; candidate < state.methods; candidate++) for (size_t candidate_parameter = 0; candidate_parameter < state.counts[candidate]; candidate_parameter++) {
           pm_constant_id_t candidate_name = state.names[candidate][candidate_parameter]; size_t copies = 0;
           for (size_t member = 0; member < state.methods; member++) if (fleek_data_clump_method_has(&state, member, candidate_name)) copies++;
-          if (copies > max_copies && !fleek_data_clump_same_group(&state, matching, matching_count, candidate_name)) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
+          bool overlaps = false;
+          for (size_t member = 0; member < matching_count; member++) if (fleek_data_clump_method_has(&state, matching[member], candidate_name)) overlaps = true;
+          if (copies > max_copies && overlaps && !fleek_data_clump_same_group(&state, matching, matching_count, candidate_name)) state.unsupported = true;
         }
+        if (method != matching[0]) continue;
+        bool earlier_common = false;
+        for (size_t earlier_parameter = 0; earlier_parameter < parameter; earlier_parameter++) {
+          pm_constant_id_t earlier_name = state.names[method][earlier_parameter];
+          size_t earlier_copies = 0;
+          for (size_t candidate = 0; candidate < state.methods; candidate++) if (fleek_data_clump_method_has(&state, candidate, earlier_name)) earlier_copies++;
+          if (earlier_copies > max_copies) earlier_common = true;
+        }
+        if (earlier_common) continue;
         char clump[512] = { 0 }; size_t clump_used = 0; size_t names_added = 0;
         pm_constant_id_t clump_names[64];
         for (size_t candidate_parameter = 0; candidate_parameter < state.counts[method]; candidate_parameter++) {
@@ -1999,9 +2009,10 @@ class Fleek
         int written = snprintf(fleek_data_clump_buffer + fleek_data_clump_used, sizeof(fleek_data_clump_buffer) - fleek_data_clump_used, "%s\\t%.*s\\t[%s]\\t%zu\\n", lines, (int) class_name->length, class_name->start, clump, matching_count);
         if (written < 0 || (size_t) written >= sizeof(fleek_data_clump_buffer) - fleek_data_clump_used) { findings = 128; break; }
         fleek_data_clump_used += (size_t) written; findings++;
-        break;
       }
-      pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return findings == 128 ? -4 : (int) findings;
+      pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
+      if (findings == 128) return -4;
+      return state.unsupported ? (findings > 0 ? -5 : -4) : (int) findings;
     }
     const char *fleek_data_clump_finding(void) { return fleek_data_clump_buffer; }
 
@@ -3625,13 +3636,22 @@ class Fleek
     settings = native_detector_settings(configuration, detector, path)
     visibility_setting = detector == "UtilityFunction" && configuration.detector_setting(detector, "public_methods_only", path) == "true"
     result = visibility_setting ? -4 : run_native_reek_detector(detector, source, settings)
-    return report_reek_detector_unsupported(path, detector) if result == -4
-    return report_reek_detector_parse_failure(path, detector) if result < 0
-    findings = print_reek_detector_findings(path, detector, native_reek_findings(detector), configuration)
-    findings.empty? ? 0 : 2
+    report_reek_detector_result(path, detector, result, configuration)
   rescue SystemCallError
     warn "ERROR: Cannot read source file: #{quote_text(path)}"
     1
+  end
+
+  # Completes detector reporting while retaining partial findings on bounded syntax.
+  # :reek:TooManyStatements
+  # :reek:LongParameterList
+  def self.report_reek_detector_result(path, detector, result, configuration)
+    unsupported = result == -4
+    partial = result == -5
+    return report_reek_detector_parse_failure(path, detector) if result < 0 && !unsupported && !partial
+    findings = unsupported ? [] : print_reek_detector_findings(path, detector, native_reek_findings(detector), configuration)
+    return report_reek_detector_unsupported(path, detector) if unsupported || partial
+    findings.empty? ? 0 : 2
   end
 
   # :reek:ControlParameter
