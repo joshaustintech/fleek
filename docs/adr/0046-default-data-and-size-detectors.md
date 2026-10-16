@@ -16,6 +16,8 @@ DataClump considers each candidate method as a possible start for a shared param
 
 When a supported direct TooManyStatements method and an unsupported singleton-class method share a file, retain the direct finding and return incomplete coverage. The detector uses a distinct partial result so the report counts that source as analyzed and failed.
 
+Apply the same partial-result rule when an unsupported direct method body follows a supported method. The native scanner keeps findings already collected before it encounters the unsupported body; the public contract covers both mixed-syntax paths.
+
 ## Consequences
 
 The default profile runs all five checks. CLI contracts compare supported findings, thresholds, exclusions, and explicit selection against pinned Reek 6.6.0. Mutation contracts remove each detector dispatch and require the public contract to fail. Unsupported nested scopes remain visible as incomplete instead of clean results.

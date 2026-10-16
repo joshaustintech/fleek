@@ -1897,6 +1897,7 @@ class Fleek
       if (parse_error) return -1;
       int result = fleek_scan_method_scope(source, length, fleek_too_many_statements_method, &maximum);
       if (found && result > 0) return -5;
+      if (result == -4 && fleek_too_many_statements_used > 0) return -5;
       if (found) return -4;
       return result;
     }

@@ -44,6 +44,7 @@ class DefaultArgumentApiContract
     verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
     verify_too_many_statements_class_method
     verify_unsupported_singleton_class_methods
+    verify_too_many_statements_mixed_unsupported_body
     verify_configured_detector("TooManyStatements", "test/fixtures/too_many_statements.rb", "test/fixtures/config_too_many_statements.yml")
     verify_configured_detector("DataClump", "test/fixtures/data_clump.rb", "test/fixtures/config_data_clump.yml")
     verify_configured_detector("TooManyConstants", "test/fixtures/too_many_constants.rb", "test/fixtures/config_too_many_constants.yml")
@@ -208,16 +209,25 @@ class DefaultArgumentApiContract
 
   # :reek:TooManyStatements
   def self.verify_too_many_statements_mixed_singleton_scope
-    source = "test/fixtures/too_many_statements_mixed_singleton_class.rb"
-    reference = run_reek(source, "TooManyStatements")
-    actual = run_fleek(source, "", "reek:TooManyStatements")
-    verify(mixed_too_many_statements_finding?(reference), "pinned Reek mixed-scope fixture lost supported finding")
-    verify(mixed_too_many_statements_finding?(actual), "Fleek dropped supported finding beside singleton-class syntax")
-    AnalysisRunner.assert_unsupported(actual, "TooManyStatements singleton-class method")
+    verify_too_many_statements_partial_findings("test/fixtures/too_many_statements_mixed_singleton_class.rb", "singleton-class syntax")
   end
 
   def self.mixed_too_many_statements_finding?(result)
     AnalysisRunner.detector_warnings(result, "TooManyStatements").any? { |finding| finding.include?("Workflow#supported") }
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_too_many_statements_mixed_unsupported_body
+    verify_too_many_statements_partial_findings("test/fixtures/too_many_statements_mixed_unsupported_body.rb", "unsupported method body")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_too_many_statements_partial_findings(source, unsupported_shape)
+    reference = run_reek(source, "TooManyStatements")
+    actual = run_fleek(source, "", "reek:TooManyStatements")
+    verify(mixed_too_many_statements_finding?(reference), "pinned Reek #{unsupported_shape} fixture lost supported finding")
+    verify(mixed_too_many_statements_finding?(actual), "Fleek dropped supported finding beside #{unsupported_shape}")
+    AnalysisRunner.assert_unsupported(actual, "TooManyStatements #{unsupported_shape}")
   end
 
   def self.verify_data_clump_preserves_supported_findings
