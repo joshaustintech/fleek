@@ -4,7 +4,7 @@ export SPINEL SPINEL_ROOT
 FLEEK = build/fleek
 RUNTIME_REPETITIONS ?= 20
 
-.PHONY: all test verify-spinel mutation reference flay reek check rails-controller-parity runtime-evidence package-macos-arm64 verify-macos-arm64-archive
+.PHONY: all test verify-spinel mutation reference flay reek check rails-controller-parity rails-manifest-parity runtime-evidence package-macos-arm64 verify-macos-arm64-archive
 
 all: verify-spinel $(FLEEK)
 
@@ -46,8 +46,11 @@ reek:
 
 check: test mutation reference flay reek
 
-rails-controller-parity: all
+rails-manifest-parity: all
 	FLEEK_REQUIRE_RAILS_CORPUS=1 $(SPINEL) -E test/duplication_contract.rb
+	FLEEK_REQUIRE_RAILS_CORPUS=1 $(SPINEL) -E test/rails_manifest_parity_contract.rb
+
+rails-controller-parity: rails-manifest-parity
 
 runtime-evidence: all
 	$(SPINEL) -E test/runtime_evidence.rb --measure $(RUNTIME_REPETITIONS)

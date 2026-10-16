@@ -18,4 +18,4 @@ Any future expansion of Flay syntax coverage requires its own reference-backed f
 
 ## Consequences
 
-Ticket 19's bounded feature is complete: paired fixtures match Flay on group kind, mass, score, classification, and ordered locations; the exact 25-file comparison records Flay's matching score-48 finding, its incomplete 0/25 analyzed status and exit 1, and Reek's clean 25/25 result. The shipped capability remains explicitly limited; full upstream Flay parity is not claimed. The unchanged report semantics and release artifact need no behavior change.
+Ticket 19's bounded feature is complete: paired fixtures match Flay on group kind, mass, score, classification, and ordered locations; `make rails-manifest-parity` automates the exact 25-file comparison and records Flay's matching score-48 finding, its incomplete 0/25 analyzed status and exit 1, plus Fleek Reek's matching clean findings, 25/25 coverage, and exit 0. `rails-controller-parity` delegates to this full-manifest gate. The shipped capability remains explicitly limited; full upstream Flay parity is not claimed. The unchanged report semantics and release artifact need no behavior change.
