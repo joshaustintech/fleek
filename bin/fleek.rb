@@ -33,6 +33,7 @@ class Fleek
       report_all && !unsupported.empty? ? 1 : status
     end
   end
+  # Builds the pinned analyzer selections and coverage policy.
   module CheckProfiles
     DEFAULT_CHECKS = %w[
       flay:StructuralDuplication reek:Attribute reek:BooleanParameter reek:ClassVariable
@@ -46,8 +47,23 @@ class Fleek
       reek:UnusedParameters reek:UtilityFunction
     ].freeze
     RUNNABLE_DEFAULT_CHECKS = %w[flay:StructuralDuplication reek:ClassVariable].freeze
-    DEFAULT = AnalysisProfile.new(DEFAULT_CHECKS, RUNNABLE_DEFAULT_CHECKS, [], DEFAULT_CHECKS - RUNNABLE_DEFAULT_CHECKS, true)
     EXPLICIT = AnalysisProfile.new(RUNNABLE_DEFAULT_CHECKS, RUNNABLE_DEFAULT_CHECKS, [], [], false)
+
+    def self.default(configuration, source_paths)
+      selected = enabled_defaults(configuration, source_paths)
+      selected.concat(configuration.enabled_opt_in_detectors(source_paths).map { |name| "reek:#{name}" })
+      profile(selected.uniq)
+    end
+
+    def self.enabled_defaults(configuration, source_paths)
+      DEFAULT_CHECKS.select { |check| configuration.detector_enabled_anywhere?(check.delete_prefix("reek:"), source_paths) }
+    end
+
+    def self.profile(selected)
+      disabled = DEFAULT_CHECKS - selected
+      run = RUNNABLE_DEFAULT_CHECKS & selected
+      AnalysisProfile.new(selected, run, disabled, selected - run, true)
+    end
   end
   FLAY_REFERENCE = "2.14.4"
   REEK_REFERENCE = "6.6.0"
@@ -836,14 +852,17 @@ class Fleek
   # :reek:UnusedParameters
   # :reek:UtilityFunction
   class ReekConfiguration
+    OPT_IN_DETECTORS = %w[UnusedPrivateMethod].freeze
+    DETECTORS = (CheckProfiles::DEFAULT_CHECKS.select { |check| check.start_with?("reek:") }.map { |check| check.delete_prefix("reek:") } + OPT_IN_DETECTORS).freeze
+
     def initialize
       @error = ""
-      @enabled = true
       @excludes = []
       @exclude_paths = []
       @scope_paths = []
-      @scope_enabled = []
       @scope_excludes = []
+      @detector_enabled = []
+      @scope_detector_enabled = []
     end
 
     def self.load(explicit_path)
@@ -880,8 +899,8 @@ class Fleek
 
     def parse(source)
       @section = ""
-      @global_detector = false
-      @scope_detector = false
+      @global_detector = ""
+      @scope_detector = ""
       @scope_index = -1
       @list_target = ""
       source.lines.each_with_index { |line, index| parse_line(line, index + 1) }
@@ -918,14 +937,14 @@ class Fleek
 
     def parse_detector_field(key, value, number)
       indentation = line_indentation
-      if indentation == 2 && key == "ClassVariable" && value.empty?
-        @global_detector = true
+      if detector_mapping?(indentation, key, value, 2)
+        @global_detector = key
         @list_target = ""
       elsif indentation == 2
         fail_config(number, "unsupported enabled detector #{key}")
-      elsif @global_detector && indentation == 4
-        parse_options(key, value, number, false)
-      elsif @global_detector && indentation == 6 && @list_target == "global_excludes"
+      elsif !@global_detector.empty? && indentation == 4
+        parse_detector_option(key, value, number, @global_detector, false)
+      elsif exclusion_list?(indentation, @global_detector, 6, "global_excludes")
         append_list_item(value, number)
       else
         fail_config(number, "unsupported detector setting #{key}")
@@ -937,21 +956,28 @@ class Fleek
       if indentation == 2
         return fail_config(number, "directory scope must use a mapping") unless value.empty?
         @scope_paths << scalar(key, number)
-        @scope_enabled << ""
-      @scope_excludes << ""
+        @scope_excludes << ""
         @scope_index = @scope_paths.length - 1
-        @scope_detector = false
-      elsif indentation == 4 && key == "ClassVariable" && value.empty? && @scope_index >= 0
-        @scope_detector = true
+        @scope_detector = ""
+      elsif detector_mapping?(indentation, key, value, 4) && @scope_index >= 0
+        @scope_detector = key
       elsif indentation == 4
         fail_config(number, "unsupported enabled directory detector #{key}")
-      elsif indentation == 6 && @scope_detector
-        parse_options(key, value, number, true)
-      elsif indentation == 8 && @scope_detector && @list_target == "scope_excludes"
+      elsif indentation == 6 && !@scope_detector.empty?
+        parse_detector_option(key, value, number, @scope_detector, true)
+      elsif exclusion_list?(indentation, @scope_detector, 8, "scope_excludes")
         append_list_item(value, number)
       else
         fail_config(number, "unsupported directory setting #{key}")
       end
+    end
+
+    def detector_mapping?(indentation, key, value, expected_indentation)
+      indentation == expected_indentation && DETECTORS.include?(key) && value.empty?
+    end
+
+    def exclusion_list?(indentation, detector, expected_indentation, target)
+      indentation == expected_indentation && detector == "ClassVariable" && @list_target == target
     end
 
     def parse_exclude_path(key, value, indentation, number)
@@ -959,13 +985,7 @@ class Fleek
     end
 
     def parse_options(key, value, number, scoped)
-      if key == "enabled" && ["true", "false"].include?(value)
-        if scoped
-          @scope_enabled[@scope_index] = value
-        else
-          @enabled = value == "true"
-        end
-      elsif key == "exclude" && value.empty?
+      if key == "exclude" && value.empty?
         if scoped
           @scope_excludes[@scope_index] = ""
         else
@@ -980,6 +1000,20 @@ class Fleek
         end
       else
         fail_config(number, "unsupported ClassVariable setting #{key}")
+      end
+    end
+
+    def parse_detector_option(key, value, number, detector, scoped)
+      if key == "enabled" && ["true", "false"].include?(value)
+        if scoped
+          @scope_detector_enabled << "#{@scope_index}:#{detector}=#{value}"
+        else
+          @detector_enabled << "#{detector}=#{value}"
+        end
+      elsif detector == "ClassVariable"
+        parse_options(key, value, number, scoped)
+      else
+        fail_config(number, "unsupported detector setting #{key}")
       end
     end
 
@@ -1054,7 +1088,28 @@ class Fleek
 
     def disabled_for?(path)
       index = best_scope(path)
-      index >= 0 ? @scope_enabled[index] == "false" : @enabled == false
+      !effective_detector_enabled("ClassVariable", index)
+    end
+
+    def detector_enabled_anywhere?(name, paths)
+      return effective_detector_enabled(name, -1) if paths.empty?
+      paths.any? { |path| effective_detector_enabled(name, best_scope(path)) }
+    end
+
+    def enabled_opt_in_detectors(paths)
+      OPT_IN_DETECTORS.select { |name| detector_enabled_anywhere?(name, paths) }
+    end
+
+    def effective_detector_enabled(name, scope_index)
+      default = name != "UnusedPrivateMethod"
+      if scope_index >= 0
+        scope_setting = @scope_detector_enabled.find { |setting| setting.start_with?("#{scope_index}:#{name}=") }
+        return false if scope_setting == "#{scope_index}:#{name}=false"
+        return true if scope_setting == "#{scope_index}:#{name}=true"
+      end
+      global_setting = @detector_enabled.find { |setting| setting.start_with?("#{name}=") }
+      return false if global_setting == "#{name}=false"
+      global_setting == "#{name}=true" || default
     end
 
     def excluded_context?(path, context)
@@ -1556,7 +1611,7 @@ class Fleek
     error = analysis.error
     return report_combined_input_error(error) unless error.empty?
     disabled_paths = analysis.disabled_paths
-    return report_disabled_check(disabled_paths, analysis.configuration) unless disabled_paths.empty?
+    return report_disabled_check(disabled_paths, analysis.configuration) unless disabled_paths.empty? || !profile.run.include?("reek:ClassVariable")
     print_combined_header(profile)
     run_combined_sections(analysis, profile)
   end
@@ -1603,10 +1658,15 @@ class Fleek
 
   def self.run_combined_sections(analysis, profile = CheckProfiles::EXPLICIT)
     puts "Duplication section:"
-    duplication_status = run_structural_duplication(analysis.flay_inputs, true)
+    duplication_status = run_profile_check(profile, "flay:StructuralDuplication", analysis.flay_inputs)
     puts "Smell section:"
-    smell_status = run_class_variable(analysis.reek_inputs, true)
+    smell_status = run_profile_check(profile, "reek:ClassVariable", analysis.reek_inputs)
     finish_combined_analysis(duplication_status, smell_status, profile)
+  end
+
+  def self.run_profile_check(profile, check, inputs)
+    return 0 unless profile.run.include?(check)
+    check == "flay:StructuralDuplication" ? run_structural_duplication(inputs, true) : run_class_variable(inputs, true)
   end
 
   def self.finish_combined_analysis(duplication_status, smell_status, profile = CheckProfiles::EXPLICIT)
@@ -2088,7 +2148,23 @@ class Fleek
 
   def self.run_default_checks(arguments)
     inputs = arguments.empty? ? [Dir.pwd] : arguments
-    run_combined_checks(inputs, CheckProfiles::DEFAULT)
+    profile, error = default_analysis_profile(inputs)
+    return report_configuration_error(error) unless error.empty?
+    run_combined_checks(inputs, profile)
+  end
+
+  def self.default_analysis_profile(inputs)
+    config_path, source_inputs, option_error = extract_reek_configuration(inputs)
+    return [nil, option_error] if option_error.length.positive?
+    configured_default_profile(config_path, source_inputs)
+  end
+
+  def self.configured_default_profile(config_path, source_inputs)
+    configuration = ReekConfiguration.load(config_path)
+    configuration_error = configuration.error
+    return [nil, configuration_error] unless configuration_error.empty?
+    source_paths, = discover_sources(source_inputs, ReekConfiguration.new)
+    [CheckProfiles.default(configuration, source_paths), ""]
   end
 
   # :reek:TooManyStatements

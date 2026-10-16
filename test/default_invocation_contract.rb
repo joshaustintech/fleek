@@ -4,14 +4,69 @@ class DefaultInvocationContract
   OUTPUT = "/tmp/fleek-default-invocation-#{Process.pid}.out"
   ERROR = "/tmp/fleek-default-invocation-#{Process.pid}.err"
 
+  # :reek:TooManyStatements
   def self.run
     create_sources
     verify_default_findings(run_default)
+    verify_configuration_profiles
     verify_clean_default_status
     verify_empty_default_scan
     puts "Default invocation contract: pass"
   ensure
     cleanup
+  end
+
+  def self.verify_disabled_default_detector
+    result = run_with_config(File.expand_path("fixtures/config_disabled.yml", __dir__))
+    output = result[1]
+    selected = output.lines.find { |line| line.start_with?("Checks selected:") }
+    verify_disabled_profile(selected, output)
+  end
+
+  def self.verify_disabled_profile(selected, output)
+    verify(!selected.include?("reek:ClassVariable"), "disabled supported detector remained selected")
+    verify(output.include?("Checks disabled: reek:ClassVariable"), "disabled supported detector was not identified")
+    verify(!output.include?("Smell coverage:"), "disabled supported detector still ran")
+  end
+
+  def self.verify_configuration_profiles
+    verify_configured_default_profile
+    verify_disabled_default_detector
+  end
+
+  def self.verify_configured_default_profile
+    verify_configured_result(run_configured_default_profile)
+  end
+
+  def self.verify_configured_result(result)
+    status, output, error = result
+    verify(status == 1, "configured opt-in default did not remain incomplete")
+    verify_configured_coverage_line(output)
+    verify_exclusion_independence(error)
+  end
+
+  def self.verify_configured_coverage_line(output)
+    selected = output.lines.find { |line| line.start_with?("Checks selected:") }
+    verify_configured_coverage(selected, output)
+  end
+
+  def self.run_configured_default_profile
+    File.write("#{DIRECTORY}/.reek.yml", "detectors:\n  Attribute:\n    enabled: false\n  UnusedPrivateMethod:\n    enabled: true\nexclude_paths:\n  - counter.rb\n")
+    result = run_default
+    File.delete("#{DIRECTORY}/.reek.yml")
+    result
+  end
+
+  def self.verify_configured_coverage(selected, output)
+    opt_in_present = output.include?("reek:UnusedPrivateMethod")
+    verify(!selected.include?("reek:Attribute"), "disabled default detector remained selected")
+    verify(opt_in_present, "configured opt-in detector was not selected")
+    verify(output.include?("Checks disabled: reek:Attribute"), "configured disabled detector was not identified")
+    verify(output.include?("Checks unsupported:") && opt_in_present, "configured unsupported opt-in detector was hidden")
+  end
+
+  def self.verify_exclusion_independence(error)
+    verify(error.include?("unsupported Flay candidate syntax"), "Reek path exclusion changed independent Flay analysis")
   end
 
   def self.create_sources
@@ -84,6 +139,17 @@ class DefaultInvocationContract
   end
 
   def self.run_default
+    run_process
+  end
+
+  def self.run_with_config(config)
+    File.write("#{DIRECTORY}/.reek.yml", File.read(config))
+    run_process
+  ensure
+    File.delete("#{DIRECTORY}/.reek.yml") if File.file?("#{DIRECTORY}/.reek.yml")
+  end
+
+  def self.run_process
     process_id = Process.spawn(File.expand_path("../build/fleek", __dir__), chdir: DIRECTORY, out: OUTPUT, err: ERROR)
     _, status = Process.waitpid2(process_id)
     [status.exitstatus, File.read(OUTPUT), File.read(ERROR)]
@@ -105,6 +171,7 @@ class DefaultInvocationContract
     remove_if_present("#{DIRECTORY}/.hidden/ignored.rb")
     remove_if_present("#{DIRECTORY}/real/linked.rb")
     remove_if_present("#{DIRECTORY}/alias")
+    remove_if_present("#{DIRECTORY}/.reek.yml")
   end
 
   # :reek:ControlParameter

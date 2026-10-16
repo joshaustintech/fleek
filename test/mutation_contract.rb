@@ -332,10 +332,10 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "suppression comment handling",
   "suppression status differs from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  '@enabled == false',
+  '!effective_detector_enabled("ClassVariable", index)',
   'false',
   "disabled selected check handling",
-  "disabled check implied success")).run
+  "discovered disabled check implied success")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'configuration.excluded_context?(path, context)',
   'false',
@@ -612,11 +612,6 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay ignore scope",
   "Flay ignore did not report excluded source")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'DEFAULT = AnalysisProfile.new(DEFAULT_CHECKS, RUNNABLE_DEFAULT_CHECKS, [], DEFAULT_CHECKS - RUNNABLE_DEFAULT_CHECKS, true)',
-  'DEFAULT = AnalysisProfile.new(RUNNABLE_DEFAULT_CHECKS, RUNNABLE_DEFAULT_CHECKS, [], [], true)',
-  "default check selection",
-  "default enabled check list differs")).run
-MutationCase.new(MutationCase::Configuration.new(source,
   "report_all && !unsupported.empty? ? 1 : status",
   "report_all && !unsupported.empty? ? status : status",
   "default incomplete status",
@@ -626,6 +621,21 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'inputs = arguments',
   "implicit current directory",
   "default enabled check list differs")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'enabled = DEFAULT_CHECKS.select { |check| configuration.detector_enabled_anywhere?(check.delete_prefix("reek:"), source_paths) }',
+  'enabled = DEFAULT_CHECKS',
+  "configured default detector selection",
+  "disabled default detector remained selected")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'opt_in = configuration.enabled_opt_in_detectors(source_paths).map { |name| "reek:#{name}" }',
+  'opt_in = []',
+  "configured opt-in detector selection",
+  "configured Reek opt-in detector was not selected")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'paths.any? { |path| effective_detector_enabled(name, best_scope(path)) }',
+  'paths.any? { |_path| effective_detector_enabled(name, -1) }',
+  "Reek directory detector precedence",
+  "Fleek ignored the parent directory disablement")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "bool simple_module = fleek_class_count == 0 && fleek_module_count == 1;",
   "bool simple_module = fleek_class_count == 0 && fleek_module_count > 1;",

@@ -1,0 +1,3 @@
+detectors:
+  UnusedPrivateMethod:
+    enabled: false

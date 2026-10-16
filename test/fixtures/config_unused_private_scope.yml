@@ -1,0 +1,10 @@
+detectors:
+  UnusedPrivateMethod:
+    enabled: true
+directories:
+  test/fixtures:
+    UnusedPrivateMethod:
+      enabled: false
+  test/fixtures/disabled_scope:
+    UnusedPrivateMethod:
+      enabled: true

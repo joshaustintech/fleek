@@ -86,7 +86,8 @@ ConfigurationProcess.assert_rejected(disabled, "ClassVariable", "disabled select
 raise "Reek disabled check behavior changed" unless disabled_reference[0] == 0 && AnalysisRunner.warning_lines(disabled_reference[1]).empty?
 
 unsupported = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(source, "test/fixtures/config_unsupported.yml", "unsupported", "", "fleek"))
-ConfigurationProcess.assert_rejected(unsupported, "LongParameterList", "unsupported enabled detector")
+unsupported_reference = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(source, "test/fixtures/config_unsupported.yml", "unsupported", "", "reek"))
+AnalysisRunner.assert_same_report(unsupported, unsupported_reference, "explicit supported selection with unsupported enabled default")
 malformed = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(source, "test/fixtures/config_malformed.yml", "malformed", "", "fleek"))
 ConfigurationProcess.assert_rejected(malformed, "unsupported Reek YAML key", "malformed YAML")
 bad_mapping = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(source, "test/fixtures/config_bad_mapping.yml", "bad mapping", "", "fleek"))
