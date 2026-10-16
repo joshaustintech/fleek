@@ -9,7 +9,7 @@ Ruby developers lack a useful, standalone replacement for Flay and Reek. Fleek h
 
 ## Solution
 
-Build one native CLI with selected duplication and smell checks. First deliver the real Reek ClassVariable check, then Flay's default structural duplication, separate report sections, faithful supported configuration, and honest coverage and status. Target Ruby 4.0 and source accepted by pinned Spinel 2026.09.12. Compare shared syntax against fixed upstream references and label extension behavior separately. Prove usefulness on a real Rails project and ship a standalone macOS Apple Silicon archive.
+Build one native CLI with every built-in Flay 2.14.4 check and Reek 6.6.0 detector. Match the pinned default check sets when selection is omitted, preserve explicit subset selection and analyzer-specific configuration, and report incomplete analysis honestly. Target Ruby 4.0 and source accepted by pinned Spinel 2026.09.12. Compare shared syntax against fixed upstream references and label extension behavior separately. Prove usefulness on a real Rails project. Release publication is separate from the full native CLI parity goal.
 
 ## User Stories
 
@@ -37,14 +37,15 @@ Build one native CLI with selected duplication and smell checks. First deliver t
 - One combined analysis mode; distinct long options and no conflicting short aliases.
 - Reference Flay 2.14.4 and Reek 6.6.0 at accepted commits; pin exact reference Ruby and dependencies before comparison.
 - Pinned Spinel 2026.09.12 is the implementation compiler. Analyze original source without executing it or loading dependencies.
-- Select checks explicitly. Fail on unsupported enabled checks, options, settings, formats, or syntax.
+- With omitted selection, run all built-in checks enabled by the pinned analyzers by default; explicit `--checks` selects a subset. Support opt-in built-in detectors when enabled or selected. Report unsupported selected analysis as incomplete.
+- Match analysis behavior and controls on identical shared-parseable source, including settings, exclusions, suppressions, findings, locations, ordering, and scores. Fleek retains its report format and documented exit-code normalization.
 - Use distinct duplication and smell sections; preserve type-specific metrics. No combined score or machine format in first release.
 - Import supported Reek YAML and `.flayignore`; preserve analyzer-specific exclusions. No new unified config.
 - No arguments prints usage to stderr and exits 1; explicit help exits 0. Complete clean analysis exits 0; complete findings exit 2; errors/incomplete analysis exit 1, overriding findings.
 - Partial file errors retain useful findings and identify failures. Text shows checks, locations, coverage, completion, with diagnostics on stderr.
 - Recursively scan `.rb` files; skip hidden directories and directory symlinks. Explicit non-Ruby inputs fail. Stdin needs explicit selection and a source filename.
-- First checks are Reek ClassVariable and Flay default structural duplication. Unsupported grammar fails explicitly.
-- First platform macOS arm64. Deliver versioned downloadable executable with pins and license notices. Set speed target from cold CLI measurements after correctness.
+- Initial implemented checks were Reek ClassVariable and Flay StructuralDuplication; these are not the full parity boundary. Unsupported grammar remains explicit until supported.
+- First platform macOS arm64. Standalone release packaging is a separate delivery goal. Set speed target from cold CLI measurements after correctness.
 - Ticket order: reproducible harness, native parser experiment, ClassVariable, source/config/report workflow, structural duplication, language/project parity, runtime evidence, archive, verified release.
 
 ## Testing Decisions
@@ -58,7 +59,7 @@ Build one native CLI with selected duplication and smell checks. First deliver t
 
 ## Out of Scope
 
-ERB and upstream plugins; new lint philosophy; full coverage of all Flay/Reek options or checks in first release; machine output; a combined score; Ruby language versions beyond 4.0; Linux/Intel targets; executing source; performance claims without measurements.
+ERB and upstream plugins; new lint philosophy; machine output; a combined score; Ruby language versions beyond 4.0; Linux/Intel targets; executing source; performance claims without measurements; release publication as part of the full-parity goal.
 
 ## Further Notes
 
@@ -69,9 +70,9 @@ Source research, not runtime proof, established parser/config/CLI conflicts. The
 - [Native foundation](specs/01-native-foundation.md)
 - [Smell analysis and source workflow](specs/02-smell-and-source-workflow.md)
 - [Structural duplication and combined analysis](specs/03-structural-duplication.md)
-- [Language support and project parity](specs/04-language-and-project-parity.md)
+- [Full analyzer parity and language support](specs/04-language-and-project-parity.md)
 - [Standalone native release](specs/05-native-release.md)
 
 ## Delivery status
 
-Tickets 01–20 are resolved. Fleek 0.2.0 is published and its downloaded macOS arm64 archive and extracted CLI are verified; see the [release receipt](../../docs/research/native-archive-0.2.0.md). The supported checks remain explicitly selected Flay StructuralDuplication and Reek ClassVariable. On the pinned 25-file Rails corpus, Reek completes cleanly on all 25 files and Flay preserves the score-48 finding, but Flay reports all 25 as partial and combined analysis exits 1. Full Rails Flay parity is not claimed.
+Tickets 01–20 are resolved. Fleek 0.2.0 is published and its downloaded macOS arm64 archive and extracted CLI are verified; see the [release receipt](../../docs/research/native-archive-0.2.0.md). The shipped analyzer remains bounded to explicitly selected Flay StructuralDuplication and Reek ClassVariable. Tickets 21–24 now track full native CLI parity; this work supersedes the bounded coverage target for implementation, while release publication remains separate. The pinned 25-file Rails corpus currently reports Flay partial coverage and combined exit 1; no full parity claim applies until ticket 24 is resolved.

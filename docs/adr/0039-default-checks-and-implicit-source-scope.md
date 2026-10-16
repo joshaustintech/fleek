@@ -1,0 +1,3 @@
+# ADR 0039: Run pinned defaults when selection is omitted
+
+When `--checks` is omitted, Fleek selects every check enabled by default in pinned Flay 2.14.4 and Reek 6.6.0; explicit `--checks` remains a user-selected subset, and analyzer configuration continues to control settings and exclusions (including explicitly disabled Reek detectors). Until all enabled defaults are implemented, Fleek runs supported checks, preserves their findings, lists unsupported enabled defaults, and reports incomplete. If neither paths nor `--stdin` is supplied, Fleek scans the current working directory using its existing recursive `.rb`, hidden-directory, and directory-symlink rules. This supersedes the omitted-check and explicit-source requirements in ADR 0002.
