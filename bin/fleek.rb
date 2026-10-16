@@ -1895,8 +1895,10 @@ class Fleek
       if (!parse_error) pm_visit_node(root, fleek_has_singleton_class, &found);
       pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
       if (parse_error) return -1;
+      int result = fleek_scan_method_scope(source, length, fleek_too_many_statements_method, &maximum);
+      if (found && result > 0) return -5;
       if (found) return -4;
-      return fleek_scan_method_scope(source, length, fleek_too_many_statements_method, &maximum);
+      return result;
     }
     int fleek_too_many_statements(const char *source, size_t length, size_t maximum) { fleek_too_many_statements_buffer[0] = 0; fleek_too_many_statements_used = 0; return fleek_scan_too_many_statements(source, length, maximum); }
     const char *fleek_too_many_statements_finding(void) { return fleek_too_many_statements_buffer; }
@@ -3595,8 +3597,8 @@ class Fleek
     print_reek_detector_header(detector, files, errors, excluded, disabled, report_mode)
     report_input_errors(errors)
     results = selected.map { |path| analyze_reek_detector(path, detector, configuration) } + Array.new(errors.length, 1)
-    analyzed = results.count { |result| result == 0 || result == 2 }
-    failed = results.count(1)
+    analyzed = results.count { |result| result == 0 || result == 2 || result == -5 }
+    failed = results.count(1) + results.count(-5)
     status = failed > 0 ? 1 : results.max || (excluded.empty? ? 0 : 1)
     report_reek_detector_coverage(detector, selected.length + errors.length, analyzed, failed, excluded.length, report_mode, status)
     status

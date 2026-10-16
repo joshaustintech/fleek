@@ -196,12 +196,28 @@ class DefaultArgumentApiContract
     verify(findings.any? { |finding| finding.include?("Workflow#self.dispatch") }, "pinned Reek class-method fixture has no finding")
   end
 
+  # :reek:TooManyStatements
   def self.verify_unsupported_singleton_class_methods
     source = "test/fixtures/too_many_statements_singleton_class.rb"
     reference = run_reek(source, "TooManyStatements")
     actual = run_fleek(source, "", "reek:TooManyStatements")
     verify(reference[0] == 2 && !AnalysisRunner.detector_warnings(reference, "TooManyStatements").empty?, "pinned Reek singleton-class fixture has no finding")
     AnalysisRunner.assert_unsupported(actual, "TooManyStatements singleton-class method")
+    verify_too_many_statements_mixed_singleton_scope
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_too_many_statements_mixed_singleton_scope
+    source = "test/fixtures/too_many_statements_mixed_singleton_class.rb"
+    reference = run_reek(source, "TooManyStatements")
+    actual = run_fleek(source, "", "reek:TooManyStatements")
+    verify(mixed_too_many_statements_finding?(reference), "pinned Reek mixed-scope fixture lost supported finding")
+    verify(mixed_too_many_statements_finding?(actual), "Fleek dropped supported finding beside singleton-class syntax")
+    AnalysisRunner.assert_unsupported(actual, "TooManyStatements singleton-class method")
+  end
+
+  def self.mixed_too_many_statements_finding?(result)
+    AnalysisRunner.detector_warnings(result, "TooManyStatements").any? { |finding| finding.include?("Workflow#supported") }
   end
 
   def self.verify_data_clump_preserves_supported_findings

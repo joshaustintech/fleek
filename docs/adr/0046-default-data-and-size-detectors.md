@@ -14,6 +14,8 @@ Implement DataClump, TooManyConstants, TooManyInstanceVariables, TooManyMethods,
 
 DataClump considers each candidate method as a possible start for a shared parameter group; an earlier method without parameters must not hide later groups. Emit every distinct supported group once. If unsupported direct methods coexist with supported clumps, retain the supported findings and return incomplete coverage. Return incomplete coverage for unsupported or ambiguous scope shapes, including `class << self` methods for TooManyStatements because the bounded direct-method scanner does not visit those bodies. Singleton method definitions (`def self.name`) are supported with Reek's `Class#self.name` context. Class-scoped detectors return clean when source has no class or module context, matching Reek's context selection. Explicit `--checks` uses the same detector implementation as default selection.
 
+When a supported direct TooManyStatements method and an unsupported singleton-class method share a file, retain the direct finding and return incomplete coverage. The detector uses a distinct partial result so the report counts that source as analyzed and failed.
+
 ## Consequences
 
 The default profile runs all five checks. CLI contracts compare supported findings, thresholds, exclusions, and explicit selection against pinned Reek 6.6.0. Mutation contracts remove each detector dispatch and require the public contract to fail. Unsupported nested scopes remain visible as incomplete instead of clean results.
