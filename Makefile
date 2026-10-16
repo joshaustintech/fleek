@@ -1,6 +1,9 @@
 SPINEL ?= spinel
 SPINEL_ROOT ?= $(dir $(SPINEL))..
 export SPINEL SPINEL_ROOT
+ifneq ($(JOBS),)
+export JOBS
+endif
 FLEEK = build/fleek
 RUNTIME_REPETITIONS ?= 20
 
@@ -21,24 +24,10 @@ verify-spinel:
 	$(SPINEL) -E test/spinel_version_contract.rb $(SPINEL) $(SPINEL_ROOT)
 
 test: verify-spinel $(FLEEK)
-	$(SPINEL) -E test/cli_contract.rb
-	$(SPINEL) -E test/commit_identity_contract.rb
-	$(SPINEL) -E test/text_report_contract.rb
-	$(SPINEL) -E test/duplication_contract.rb
-	$(SPINEL) -E test/combined_contract.rb
-	$(SPINEL) -E test/language_extensions_contract.rb
-	$(SPINEL) -E test/native_parser_contract.rb
-	$(SPINEL) -E test/class_variable_contract.rb
-	$(SPINEL) -E test/class_variable_scope_contract.rb
-	$(SPINEL) -E test/analysis_runner.rb
-	$(SPINEL) -E test/analysis_stdin_contract.rb
-	$(SPINEL) -E test/analysis_inputs_contract.rb
-	$(SPINEL) -E test/configuration_contract.rb
-	$(SPINEL) -E test/runtime_evidence_contract.rb
+	$(SPINEL) -E bin/check_runner.rb test
 
 mutation: verify-spinel $(FLEEK)
-	$(SPINEL) -E test/mutation_contract.rb
-	$(SPINEL) -E test/cli_contract.rb
+	$(SPINEL) -E bin/check_runner.rb mutation
 
 reference:
 	bundle exec flay test/fixtures/reference.rb
@@ -50,7 +39,8 @@ flay:
 reek:
 	bundle exec reek bin test/*.rb
 
-check: test mutation reference flay reek
+check: verify-spinel $(FLEEK)
+	$(SPINEL) -E bin/check_runner.rb check
 
 rails-manifest-parity: all
 	FLEEK_REQUIRE_RAILS_CORPUS=1 $(SPINEL) -E test/duplication_contract.rb

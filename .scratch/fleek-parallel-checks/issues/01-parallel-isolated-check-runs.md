@@ -1,7 +1,7 @@
 # Parallel isolated check runs
 
 Type: task  
-Status: open
+Status: claimed
 Triage: ready-for-agent
 
 ## Goal

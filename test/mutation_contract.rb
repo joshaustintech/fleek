@@ -1,4 +1,8 @@
 # Proves public checks reject deliberately broken parser, CLI, and analyzer behaviors.
+MUTATION_SHARD = nil
+MUTATION_SHARDS = nil
+
+# Runs one configured source mutation and requires its public contract to fail.
 class MutationCase
   # Carries one behavior mutation and its expected contract failure.
   Configuration = Struct.new(:source, :target, :replacement, :label, :expected_failure)
@@ -119,13 +123,24 @@ class MutationCase
     File.write("bin/fleek.rb", mutated)
   end
 
+  # :reek:TooManyStatements
   def selected_mutation?
+    return selected_shard_mutation? if MUTATION_SHARD
     return true unless @selected_labels && !@selected_labels.empty?
 
     labels = @selected_labels.split(",")
     unknown_labels = labels - CONTRACTS.keys
     raise "unknown mutation labels: #{unknown_labels.join(', ')}" unless unknown_labels.empty?
     labels.include?(@configuration.label)
+  end
+
+  def selected_shard_mutation?
+    shard = MUTATION_SHARD
+    shard_count = MUTATION_SHARDS
+    raise "invalid mutation shard" unless shard_count.positive? && shard >= 0 && shard < shard_count
+
+    index = CONTRACTS.keys.index(@configuration.label)
+    index && index % shard_count == shard
   end
 
   def verify_mutation
