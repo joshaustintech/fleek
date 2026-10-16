@@ -1,3 +1,4 @@
+require_relative "analysis_runner"
 # Verifies omitted selection and sources use the documented default CLI policy.
 class DefaultInvocationContract
   DIRECTORY = "/tmp/fleek-default-invocation-#{Process.pid}"
@@ -10,6 +11,9 @@ class DefaultInvocationContract
     verify_default_findings(run_default)
     verify_configuration_profiles
     verify_clean_default_status
+    verify_supported_clean_profile
+    verify_supported_findings_status
+    verify_explicit_default_subset
     verify_unsupported_opt_in_status
     verify_empty_default_scan
     puts "Default invocation contract: pass"
@@ -92,7 +96,7 @@ class DefaultInvocationContract
   def self.verify_default_findings(result)
     status, output, error = result
     verify(status == 1, "default run did not remain incomplete for unsupported enabled defaults")
-    verify(output.include?(expected_checks), "default enabled check list differs")
+    verify(output.include?(expected_checks) && !output.include?("reek:UnusedPrivateMethod"), "default enabled check list differs or included an opt-in detector")
     verify(error.include?("unsupported Flay candidate syntax"), "supported check diagnostic was lost")
     verify_default_sections(output)
   end
@@ -120,11 +124,83 @@ class DefaultInvocationContract
     verify_clean_result(run_default)
   end
 
+  # :reek:TooManyStatements
+  def self.verify_supported_clean_profile
+    path = File.expand_path("fixtures/default_full_profile_clean.rb", __dir__)
+    actual = run_process([path])
+    status, output, error = actual
+    verify(status == 0, "supported clean default profile did not succeed")
+    verify(output.include?("Checks unsupported: none") && output.include?("Overall status: complete"), "supported clean default profile was incomplete")
+    verify(!output.include?("reek:UnusedPrivateMethod"), "opt-in detector appeared in a supported default run")
+    verify_default_flay_metrics(actual, AnalysisRunner.flay(path))
+    verify(error.empty?, "supported clean default profile wrote an unexpected diagnostic: #{error}")
+  end
+
+  def self.verify_default_flay_metrics(actual, reference)
+    native = actual[1].match(/Total duplication score: (\d+)/)
+    upstream = reference[1].match(/Total score \(lower is better\) = (\d+)/)
+    verify(reference[0] == 0 && native && upstream && native[1] == upstream[1], "default Flay score differs from pinned Flay")
+  end
+
   def self.verify_clean_result(result)
     status, output, error = result
     verify(status == 0, "clean default run did not succeed")
     verify(output.include?("Overall status: complete"), "clean default run remained incomplete")
     verify(error.empty?, "clean default run wrote an unexpected diagnostic: #{error}")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_supported_findings_status
+    path = File.expand_path("fixtures/default_full_profile_findings.rb", __dir__)
+    actual = run_process([path])
+    status, output, error = actual
+    reference = AnalysisRunner.reek_default(path)
+    verify(status == 2, "supported default findings did not return findings status")
+    verify(output.include?("Checks unsupported: none") && output.include?("Overall status: findings"), "supported default findings did not complete")
+    verify_ordered_default_findings(actual, reference)
+    verify(error.empty?, "supported default findings wrote an unexpected diagnostic: #{error}")
+  end
+
+  def self.verify_ordered_default_findings(actual, reference)
+    native = fleek_finding_records(actual[1])
+    upstream = reek_finding_records(reference[1])
+    verify(reference[0] == 2 && native == upstream, "default findings, locations, or ordering differ from Reek")
+  end
+
+  # :reek:TooManyStatements
+  def self.fleek_finding_records(output)
+    output.lines.select { |line| line.include?("Finding:") }.map do |line|
+      detector = report_field(line, "check").delete_prefix("reek:")
+      location = report_field(line, "lines")
+      message = report_field(line, "message").match(/^\[.*?\]:[^:]+: (.*)$/)
+      raise "Fleek finding message is malformed" unless message
+      [detector, location, message[1]]
+    end
+  end
+
+  # :reek:TooManyStatements
+  def self.reek_finding_records(output)
+    output.lines.filter_map do |line|
+      finding = line.match(/^\s*\[(.*?)\]:([^:]+): (.*)$/)
+      if finding
+        location = finding[1]
+        detector = finding[2]
+        message = finding[3]
+        [detector, location, message]
+      end
+    end
+  end
+
+  def self.report_field(line, name)
+    match = line.match(/#{name}="([^"]*)"/)
+    raise "Fleek finding is missing #{name}" unless match
+    match[1]
+  end
+
+  def self.verify_explicit_default_subset
+    status, output, = run_process(["--checks", "reek:UncommunicativeModuleName", File.expand_path("fixtures/default_full_profile_findings.rb", __dir__)])
+    verify(status == 2, "explicit default subset did not preserve findings status")
+    verify(output.include?("Checks selected: reek:UncommunicativeModuleName\nChecks run: reek:UncommunicativeModuleName\n"), "explicit checks did not remain a subset")
   end
 
   def self.verify_unsupported_opt_in_status
@@ -156,10 +232,37 @@ class DefaultInvocationContract
     File.delete("#{DIRECTORY}/.reek.yml") if File.file?("#{DIRECTORY}/.reek.yml")
   end
 
-  def self.run_process
-    process_id = Process.spawn(File.expand_path("../build/fleek", __dir__), chdir: DIRECTORY, out: OUTPUT, err: ERROR)
+  def self.run_process(arguments = [])
+    executable = File.expand_path("../build/fleek", __dir__)
+    process_id = spawn_process(executable, arguments)
     _, status = Process.waitpid2(process_id)
     [status.exitstatus, File.read(OUTPUT), File.read(ERROR)]
+  end
+
+  # :reek:TooManyStatements
+  def self.spawn_process(executable, arguments)
+    count = arguments.length
+    first = arguments[0]
+    second = arguments[1]
+    third = arguments[2]
+    case count
+    when 1 then spawn_one(executable, first)
+    when 3 then spawn_subset(executable, first, second, third)
+    else spawn_default(executable)
+    end
+  end
+
+  def self.spawn_default(executable)
+    Process.spawn(executable, chdir: DIRECTORY, out: OUTPUT, err: ERROR)
+  end
+
+  def self.spawn_one(executable, path)
+    Process.spawn(executable, path, chdir: DIRECTORY, out: OUTPUT, err: ERROR)
+  end
+
+  # :reek:LongParameterList
+  def self.spawn_subset(executable, option, checks, path)
+    Process.spawn(executable, option, checks, path, chdir: DIRECTORY, out: OUTPUT, err: ERROR)
   end
 
   def self.cleanup

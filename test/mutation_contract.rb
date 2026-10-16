@@ -144,6 +144,7 @@ class MutationCase
     "text report failed source identity" => "test/text_report_contract.rb",
     "text report completion state" => "test/text_report_contract.rb",
     "default check selection" => "test/default_invocation_contract.rb",
+    "default runnable selection" => "test/default_invocation_contract.rb",
     "unsupported opt-in incomplete status" => "test/default_invocation_contract.rb",
     "implicit current directory" => "test/default_invocation_contract.rb"
   }
@@ -865,6 +866,11 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'inputs = arguments',
   "implicit current directory",
   "default enabled check list differs")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "RUNNABLE_DEFAULT_CHECKS = DEFAULT_CHECKS",
+  "RUNNABLE_DEFAULT_CHECKS = []",
+  "default runnable selection",
+  "supported check diagnostic was lost")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'enabled = DEFAULT_CHECKS.select { |check| configuration.detector_enabled_anywhere?(check.delete_prefix("reek:"), source_paths) }',
   'enabled = DEFAULT_CHECKS',

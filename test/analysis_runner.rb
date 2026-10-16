@@ -13,7 +13,18 @@ class AnalysisRunner
   end
 
   def self.reek(path)
-    process_id = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "reek", "--smell", "ClassVariable", path, out: "/tmp/reek-contract-out", err: "/tmp/reek-contract-err")
+    run_reek_command(path, "ClassVariable")
+  end
+
+  def self.reek_default(path)
+    run_reek_command(path, nil)
+  end
+
+  def self.run_reek_command(path, smell)
+    command = [ENV["BUNDLE"] || "bundle", "exec", "reek"]
+    command.concat(["--smell", smell]) if smell
+    command << path
+    process_id = Process.spawn(*command, out: "/tmp/reek-contract-out", err: "/tmp/reek-contract-err")
     observe(process_id, "/tmp/reek-contract-out", "/tmp/reek-contract-err")
   end
 

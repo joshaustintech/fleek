@@ -21,6 +21,7 @@
 - Ticket 05 adds seven bounded call and flow defaults with matching Reek config and exclusions (ADR 0045).
 - Ticket 06 adds five bounded data and size defaults with matching thresholds and exclusions (ADR 0046).
 - Ticket 07 adds four bounded uncommunicative-name defaults with configurable reject/accept patterns and explicit unsupported-scope reporting (ADR 0047).
+- Ticket 08 closes default-profile parity with compiled CLI contracts for complete clean and findings runs, explicit subset selection, opt-in exclusion, and a mutation-tested runnable-default set (ADR 0048).
 - `BUNDLE_PATH=<preinstalled-bundle> make flay reek` passes: Flay score 0; Reek 0 warnings.
 - Approved ticket dependency chain: 01 default invocation → 02 config policy → 03–07 default detector groups → 08 complete default-profile parity. Opt-in detector behavior is covered by the full-parity spec and must not be duplicated here.
 
