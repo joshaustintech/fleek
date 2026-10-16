@@ -243,6 +243,29 @@ DuplicationProcess.verify_output(cross_scope_group_actual, DuplicationProcess::O
 cross_scope_group_reference_fields = ["Similar code found in :class (mass = 50)", "#{cross_scope_group_path}:1", "#{cross_scope_group_path}:11", "Total score (lower is better) = 50"]
 DuplicationProcess.verify_output(cross_scope_group_reference, DuplicationProcess::OutputExpectation.new(0, cross_scope_group_reference_fields, "nested cross-scope Flay group changed"))
 
+multi_method_group_path = "test/fixtures/duplication_class_multi_method_group.rb"
+multi_method_group_actual = DuplicationProcess.run(DuplicationProcess::Input.new(multi_method_group_path, "fleek", ""))
+multi_method_group_reference = DuplicationProcess.run(DuplicationProcess::Input.new(multi_method_group_path, "flay", ""))
+multi_method_group_actual_fields = ["node=\"class\" kind=\"similar\" locations=\"#{multi_method_group_path}:1,#{multi_method_group_path}:15\" mass=62 score=62", "Total duplication score: 62", "Status: findings"]
+DuplicationProcess.verify_output(multi_method_group_actual, DuplicationProcess::OutputExpectation.new(2, multi_method_group_actual_fields, "multi-method Flay class group differed"))
+multi_method_group_reference_fields = ["Similar code found in :class (mass = 62)", "#{multi_method_group_path}:1", "#{multi_method_group_path}:15", "Total score (lower is better) = 62"]
+DuplicationProcess.verify_output(multi_method_group_reference, DuplicationProcess::OutputExpectation.new(0, multi_method_group_reference_fields, "multi-method Flay class group changed"))
+
+multi_method_module_path = "test/fixtures/duplication_module_multi_method_group.rb"
+multi_method_module_actual = DuplicationProcess.run(DuplicationProcess::Input.new(multi_method_module_path, "fleek", ""))
+multi_method_module_reference = DuplicationProcess.run(DuplicationProcess::Input.new(multi_method_module_path, "flay", ""))
+multi_method_module_actual_fields = ["node=\"module\" kind=\"similar\" locations=\"#{multi_method_module_path}:1,#{multi_method_module_path}:15\" mass=62 score=62", "Total duplication score: 62", "Status: findings"]
+DuplicationProcess.verify_output(multi_method_module_actual, DuplicationProcess::OutputExpectation.new(2, multi_method_module_actual_fields, "multi-method Flay module group differed"))
+multi_method_module_reference_fields = ["Similar code found in :module (mass = 62)", "#{multi_method_module_path}:1", "#{multi_method_module_path}:15", "Total score (lower is better) = 62"]
+DuplicationProcess.verify_output(multi_method_module_reference, DuplicationProcess::OutputExpectation.new(0, multi_method_module_reference_fields, "multi-method Flay module group changed"))
+
+clean_scope_path = "test/fixtures/duplication_class_scopes_clean.rb"
+clean_scope_actual = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "fleek", ""))
+clean_scope_reference = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "flay", ""))
+clean_scope_fields = ["Total duplication score: 0", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: complete"]
+DuplicationProcess.verify_output(clean_scope_actual, DuplicationProcess::OutputExpectation.new(0, clean_scope_fields, "clean nested scope candidate parity differed"))
+DuplicationProcess.verify_output(clean_scope_reference, DuplicationProcess::OutputExpectation.new(0, ["Total score (lower is better) = 0"], "clean nested scope Flay reference changed"))
+
 module_group_path = "test/fixtures/duplication_module_group.rb"
 module_group_actual = DuplicationProcess.run(DuplicationProcess::Input.new(module_group_path, "fleek", ""))
 module_group_reference = DuplicationProcess.run(DuplicationProcess::Input.new(module_group_path, "flay", ""))

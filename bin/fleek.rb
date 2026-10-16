@@ -2568,17 +2568,35 @@ class Fleek
       return fleek_duplication_class_shapes_equal(&set->candidates[left], &set->candidates[right]) &&
         fleek_duplication_optional_parameter_count(set->methods[left]) == fleek_duplication_optional_parameter_count(set->methods[right]);
     }
+    static bool fleek_duplication_scope_candidate_first(const fleek_duplication_class_candidates_t *set, size_t index) {
+      for (size_t prior = 0; prior < index; prior++) if (set->scope_indices[prior] == set->scope_indices[index]) return false;
+      return true;
+    }
     static bool fleek_duplication_scope_candidate_complete(const fleek_duplication_class_candidates_t *set, size_t index) {
-      return set->candidates[index].scope_kind != 0 && set->scope_body_counts[index] == 1 &&
-        set->scope_candidate_counts[index] == 1;
+      return set->candidates[index].scope_kind != 0 && set->scope_candidate_counts[index] > 0 &&
+        set->scope_body_counts[index] == set->scope_candidate_counts[index];
+    }
+    static size_t fleek_duplication_scope_method_mass(const fleek_duplication_class_candidates_t *set, size_t index) {
+      size_t mass = 0;
+      for (size_t candidate = 0; candidate < set->count; candidate++) {
+        if (set->scope_indices[candidate] == set->scope_indices[index]) mass += fleek_duplication_class_method_mass(&set->candidates[candidate]);
+      }
+      return mass;
+    }
+    static bool fleek_duplication_scope_candidates_equal(const fleek_duplication_class_candidates_t *set, size_t left, size_t right) {
+      for (size_t offset = 0; offset < set->scope_candidate_counts[left]; offset++) {
+        if (!fleek_duplication_candidate_shapes_equal(set, left + offset, right + offset)) return false;
+      }
+      return true;
     }
     static bool fleek_duplication_scope_candidates_match(const fleek_duplication_class_candidates_t *set, size_t left, size_t right, size_t mass_threshold) {
       return set->scope_indices[left] != set->scope_indices[right] &&
+        fleek_duplication_scope_candidate_first(set, left) && fleek_duplication_scope_candidate_first(set, right) &&
         fleek_duplication_scope_candidate_complete(set, left) && fleek_duplication_scope_candidate_complete(set, right) &&
         set->candidates[left].scope_kind == set->candidates[right].scope_kind &&
         set->scope_candidate_counts[left] == set->scope_candidate_counts[right] &&
-        fleek_duplication_class_method_mass(&set->candidates[left]) + 1 >= mass_threshold &&
-        fleek_duplication_candidate_shapes_equal(set, left, right);
+        fleek_duplication_scope_method_mass(set, left) + 1 >= mass_threshold &&
+        fleek_duplication_scope_candidates_equal(set, left, right);
     }
     static bool fleek_duplication_candidate_values_equal(pm_parser_t *parser, const fleek_duplication_class_candidates_t *set, size_t left, size_t right, bool include_scope_name) {
       const pm_def_node_t *first = set->methods[left];
@@ -2610,11 +2628,11 @@ class Fleek
     static bool fleek_duplication_emit_scope_groups(pm_parser_t *parser, const fleek_duplication_class_candidates_t *set, int mass_threshold, bool *covered) {
       bool grouped[24] = { false };
       for (size_t first = 0; first < set->count; first++) {
-        if (grouped[first] || !fleek_duplication_scope_candidate_complete(set, first)) continue;
+        if (grouped[first] || !fleek_duplication_scope_candidate_first(set, first) || !fleek_duplication_scope_candidate_complete(set, first)) continue;
         size_t members[24] = { first };
         size_t count = 1;
         for (size_t candidate = first + 1; candidate < set->count; candidate++) {
-          if (grouped[candidate] || !fleek_duplication_scope_candidate_complete(set, candidate) ||
+          if (grouped[candidate] || !fleek_duplication_scope_candidate_first(set, candidate) || !fleek_duplication_scope_candidate_complete(set, candidate) ||
               !fleek_duplication_scope_candidates_match(set, first, candidate, (size_t) mass_threshold)) continue;
           members[count++] = candidate;
         }
@@ -2624,12 +2642,16 @@ class Fleek
         for (size_t index = 0; index < count; index++) {
           size_t candidate = members[index];
           lines[index] = set->scope_lines[candidate];
-          covered[candidate] = true;
-          grouped[candidate] = true;
-          if (!fleek_duplication_candidate_values_equal(parser, set, members[0], candidate, true)) identical = false;
+          for (size_t offset = 0; offset < set->scope_candidate_counts[candidate]; offset++) {
+            size_t first_method = members[0] + offset;
+            size_t candidate_method = candidate + offset;
+            covered[candidate_method] = true;
+            grouped[candidate_method] = true;
+            if (!fleek_duplication_candidate_values_equal(parser, set, first_method, candidate_method, true)) identical = false;
+          }
         }
         const char *node = set->candidates[first].scope_kind == 1 ? "class" : "module";
-        size_t node_mass = fleek_duplication_class_method_mass(&set->candidates[first]) + 1;
+        size_t node_mass = fleek_duplication_scope_method_mass(set, first) + 1;
         if (!fleek_duplication_append_group(node, identical, node_mass, lines, count)) return false;
       }
       return true;

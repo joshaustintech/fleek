@@ -92,7 +92,7 @@ class MutationCase
     "Flay cross-file method collection" => "test/duplication_contract.rb",
     "Flay class method candidate collection" => "test/duplication_contract.rb",
     "Flay module method candidate collection" => "test/duplication_contract.rb",
-    "Flay module scope identity" => "test/duplication_contract.rb",
+    "Flay outer scope identity" => "test/duplication_contract.rb",
     "Flay module group kind" => "test/duplication_contract.rb",
     "Flay multiple class method candidates" => "test/duplication_contract.rb",
     "Flay preserves independent candidate groups" => "test/duplication_contract.rb",
@@ -670,12 +670,12 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "if (PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE)) return fleek_duplication_collect_namespace_methods(module_node, body, source, set);",
   "if (false) return fleek_duplication_collect_namespace_methods(module_node, body, source, set);",
   "Flay module method candidate collection",
-  "cross-module Flay group differed")).run
+  "multi-method Flay module group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (include_scope_name && !fleek_constants_equal(parser, set->candidates[left].scope_name, set->candidates[right].scope_name)) return false;",
   "if (false) return false;",
-  "Flay module scope identity",
-  "cross-module Flay group differed")).run
+  "Flay outer scope identity",
+  "multi-method Flay class group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "const char *node = set->candidates[first].scope_kind == 1 ? \"class\" : \"module\";",
   "const char *node = \"defn\";",
@@ -687,8 +687,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay multiple class method candidates",
   "multiple Flay method candidates were not grouped")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "covered[candidate] = true;",
-  "covered[candidate] = false;",
+  "covered[candidate_method] = true;",
+  "covered[candidate_method] = false;",
   "Flay preserves independent candidate groups",
   "cross-class Flay group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -802,7 +802,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay cross-class class-group collection",
   "cross-class Flay group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "return set->candidates[index].scope_kind != 0 && set->scope_body_counts[index] == 1 &&\n        set->scope_candidate_counts[index] == 1;",
+  "return set->candidates[index].scope_kind != 0 && set->scope_candidate_counts[index] > 0 &&\n        set->scope_body_counts[index] == set->scope_candidate_counts[index];",
   "return set->candidates[index].scope_kind != 0;",
   "Flay partial class candidates",
   "supported class methods were hidden by unsupported callbacks")).run
@@ -837,8 +837,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method score",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "fleek_duplication_class_method_mass(&set->candidates[first]) + 1",
-  "fleek_duplication_class_method_mass(&set->candidates[first]) - 1",
+  "fleek_duplication_scope_method_mass(set, first) + 1",
+  "fleek_duplication_scope_method_mass(set, first) - 1",
   "Flay outer scope mass",
   "cross-class Flay group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
