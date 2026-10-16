@@ -1,0 +1,5 @@
+detectors:
+  DuplicateMethodCall:
+    allow_calls:
+      - send
+      - load

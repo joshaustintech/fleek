@@ -1,0 +1,5 @@
+detectors:
+  MissingSafeMethod:
+    exclude:
+      - deliver!
+      - publish!

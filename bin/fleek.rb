@@ -2592,6 +2592,7 @@ class Fleek
         return
       end
       settings = scoped ? @scope_detector_settings : @detector_settings
+      settings.reject! { |setting| setting[0] == (scoped ? @scope_index : -1) && setting[1] == detector && setting[2] == key }
       settings << [scoped ? @scope_index : -1, detector, key, ""]
       @list_detector = detector
       @list_setting = key
@@ -2711,10 +2712,10 @@ class Fleek
 
     def detector_setting(name, key, path)
       scope_index = best_scope(path)
-      scoped = @scope_detector_settings.reverse.find { |setting| setting[0] == scope_index && setting[1] == name && setting[2] == key }
-      return scoped[3] if scoped
-      global = @detector_settings.reverse.find { |setting| setting[1] == name && setting[2] == key }
-      global && global[3]
+      scoped = @scope_detector_settings.select { |setting| setting[0] == scope_index && setting[1] == name && setting[2] == key }
+      values = scoped.empty? ? @detector_settings.select { |setting| setting[1] == name && setting[2] == key } : scoped
+      return nil if values.empty?
+      values.map { |setting| setting[3] }.reject(&:empty?).join("\n")
     end
 
     def excluded_method_name?(path, name)

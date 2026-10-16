@@ -16,7 +16,7 @@ Honor `DuplicateMethodCall.max_calls` and regex `allow_calls`; `NestedIterators.
 
 ## Consequences
 
-The default profile runs all seven checks. Tests compare each supported detector and configured setting with pinned Reek 6.6.0 and mutation contracts prove findings remain observable. Unsupported AST shapes return incomplete status instead of false-clean results. Pattern matching uses POSIX extended regular expressions, the bounded native runtime available to the compiled analyzer.
+The default profile runs all seven checks. Tests compare each supported detector and configured setting with pinned Reek 6.6.0 and mutation contracts prove findings remain observable. Block-list values aggregate within a setting, a more-specific scope replaces a global list, and an explicit empty list clears inherited values. Unsupported AST shapes return incomplete status instead of false-clean results. Pattern matching uses POSIX extended regular expressions, the bounded native runtime available to the compiled analyzer.
 
 ## Evidence
 
