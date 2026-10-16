@@ -17,6 +17,38 @@ class Fleek
   SourceListing = Struct.new(:files, :configuration, :failed_sources, :excluded_paths)
   # Carries independent analyzer exit results.
   CheckResults = Struct.new(:duplication, :smell)
+  # Carries a stable selection and its coverage policy into the combined runner.
+  class AnalysisProfile < Struct.new(:selected, :run, :disabled, :unsupported, :report_all)
+    def report_lines
+      lines = ["Checks selected: #{selected.join(',')}", "Checks run: #{run.join(',')}"]
+      lines.concat(coverage_lines) if report_all
+      lines
+    end
+
+    def coverage_lines
+      ["Checks disabled: #{disabled.empty? ? 'none' : disabled.join(',')}", "Checks unsupported: #{unsupported.empty? ? 'none' : unsupported.join(',')}"]
+    end
+
+    def final_status(status)
+      report_all && !unsupported.empty? ? 1 : status
+    end
+  end
+  module CheckProfiles
+    DEFAULT_CHECKS = %w[
+      flay:StructuralDuplication reek:Attribute reek:BooleanParameter reek:ClassVariable
+      reek:ControlParameter reek:DataClump reek:DuplicateMethodCall reek:FeatureEnvy
+      reek:InstanceVariableAssumption reek:IrresponsibleModule reek:LongParameterList
+      reek:LongYieldList reek:ManualDispatch reek:MissingSafeMethod reek:ModuleInitialize
+      reek:NestedIterators reek:NilCheck reek:RepeatedConditional reek:SubclassedFromCoreClass
+      reek:TooManyConstants reek:TooManyInstanceVariables reek:TooManyMethods reek:TooManyStatements
+      reek:UncommunicativeMethodName reek:UncommunicativeModuleName
+      reek:UncommunicativeParameterName reek:UncommunicativeVariableName
+      reek:UnusedParameters reek:UtilityFunction
+    ].freeze
+    RUNNABLE_DEFAULT_CHECKS = %w[flay:StructuralDuplication reek:ClassVariable].freeze
+    DEFAULT = AnalysisProfile.new(DEFAULT_CHECKS, RUNNABLE_DEFAULT_CHECKS, [], DEFAULT_CHECKS - RUNNABLE_DEFAULT_CHECKS, true)
+    EXPLICIT = AnalysisProfile.new(RUNNABLE_DEFAULT_CHECKS, RUNNABLE_DEFAULT_CHECKS, [], [], false)
+  end
   FLAY_REFERENCE = "2.14.4"
   REEK_REFERENCE = "6.6.0"
   SPINEL_RELEASE = "2026.09.12"
@@ -1519,20 +1551,19 @@ class Fleek
   end
 
   # :reek:TooManyStatements
-  def self.run_combined_checks(inputs)
+  def self.run_combined_checks(inputs, profile = CheckProfiles::EXPLICIT)
     analysis = prepare_combined_analysis(inputs)
     error = analysis.error
     return report_combined_input_error(error) unless error.empty?
     disabled_paths = analysis.disabled_paths
     return report_disabled_check(disabled_paths, analysis.configuration) unless disabled_paths.empty?
-    print_combined_header
-    run_combined_sections(analysis)
+    print_combined_header(profile)
+    run_combined_sections(analysis, profile)
   end
 
-  def self.print_combined_header
+  def self.print_combined_header(profile = CheckProfiles::EXPLICIT)
     print_report_identity
-    puts "Checks selected: flay:StructuralDuplication,reek:ClassVariable"
-    puts "Checks run: flay:StructuralDuplication,reek:ClassVariable"
+    profile.report_lines.each { |line| puts line }
     puts "Scope limits: supported Flay and Reek syntax subsets; analyzer-specific exclusions; separate scores."
   end
 
@@ -1570,16 +1601,17 @@ class Fleek
     disabled_input?(files, configuration) ? files : []
   end
 
-  def self.run_combined_sections(analysis)
+  def self.run_combined_sections(analysis, profile = CheckProfiles::EXPLICIT)
     puts "Duplication section:"
     duplication_status = run_structural_duplication(analysis.flay_inputs, true)
     puts "Smell section:"
     smell_status = run_class_variable(analysis.reek_inputs, true)
-    finish_combined_analysis(duplication_status, smell_status)
+    finish_combined_analysis(duplication_status, smell_status, profile)
   end
 
-  def self.finish_combined_analysis(duplication_status, smell_status)
+  def self.finish_combined_analysis(duplication_status, smell_status, profile = CheckProfiles::EXPLICIT)
     combined_status = combined_analysis_status(CheckResults.new(duplication_status, smell_status))
+    combined_status = profile.final_status(combined_status)
     puts "Overall status: #{report_state(combined_status)}"
     combined_status
   end
@@ -2038,13 +2070,25 @@ class Fleek
     run_without_unsupported_format(arguments)
   end
 
+  # :reek:TooManyStatements
   def self.run_without_unsupported_format(arguments)
+    first_argument = arguments[0]
     return parse_ruby4_file(arguments[1]) if parse_ruby4_requested?(arguments)
-    return run_selected_checks(arguments) if arguments.length >= 3 && arguments[0] == "--checks"
+    return run_selected_checks(arguments) if selected_checks_requested?(arguments, first_argument)
     return 0 if print_help_if_requested(arguments)
     return 0 if print_version_if_requested(arguments)
+    return run_default_checks(arguments) unless first_argument == "--checks"
 
     print_usage_error(input_error(arguments))
+  end
+
+  def self.selected_checks_requested?(arguments, first_argument)
+    arguments.length >= 3 && first_argument == "--checks"
+  end
+
+  def self.run_default_checks(arguments)
+    inputs = arguments.empty? ? [Dir.pwd] : arguments
+    run_combined_checks(inputs, CheckProfiles::DEFAULT)
   end
 
   # :reek:TooManyStatements

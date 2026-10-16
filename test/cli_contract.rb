@@ -10,11 +10,6 @@ class CliProcess
     observe(process_id)
   end
 
-  def without_arguments
-    process_id = Process.spawn("build/fleek", out: @output_path, err: @error_path)
-    observe(process_id)
-  end
-
   def with_unknown_check
     process_id = Process.spawn("build/fleek", "--checks", "flay:default", ".", out: @output_path, err: @error_path)
     observe(process_id)
@@ -39,11 +34,6 @@ raise "help unsupported capabilities missing" unless help_result[1].include?("ma
 raise "help explicit selection missing" unless help_result[1].include?("Analysis requires --checks")
 raise "help report contract missing" unless help_result[1].include?("stable text v1")
 raise "help stderr" unless help_result[2] == ""
-
-usage_result = cli_process.without_arguments
-raise "empty invocation status" unless usage_result[0] == 1
-raise "empty invocation stdout" unless usage_result[1] == ""
-raise "empty invocation usage" unless usage_result[2].include?("Usage:")
 
 version_result = cli_process.with_argument("--version")
 raise "version status" unless version_result[0] == 0

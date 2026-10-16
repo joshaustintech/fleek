@@ -7,7 +7,6 @@ class MutationCase
   # Carries one behavior mutation and its expected contract failure.
   Configuration = Struct.new(:source, :target, :replacement, :label, :expected_failure)
   CONTRACTS = {
-    "wrong usage status" => "test/cli_contract.rb",
     "embedded NUL acceptance" => "test/native_parser_contract.rb",
     "Ruby 4 grammar downgrade" => "test/native_parser_contract.rb",
     "location attribution" => "test/native_parser_contract.rb",
@@ -99,7 +98,10 @@ class MutationCase
     "text report section ordering" => "test/text_report_contract.rb",
     "text report check execution" => "test/text_report_contract.rb",
     "text report failed source identity" => "test/text_report_contract.rb",
-    "text report completion state" => "test/text_report_contract.rb"
+    "text report completion state" => "test/text_report_contract.rb",
+    "default check selection" => "test/default_invocation_contract.rb",
+    "default incomplete status" => "test/default_invocation_contract.rb",
+    "implicit current directory" => "test/default_invocation_contract.rb"
   }
 
   def initialize(configuration)
@@ -178,11 +180,6 @@ class MutationProcess
 end
 
 source = File.read("bin/fleek.rb")
-MutationCase.new(MutationCase::Configuration.new(source,
-  "    warn \"Usage: fleek [--help | --version]\"\n    1\n  end",
-  "    warn \"Usage: fleek [--help | --version]\"\n    0\n  end",
-  "wrong usage status",
-  "empty invocation status")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (nul != NULL) return -2;",
   "if (nul != NULL) return -1;",
@@ -614,6 +611,21 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'false',
   "Flay ignore scope",
   "Flay ignore did not report excluded source")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'DEFAULT = AnalysisProfile.new(DEFAULT_CHECKS, RUNNABLE_DEFAULT_CHECKS, [], DEFAULT_CHECKS - RUNNABLE_DEFAULT_CHECKS, true)',
+  'DEFAULT = AnalysisProfile.new(RUNNABLE_DEFAULT_CHECKS, RUNNABLE_DEFAULT_CHECKS, [], [], true)',
+  "default check selection",
+  "default enabled check list differs")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "report_all && !unsupported.empty? ? 1 : status",
+  "report_all && !unsupported.empty? ? status : status",
+  "default incomplete status",
+  "clean default run did not remain incomplete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'inputs = arguments.empty? ? [Dir.pwd] : arguments',
+  'inputs = arguments',
+  "implicit current directory",
+  "default enabled check list differs")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "bool simple_module = fleek_class_count == 0 && fleek_module_count == 1;",
   "bool simple_module = fleek_class_count == 0 && fleek_module_count > 1;",

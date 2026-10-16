@@ -16,6 +16,8 @@
 - Explicit `--checks` remains a subset selector.
 - No path and no `--stdin` scans the current working directory using existing recursive `.rb`, hidden-directory, and directory-symlink rules.
 - Test through compiled CLI process seam; assert report, coverage, streams, and status.
+- Default execution carries selection and coverage policy in a profile (ADR 0041); unsupported enabled checks force incomplete status.
+- Ticket 01 is implemented and resolved; ticket 02 (Reek default configuration) is the next dependency frontier.
 - `BUNDLE_PATH=<preinstalled-bundle> make flay reek` passes: Flay score 0; Reek 0 warnings.
 - Approved ticket dependency chain: 01 default invocation → 02 config policy → 03–07 default detector groups → 08 complete default-profile parity. Opt-in detector behavior is covered by the full-parity spec and must not be duplicated here.
 
