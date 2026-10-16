@@ -1850,10 +1850,11 @@ class Fleek
           }
         }
       }
-      if (status == 0 && count > threshold) {
+      bool partial = status == -4 && strcmp(detector, "TooManyMethods") == 0;
+      if ((status == 0 || partial) && count > threshold) {
         char *buffer = strcmp(detector, "TooManyInstanceVariables") == 0 ? fleek_too_many_instance_variables_buffer : strcmp(detector, "TooManyMethods") == 0 ? fleek_too_many_methods_buffer : fleek_too_many_constants_buffer;
         int written = snprintf(buffer, 4096, "%zu\\t%.*s\\t%zu\\t\\n", class_line, (int) class_name->length, class_name->start, count);
-        if (written < 0 || written >= 4096) status = -4; else status = 1;
+        if (written < 0 || written >= 4096) status = -4; else status = partial ? -5 : 1;
       }
       pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return status;
     }

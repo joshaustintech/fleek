@@ -41,6 +41,7 @@ class DefaultArgumentApiContract
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variable_operator_writes.rb")
     verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
+    verify_too_many_methods_mixed_nested_definition
     verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
     verify_too_many_statements_class_method
     verify_unsupported_singleton_class_methods
@@ -228,6 +229,16 @@ class DefaultArgumentApiContract
     verify(mixed_too_many_statements_finding?(reference), "pinned Reek #{unsupported_shape} fixture lost supported finding")
     verify(mixed_too_many_statements_finding?(actual), "Fleek dropped supported finding beside #{unsupported_shape}")
     AnalysisRunner.assert_unsupported(actual, "TooManyStatements #{unsupported_shape}")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_too_many_methods_mixed_nested_definition
+    source = "test/fixtures/too_many_methods_mixed_nested_definition.rb"
+    reference = run_reek(source, "TooManyMethods")
+    actual = run_fleek(source, "", "reek:TooManyMethods")
+    verify(AnalysisRunner.detector_warnings(reference, "TooManyMethods").any?, "pinned Reek nested-method fixture lost supported finding")
+    verify(AnalysisRunner.detector_warnings(actual, "TooManyMethods").any?, "Fleek dropped TooManyMethods finding beside nested definition")
+    AnalysisRunner.assert_unsupported(actual, "TooManyMethods nested method")
   end
 
   def self.verify_data_clump_preserves_supported_findings

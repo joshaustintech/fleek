@@ -18,6 +18,8 @@ When a supported direct TooManyStatements method and an unsupported singleton-cl
 
 Apply the same partial-result rule when an unsupported direct method body follows a supported method. The native scanner keeps findings already collected before it encounters the unsupported body; the public contract covers both mixed-syntax paths.
 
+For TooManyMethods, count supported direct instance methods even when nested method syntax makes scope incomplete. Preserve an over-threshold direct-method finding and return incomplete coverage; do not claim exact parity for unsupported nested definitions.
+
 ## Consequences
 
 The default profile runs all five checks. CLI contracts compare supported findings, thresholds, exclusions, and explicit selection against pinned Reek 6.6.0. Mutation contracts remove each detector dispatch and require the public contract to fail. Unsupported nested scopes remain visible as incomplete instead of clean results.
