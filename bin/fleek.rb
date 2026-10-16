@@ -1948,7 +1948,6 @@ class Fleek
         bool seen = false;
         for (size_t earlier_method = 0; earlier_method < method; earlier_method++) for (size_t earlier_parameter = 0; earlier_parameter < state.counts[earlier_method]; earlier_parameter++) if (state.names[earlier_method][earlier_parameter] == name) seen = true;
         if (seen) continue;
-        if (method != 0) continue;
         size_t matching[128]; size_t matching_count = 0;
         for (size_t candidate = 0; candidate < state.methods; candidate++) {
           bool has_name = false;

@@ -34,6 +34,7 @@ class DefaultArgumentApiContract
     verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators_multiple_ignore.yml")
     verify_default_detector("FeatureEnvy", "test/fixtures/feature_envy.rb")
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump.rb")
+    verify_supported_default_detector("DataClump", "test/fixtures/data_clump_after_empty_method.rb")
     verify_supported_default_detector("TooManyConstants", "test/fixtures/too_many_constants.rb")
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
     verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
