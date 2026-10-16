@@ -95,8 +95,8 @@ class DuplicationProcess
 
   def self.verify_output(observation, expectation)
     message = expectation.message
-    verify(observation[0] == expectation.status, message)
-    expectation.fields.each { |field| verify(observation[1].include?(field), message) }
+    verify(observation[0] == expectation.status, "#{message}: exit status differed")
+    expectation.fields.each { |field| verify(observation[1].include?(field), "#{message}: missing #{field}") }
   end
 
   def self.verify_class_method_pair(path, second_line, description)
@@ -232,9 +232,8 @@ cross_class_group_actual = DuplicationProcess.run(DuplicationProcess::Input.new(
 cross_class_group_reference = DuplicationProcess.run(DuplicationProcess::Input.new(cross_class_group_path, "flay", ""))
 cross_class_group_reference_fields = ["Similar code found in :class (mass = 50)", "#{cross_class_group_path}:1", "#{cross_class_group_path}:10", "Total score (lower is better) = 50"]
 DuplicationProcess.verify_output(cross_class_group_reference, DuplicationProcess::OutputExpectation.new(0, cross_class_group_reference_fields, "cross-class Flay group changed"))
-cross_class_group_actual_fields = ["Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(cross_class_group_actual, DuplicationProcess::OutputExpectation.new(1, cross_class_group_actual_fields, "unsupported cross-class Flay group was reported as a defn group or complete"))
-DuplicationProcess.verify(!cross_class_group_actual[1].include?("Group:"), "unsupported cross-class Flay group was reported as a defn group or complete")
+cross_class_group_actual_fields = ["node=\"class\" kind=\"similar\" locations=\"#{cross_class_group_path}:1,#{cross_class_group_path}:10\" mass=50 score=50", "Total duplication score: 50", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(cross_class_group_actual, DuplicationProcess::OutputExpectation.new(2, cross_class_group_actual_fields, "cross-class Flay group differed"))
 
 namespace_class_path = "test/fixtures/duplication_class_methods_namespace.rb"
 namespace_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(namespace_class_path, "fleek", ""))

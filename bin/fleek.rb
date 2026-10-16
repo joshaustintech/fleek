@@ -245,6 +245,7 @@ class Fleek
       size_t scope_indices[24];
       size_t scope_body_counts[24];
       size_t scope_candidate_counts[24];
+      int scope_lines[24];
       size_t scope_count;
       size_t namespace_count;
       size_t count;
@@ -2481,6 +2482,7 @@ class Fleek
       for (size_t index = first_candidate; index < set->count; index++) {
         set->scope_body_counts[index] = body_count;
         set->scope_candidate_counts[index] = set->count - first_candidate;
+        set->scope_lines[index] = fleek_source_line(source, class_node->base.location.start);
       }
       return true;
     }
@@ -2530,7 +2532,7 @@ class Fleek
       return true;
     }
 
-    static bool fleek_duplication_select_class_pair(const fleek_duplication_class_candidates_t *set, const pm_def_node_t **selected_methods, fleek_duplication_method_t *selected_first, fleek_duplication_method_t *selected_second, int mass_threshold) {
+    static bool fleek_duplication_select_class_pair(const fleek_duplication_class_candidates_t *set, const pm_def_node_t **selected_methods, fleek_duplication_method_t *selected_first, fleek_duplication_method_t *selected_second, bool *class_group, int mass_threshold) {
       if (set->count < 2) return false;
       size_t matching_pairs = 0;
       bool possible_class_group = false;
@@ -2541,12 +2543,19 @@ class Fleek
           size_t mass = 2 + set->candidates[left].shape_count + set->candidates[left].parameter_mass;
           for (size_t node_index = 0; node_index < set->candidates[left].shape_count; node_index++) if (fleek_duplication_class_node_massless(set->candidates[left].data.ast.nodes[node_index])) mass--;
           if (set->scope_indices[left] != set->scope_indices[right]) {
-            if (same_shape && set->scope_body_counts[left] == set->scope_body_counts[right] &&
+            if (same_shape && set->scope_body_counts[left] == 1 && set->scope_body_counts[right] == 1 &&
+                set->scope_body_counts[left] == set->scope_body_counts[right] &&
+                set->scope_candidate_counts[left] == set->scope_candidate_counts[right] &&
                 set->scope_body_counts[left] == set->scope_candidate_counts[left] &&
                 set->scope_body_counts[right] == set->scope_candidate_counts[right] &&
                 mass + 2 >= (size_t) mass_threshold) {
               possible_class_group = true;
-              fleek_duplication_partial = 1;
+              *selected_first = set->candidates[left];
+              *selected_second = set->candidates[right];
+              selected_first->line = set->scope_lines[left];
+              selected_second->line = set->scope_lines[right];
+              selected_methods[0] = set->methods[left];
+              selected_methods[1] = set->methods[right];
               continue;
             }
           }
@@ -2569,12 +2578,12 @@ class Fleek
       }
       if (matching_pairs > 1) return false;
       if (matching_pairs == 0) {
-        if (possible_class_group) return false;
+        if (possible_class_group) { *class_group = true; return true; }
         *selected_first = set->candidates[0];
         *selected_second = set->candidates[1];
         selected_methods[0] = set->methods[0];
         selected_methods[1] = set->methods[1];
-      }
+      } else if (possible_class_group) fleek_duplication_partial = 1;
       return true;
     }
 
@@ -2639,6 +2648,7 @@ class Fleek
       }
       fleek_duplication_method_t first_method = {0}, second_method = {0};
       const pm_def_node_t *methods[2] = { NULL, NULL };
+      bool class_group = false;
       fleek_duplication_class_candidates_t class_candidates = {0};
       size_t method_count = 0;
       size_t scope_count = 0;
@@ -2686,7 +2696,7 @@ class Fleek
         if (class_candidates.count < 2) {
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
         }
-        if (!fleek_duplication_select_class_pair(&class_candidates, methods, &first_method, &second_method, mass_threshold)) {
+        if (!fleek_duplication_select_class_pair(&class_candidates, methods, &first_method, &second_method, &class_group, mass_threshold)) {
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
         }
         if (fleek_duplication_optional_parameter_count(methods[0]) != fleek_duplication_optional_parameter_count(methods[1])) {
@@ -2705,6 +2715,7 @@ class Fleek
       size_t mass = 2 + first_method.shape_count + first_method.parameter_mass;
       if (scope_count != 0) {
         for (size_t index = 0; index < first_method.shape_count; index++) if (fleek_duplication_class_node_massless(first_method.data.ast.nodes[index])) mass--;
+        if (class_group) mass++;
       } else {
         for (size_t index = 0; index < first_method.shape_count; index++) {
           if (first_method.data.shapes[index] == FLEEK_DUPLICATION_RUBY4_AND_STATEMENT) mass += 2;
@@ -2712,9 +2723,9 @@ class Fleek
       }
       bool same_shape = scope_count == 0 ? first_method.shape_count == second_method.shape_count : fleek_duplication_class_shapes_equal(&first_method, &second_method);
       for (size_t index = 0; scope_count == 0 && same_shape && index < first_method.shape_count; index++) same_shape = first_method.data.shapes[index] == second_method.data.shapes[index];
-      bool identical = same_shape && (scope_count == 0 ? fleek_duplication_methods_identical(&parser, first, second) : fleek_constants_equal(&parser, first->name, second->name) && fleek_duplication_class_parameters_equal(&parser, first, second) && fleek_duplication_class_values_equal(&parser, &first_method, &second_method));
+      bool identical = !class_group && same_shape && (scope_count == 0 ? fleek_duplication_methods_identical(&parser, first, second) : fleek_constants_equal(&parser, first->name, second->name) && fleek_duplication_class_parameters_equal(&parser, first, second) && fleek_duplication_class_values_equal(&parser, &first_method, &second_method));
       int score = same_shape && mass >= (size_t) mass_threshold ? (int) mass * 2 * (identical ? 2 : 1) : 0;
-      if (score > 0) snprintf(fleek_duplication_buffer, sizeof(fleek_duplication_buffer), "%d\t%d\t%zu\t%d\t%s", first_method.line, second_method.line, mass * 2, score, identical ? "identical" : "similar");
+      if (score > 0) snprintf(fleek_duplication_buffer, sizeof(fleek_duplication_buffer), "%d\t%d\t%zu\t%d\t%s\t%s", first_method.line, second_method.line, mass * 2, score, identical ? "identical" : "similar", class_group ? "class" : "defn");
       pm_node_destroy(&parser, root);
       pm_parser_free(&parser);
       pm_options_free(&options);
@@ -3635,10 +3646,10 @@ class Fleek
   end
 
   def self.print_duplication_group(source_map)
-    first_line, second_line, node_mass, group_score, kind = NativePrism.fleek_structural_duplication_finding.split("\t")
+    first_line, second_line, node_mass, group_score, kind, node = NativePrism.fleek_structural_duplication_finding.split("\t")
     locations = [duplication_source_location(first_line.to_i, source_map), duplication_source_location(second_line.to_i, source_map)]
     location_text = locations.join(",")
-    puts "  Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=#{quote_text(kind)} locations=#{quote_text(location_text)} mass=#{node_mass} score=#{group_score}"
+    puts "  Group: check=\"flay:StructuralDuplication\" node=#{quote_text(node)} kind=#{quote_text(kind)} locations=#{quote_text(location_text)} mass=#{node_mass} score=#{group_score}"
     locations
   end
 

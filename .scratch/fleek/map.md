@@ -14,6 +14,7 @@
 
 - Approved default-check behavior effort: [spec](../fleek-default-checks/spec.md), [tickets](../fleek-default-checks/issues/), and [ADR 0039](../../docs/adr/0039-default-checks-and-implicit-source-scope.md).
 - Full native analyzer parity is now the implementation goal in [spec 04](specs/04-language-and-project-parity.md); issues 21–24 cover Flay candidate scopes, method/expression semantics, analysis controls, and the final shared-syntax gate. Existing default-check tickets remain the default-selection work; ADR 0037 remains historical first-release scope.
+- Ticket 21 work begins with a reference-matched bounded `:class` candidate for two complete one-method class scopes; mixed method/class results remain incomplete until all groups can be emitted. See [ADR 0049](../../docs/adr/0049-bounded-flay-class-groups.md); ticket remains claimed and open.
 - Native combined Flay/Reek replacement; pinned Spinel compiler; Ruby 4.0 and pinned Spinel source input; standalone macOS arm64 release.
 - Primary test seam: compiled CLI process. Parser feasibility uses a temporary real native probe.
 - Ticket sequence and dependencies in issue bodies; summary: 01 compiler/reference harness → 02 parser → 03–08 smell/input/config/text → 09–12 duplication/combined report → 13–14 language/Rails parity → 18–19 Rails coverage → 15–17 runtime/release.
