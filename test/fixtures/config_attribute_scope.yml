@@ -1,0 +1,7 @@
+directories:
+  test/fixtures:
+    Attribute:
+      enabled: false
+  test/fixtures/attribute_enabled:
+    Attribute:
+      enabled: true

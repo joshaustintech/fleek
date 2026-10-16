@@ -1,0 +1,269 @@
+# Compares Fleek object-scope detector output with pinned Reek 6.6.0.
+require_relative "analysis_runner"
+
+# Verifies default object-scope detector parity and configuration.
+class DefaultObjectScopeContract
+  SOURCE = "test/fixtures/attribute.rb"
+  DEFAULT_DETECTORS = {
+    "InstanceVariableAssumption" => "test/fixtures/instance_variable_assumption.rb",
+    "SubclassedFromCoreClass" => "test/fixtures/subclassed_from_core_class.rb",
+    "ModuleInitialize" => "test/fixtures/module_initialize.rb"
+  }.freeze
+
+  # :reek:TooManyStatements
+  def self.run
+    reference = run_reek
+    actual = run_fleek
+    verify_attribute_default(reference, actual)
+    verify_attribute_explicit(reference)
+    verify_attribute_settings
+    verify_attribute_alias
+    verify_unsupported_shapes
+    verify_comment_overflow
+    verify_other_detectors
+    puts "Default object-scope contract: pass"
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_attribute_default(reference, actual)
+    reference_output = reference[1]
+    actual_output = actual[1]
+    actual_lines = actual_output.lines
+    verify(reference[0] == 2 && reference_output.include?("[2]:Attribute:") && reference_output.include?("[3]:Attribute:"), "pinned Reek Attribute fixture changed")
+    verify(actual_lines.any? { |line| line.start_with?("Checks run:") && line.include?("reek:Attribute") }, "default invocation did not run Attribute")
+    AnalysisRunner.assert_detector_findings(actual, reference, "Attribute")
+    verify(!actual_lines.find { |line| line.start_with?("Checks unsupported:") }.include?("reek:Attribute"), "implemented Attribute detector remained unsupported")
+  end
+
+  def self.verify_attribute_explicit(reference)
+    explicit = run_fleek_explicit
+    AnalysisRunner.assert_status(explicit, reference, "explicit Attribute selection")
+    AnalysisRunner.assert_detector_findings(explicit, reference, "Attribute")
+  end
+
+  def self.verify_attribute_settings
+    verify_attribute_exclusion
+    verify_attribute_disabled
+    verify_attribute_scope_precedence
+  end
+
+  def self.verify_other_detectors
+    DEFAULT_DETECTORS.each { |detector, source| verify_default_detector(detector, source) }
+    verify_instance_variable_exclusion
+    verify_irresponsible_module("test/fixtures/irresponsible_module.rb")
+  end
+
+  def self.verify_unsupported_shapes
+    source = "test/fixtures/class_new_assignment.rb"
+    verify_unsupported_detector("SubclassedFromCoreClass", source, "inherits from core class")
+    verify_unsupported_detector("IrresponsibleModule", source, "has no descriptive comment")
+    verify_class_new_method_call
+  end
+
+  def self.verify_attribute_alias
+    source = "test/fixtures/attribute_visibility_method.rb"
+    verify_expected_finding("Attribute", source, "[2]:")
+    verify_supported_clean_detector("Attribute", "test/fixtures/attribute_read_only.rb")
+  end
+
+  def self.verify_expected_finding(detector, source, line)
+    reference = run_reek_for("Attribute", source)
+    actual = run_fleek_check("Attribute", source)
+    verify_reek_finding(reference, line, "pinned Reek #{detector} fixture changed")
+    AnalysisRunner.assert_detector_findings(actual, reference, "Attribute")
+  end
+
+  def self.verify_class_new_method_call
+    source = "test/fixtures/class_new_method_call.rb"
+    verify_supported_clean_detector("SubclassedFromCoreClass", source)
+    verify_supported_clean_detector("IrresponsibleModule", source)
+  end
+
+  def self.verify_supported_clean_detector(detector, source)
+    reference = run_reek_for(detector, source)
+    actual = run_fleek_check(detector, source)
+    verify(reference[0] == 0, "pinned Reek #{detector} clean fixture changed")
+    verify(actual[0] == 0 && actual[2].empty?, "#{detector} clean syntax became unsupported")
+  end
+
+  def self.verify_unsupported_detector(detector, source, reference_finding)
+    reference = run_reek_for(detector, source)
+    actual = run_fleek_check(detector, source)
+    verify_reek_finding(reference, reference_finding, "pinned Reek #{detector} unsupported-shape behavior changed")
+    verify(actual[0] == 1 && actual[2].include?("unsupported"), "#{detector} unsupported shape appeared clean")
+  end
+
+  def self.verify_comment_overflow
+    source = "/tmp/fleek-object-many-comments.rb"
+    File.write(source, ("# note\n" * 129) + "class Profile\nend\n")
+    actual = run_fleek_check("IrresponsibleModule", source)
+    verify(actual[0] == 1 && actual[2].include?("unsupported"), "comment overflow appeared clean")
+  ensure
+    File.delete(source) if File.file?(source)
+  end
+
+  def self.verify_reek_finding(reference, marker, message)
+    verify(reference[0] == 2 && reference[1].include?(marker), message)
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_attribute_exclusion
+    config = "test/fixtures/config_attribute_exclusion.yml"
+    reference = run_reek_config(config)
+    reference_output = reference[1]
+    actual = run_fleek_config(config)
+    verify(reference[0] == 2 && !reference_output.include?("[2]:Attribute:") && reference_output.include?("[3]:Attribute:"), "pinned Reek Attribute exclusion changed")
+    AnalysisRunner.assert_detector_findings(actual, reference, "Attribute")
+  end
+
+  def self.verify_attribute_disabled
+    config = "test/fixtures/config_attribute_disabled.yml"
+    actual = run_fleek_disabled(config)
+    verify(actual[0] == 1 && actual[2].include?("Reek Attribute is disabled by configuration"), "explicit Attribute selection ignored configured disablement")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_attribute_scope_precedence
+    config = "test/fixtures/config_attribute_scope.yml"
+    disabled = "test/fixtures/attribute.rb"
+    enabled = "test/fixtures/attribute_enabled/attribute.rb"
+    reference = run_reek_paths("Attribute", config, disabled, enabled)
+    actual = run_fleek_paths(config, disabled, enabled)
+    reference_output = reference[1]
+    verify(reference[0] == 2 && reference_output.include?("Profile#name"), "pinned Reek Attribute scope precedence changed")
+    AnalysisRunner.assert_detector_findings(actual, reference, "Attribute")
+    verify(actual[1].include?("#{disabled}\" scope=disabled"), "Fleek did not report a detector-disabled source")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_instance_variable_exclusion
+    source = "test/fixtures/instance_variable_assumption.rb"
+    config = "test/fixtures/config_instance_variable_exclusion.yml"
+    reference = run_reek_config_for("InstanceVariableAssumption", source, config)
+    actual = run_fleek_config_for(source, config)
+    verify(reference[0] == 0, "pinned InstanceVariableAssumption exclusion changed")
+    AnalysisRunner.assert_detector_findings(actual, reference, "InstanceVariableAssumption")
+  end
+
+  def self.verify_default_detector(detector, source)
+    reference = run_reek_for(detector, source)
+    actual = run_fleek_for(source)
+    verify_default_detector_output(detector, reference, actual)
+    AnalysisRunner.assert_detector_findings(actual, reference, detector)
+  end
+
+  def self.verify_irresponsible_module(source)
+    reference = run_reek_for("IrresponsibleModule", source)
+    actual = run_fleek_for(source)
+    verify_default_detector_output("IrresponsibleModule", reference, actual)
+    AnalysisRunner.assert_detector_findings(actual, reference, "IrresponsibleModule")
+
+    verify_descriptive_module_comment
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_default_detector_output(detector, reference, actual)
+    output = actual[1]
+    reports = output.lines.select { |line| line.start_with?("Checks run:") || line.start_with?("Checks unsupported:") }
+    checks, unsupported = reports
+    verify(reference[0] == 2 && reference[1].include?("[1]:#{detector}:"), "pinned #{detector} fixture changed")
+    verify(checks&.include?("reek:#{detector}"), "default invocation did not run #{detector}")
+    verify(!unsupported&.include?("reek:#{detector}"), "implemented #{detector} remained unsupported")
+  end
+
+  def self.verify_descriptive_module_comment
+    verify_described_profile_comment
+    verify_directive_option_comment
+  end
+
+  def self.verify_described_profile_comment
+    described = "test/fixtures/described_profile.rb"
+    described_reference = run_reek_for("IrresponsibleModule", described)
+    described_actual = run_fleek_for(described)
+    verify(described_reference[0] == 0, "pinned descriptive comment behavior changed")
+    AnalysisRunner.assert_detector_findings(described_actual, described_reference, "IrresponsibleModule")
+  end
+
+  def self.verify_directive_option_comment
+    source = "test/fixtures/directive_options_profile.rb"
+    reference = run_reek_for("IrresponsibleModule", source)
+    actual = run_fleek_for(source)
+    AnalysisRunner.assert_detector_findings(actual, reference, "IrresponsibleModule")
+  end
+
+  def self.run_reek
+    process_id = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "reek", "--smell", "Attribute", SOURCE, out: "/tmp/fleek-object-reek.out", err: "/tmp/fleek-object-reek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-reek.out", "/tmp/fleek-object-reek.err")
+  end
+
+  def self.run_reek_for(detector, source)
+    AnalysisRunner.observe(spawn_reek(detector, source), "/tmp/fleek-object-reek.out", "/tmp/fleek-object-reek.err")
+  end
+
+  def self.spawn_reek(detector, source)
+    Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "reek", "--smell", detector, source, out: "/tmp/fleek-object-reek.out", err: "/tmp/fleek-object-reek.err")
+  end
+
+  def self.run_reek_config_for(detector, source, config)
+    process_id = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "reek", "--smell", detector, "--config", config, source, out: "/tmp/fleek-object-reek.out", err: "/tmp/fleek-object-reek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-reek.out", "/tmp/fleek-object-reek.err")
+  end
+
+  # :reek:LongParameterList
+  def self.run_reek_paths(detector, config, first, second)
+    process_id = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "reek", "--smell", detector, "--config", config, first, second, out: "/tmp/fleek-object-reek.out", err: "/tmp/fleek-object-reek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-reek.out", "/tmp/fleek-object-reek.err")
+  end
+
+  def self.run_fleek_config_for(source, config)
+    process_id = Process.spawn("build/fleek", "--reek-config", config, source, out: "/tmp/fleek-object-fleek.out", err: "/tmp/fleek-object-fleek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-fleek.out", "/tmp/fleek-object-fleek.err")
+  end
+
+  def self.run_fleek_paths(config, first, second)
+    process_id = Process.spawn("build/fleek", "--reek-config", config, first, second, out: "/tmp/fleek-object-fleek.out", err: "/tmp/fleek-object-fleek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-fleek.out", "/tmp/fleek-object-fleek.err")
+  end
+
+  def self.run_reek_config(config)
+    process_id = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "reek", "--smell", "Attribute", "--config", config, SOURCE, out: "/tmp/fleek-object-reek.out", err: "/tmp/fleek-object-reek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-reek.out", "/tmp/fleek-object-reek.err")
+  end
+
+  def self.run_fleek
+    process_id = Process.spawn("build/fleek", SOURCE, out: "/tmp/fleek-object-fleek.out", err: "/tmp/fleek-object-fleek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-fleek.out", "/tmp/fleek-object-fleek.err")
+  end
+
+  def self.run_fleek_for(source)
+    process_id = Process.spawn("build/fleek", source, out: "/tmp/fleek-object-fleek.out", err: "/tmp/fleek-object-fleek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-fleek.out", "/tmp/fleek-object-fleek.err")
+  end
+
+  def self.run_fleek_check(detector, source)
+    process_id = Process.spawn("build/fleek", "--checks", "reek:#{detector}", source, out: "/tmp/fleek-object-fleek.out", err: "/tmp/fleek-object-fleek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-fleek.out", "/tmp/fleek-object-fleek.err")
+  end
+
+  def self.run_fleek_explicit
+    process_id = Process.spawn("build/fleek", "--checks", "reek:Attribute", SOURCE, out: "/tmp/fleek-object-fleek.out", err: "/tmp/fleek-object-fleek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-fleek.out", "/tmp/fleek-object-fleek.err")
+  end
+
+  def self.run_fleek_config(config)
+    process_id = Process.spawn("build/fleek", "--reek-config", config, SOURCE, out: "/tmp/fleek-object-fleek.out", err: "/tmp/fleek-object-fleek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-fleek.out", "/tmp/fleek-object-fleek.err")
+  end
+
+  def self.run_fleek_disabled(config)
+    process_id = Process.spawn("build/fleek", "--checks", "reek:Attribute", "--reek-config", config, SOURCE, out: "/tmp/fleek-object-fleek.out", err: "/tmp/fleek-object-fleek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-fleek.out", "/tmp/fleek-object-fleek.err")
+  end
+
+  # :reek:ControlParameter
+  def self.verify(condition, message)
+    raise message unless condition
+  end
+end
+
+DefaultObjectScopeContract.run

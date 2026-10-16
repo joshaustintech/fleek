@@ -27,6 +27,7 @@ class CheckRunner
     test/runtime_evidence_contract.rb
     test/default_invocation_contract.rb
     test/default_configuration_contract.rb
+    test/default_object_scope_contract.rb
   ].freeze
 
   def initialize(mode)

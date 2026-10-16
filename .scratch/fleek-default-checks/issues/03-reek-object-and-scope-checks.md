@@ -1,7 +1,7 @@
 # 03: Reek object and scope checks
 
 **Type:** task  
-**Status:** open  
+**Status:** resolved
 **Category:** enhancement  
 **Triage:** ready-for-agent
 
@@ -9,7 +9,9 @@
 
 **Blocked by:** 01: Default invocation and CWD scan; 02: Reek default configuration.
 
-- [ ] Support Attribute, ClassVariable, InstanceVariableAssumption, IrresponsibleModule, ModuleInitialize, and SubclassedFromCoreClass defaults.
-- [ ] Preserve existing ClassVariable behavior while running it through default selection.
-- [ ] Match pinned Reek 6.6.0 findings on shared supported syntax.
-- [ ] List unsupported syntax honestly and preserve supported findings with incomplete status.
+- [x] Support Attribute, ClassVariable, InstanceVariableAssumption, IrresponsibleModule, ModuleInitialize, and SubclassedFromCoreClass defaults.
+- [x] Preserve existing ClassVariable behavior while running it through default selection.
+- [x] Match pinned Reek 6.6.0 findings on shared supported syntax.
+- [x] List unsupported syntax honestly and preserve supported findings with incomplete status.
+
+**Evidence:** `make check` passed: pinned Spinel identity, 17 process contracts, 107 mutation cases, reference checks, Flay score 0, and Reek 0 warnings. Specification and standards reviews passed. Decision recorded in [ADR 0043](../../../docs/adr/0043-default-object-scope-detectors.md).

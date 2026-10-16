@@ -17,7 +17,7 @@
 - No path and no `--stdin` scans the current working directory using existing recursive `.rb`, hidden-directory, and directory-symlink rules.
 - Test through compiled CLI process seam; assert report, coverage, streams, and status.
 - Default execution carries selection and coverage policy in a profile (ADR 0041); unsupported enabled checks force incomplete status.
-- Tickets 01 and 02 are implemented and resolved. Ticket 02 resolves Reek defaults through effective configuration (ADR 0042); ticket 03 is next in the dependency chain.
+- Tickets 01, 02, and 03 are implemented and resolved. Ticket 02 resolves Reek defaults through effective configuration (ADR 0042); ticket 03 adds bounded object and scope detectors (ADR 0043). Ticket 04 is next in the dependency chain.
 - `BUNDLE_PATH=<preinstalled-bundle> make flay reek` passes: Flay score 0; Reek 0 warnings.
 - Approved ticket dependency chain: 01 default invocation → 02 config policy → 03–07 default detector groups → 08 complete default-profile parity. Opt-in detector behavior is covered by the full-parity spec and must not be duplicated here.
 

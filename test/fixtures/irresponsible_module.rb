@@ -1,0 +1,2 @@
+class BareProfile
+end

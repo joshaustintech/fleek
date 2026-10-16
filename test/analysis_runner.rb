@@ -60,6 +60,15 @@ class AnalysisRunner
     raise "#{label} findings differ from Reek" unless reports[0] == reports[1]
   end
 
+  def self.assert_detector_findings(actual, reference, detector)
+    reports = [detector_warnings(actual, detector), detector_warnings(reference, detector)]
+    raise "#{detector} findings differ from Reek" unless reports[0] == reports[1]
+  end
+
+  def self.detector_warnings(result, detector)
+    warning_lines(result[1]).select { |warning| warning.include?(":#{detector}:") }
+  end
+
   def self.assert_status(actual, reference, label)
     actual_status = actual[0]
     raise "#{label} status differs from Reek" unless actual_status == reference[0] && actual_status == 2
@@ -79,7 +88,7 @@ class AnalysisRunner
       return unless marker
       value = line[(marker + 9)..].strip
       value[1...-1]
-    elsif line.include?("ClassVariable:")
+    elsif line.include?("ClassVariable:") || line.include?("Attribute:") || line.include?("InstanceVariableAssumption:") || line.include?("SubclassedFromCoreClass:") || line.include?("ModuleInitialize:") || line.include?("IrresponsibleModule:")
       line.strip
     end
   end
