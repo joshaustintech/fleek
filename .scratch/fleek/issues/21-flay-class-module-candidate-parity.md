@@ -14,3 +14,7 @@
 - [ ] Preserve independent verified findings when another candidate is unsupported; report incomplete until all selected source is covered.
 - [ ] Compare public CLI behavior with unchanged Flay 2.14.4 and add clean, finding, and boundary cases.
 - [ ] Mutation checks detect missing candidates, wrong group shape, score, locations, ordering, or incomplete status.
+
+## Answer
+
+Partial implementation is pushed incrementally. Fleek now matches pinned Flay 2.14.4 for bounded direct module groups, complete one-method class groups at file scope and in one-level namespaces, mixed independent method/scope groups, and multi-candidate method groups. Public CLI fixtures cover similar/identical groups, cross-scope class locations, score allocation, and deterministic ordering; mutation checks exercise these behaviors. ADR 0050 records the multi-group representation and its limits. This ticket remains claimed because deeper nested namespaces and complete multi-method class/module scope grouping still need parity evidence.

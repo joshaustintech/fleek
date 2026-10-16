@@ -10,11 +10,11 @@ Flay 2.14.4 can report a duplicated `:class` tree even when Fleek already recogn
 
 ## Decision
 
-Recognize a class group when two different class scopes each contain exactly one supported direct method, their complete class bodies consist of that method, and their method trees match Flay's structural candidate shape at the configured mass threshold. Add one class-node mass to each method tree, report class declaration locations and `node="class"`, and keep different class names classified as similar. Unequal scope shapes, unsupported class entries, and a possible class group alongside an independent method group remain incomplete until report grouping can preserve every finding.
+Recognize a class group when two different class scopes each contain exactly one supported direct method, their complete class bodies consist of that method, and their method trees match Flay's structural candidate shape at the configured mass threshold. Add one class-node mass to each method tree, report class declaration locations and `node="class"`, and keep different class names classified as similar. This first slice intentionally did not support module groups or multiple emitted groups.
 
 ## Consequences
 
-The public CLI matches Flay 2.14.4 for the cross-class fixture at similar `:class` mass/score 50 and class declaration lines 1 and 10. The mixed class/method fixture still reports its verified method group and incomplete coverage. This slice does not claim module groups, multiple groups in one source, or general nested-scope parity; Ticket 21 remains open.
+The public CLI matches Flay 2.14.4 for the cross-class fixture at similar `:class` mass/score 50 and class declaration lines 1 and 10. Ticket 21 later extends this design with module groups and deterministic multi-group reporting; see ADR 0050. This ADR records the initial bounded implementation only.
 
 ## Evidence
 

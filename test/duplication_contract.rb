@@ -235,6 +235,30 @@ DuplicationProcess.verify_output(cross_class_group_reference, DuplicationProcess
 cross_class_group_actual_fields = ["node=\"class\" kind=\"similar\" locations=\"#{cross_class_group_path}:1,#{cross_class_group_path}:10\" mass=50 score=50", "Total duplication score: 50", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
 DuplicationProcess.verify_output(cross_class_group_actual, DuplicationProcess::OutputExpectation.new(2, cross_class_group_actual_fields, "cross-class Flay group differed"))
 
+cross_scope_group_path = "test/fixtures/duplication_class_cross_scope_group.rb"
+cross_scope_group_actual = DuplicationProcess.run(DuplicationProcess::Input.new(cross_scope_group_path, "fleek", ""))
+cross_scope_group_reference = DuplicationProcess.run(DuplicationProcess::Input.new(cross_scope_group_path, "flay", ""))
+cross_scope_group_fields = ["node=\"class\" kind=\"similar\" locations=\"#{cross_scope_group_path}:1,#{cross_scope_group_path}:11\" mass=50 score=50", "Total duplication score: 50", "Status: findings"]
+DuplicationProcess.verify_output(cross_scope_group_actual, DuplicationProcess::OutputExpectation.new(2, cross_scope_group_fields, "nested cross-scope class group differed"))
+cross_scope_group_reference_fields = ["Similar code found in :class (mass = 50)", "#{cross_scope_group_path}:1", "#{cross_scope_group_path}:11", "Total score (lower is better) = 50"]
+DuplicationProcess.verify_output(cross_scope_group_reference, DuplicationProcess::OutputExpectation.new(0, cross_scope_group_reference_fields, "nested cross-scope Flay group changed"))
+
+module_group_path = "test/fixtures/duplication_module_group.rb"
+module_group_actual = DuplicationProcess.run(DuplicationProcess::Input.new(module_group_path, "fleek", ""))
+module_group_reference = DuplicationProcess.run(DuplicationProcess::Input.new(module_group_path, "flay", ""))
+module_group_actual_fields = ["node=\"module\" kind=\"similar\" locations=\"#{module_group_path}:1,#{module_group_path}:20\" mass=34 score=34", "Total duplication score: 34", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(module_group_actual, DuplicationProcess::OutputExpectation.new(2, module_group_actual_fields, "cross-module Flay group differed"))
+module_group_reference_fields = ["Similar code found in :module (mass = 34)", "#{module_group_path}:1", "#{module_group_path}:20", "Total score (lower is better) = 34"]
+DuplicationProcess.verify_output(module_group_reference, DuplicationProcess::OutputExpectation.new(0, module_group_reference_fields, "Flay cross-module group changed"))
+
+module_identical_path = "test/fixtures/duplication_module_identical_group.rb"
+module_identical_actual = DuplicationProcess.run(DuplicationProcess::Input.new(module_identical_path, "fleek", ""))
+module_identical_reference = DuplicationProcess.run(DuplicationProcess::Input.new(module_identical_path, "flay", ""))
+module_identical_fields = ["node=\"module\" kind=\"identical\" locations=\"#{module_identical_path}:1,#{module_identical_path}:20\" mass=34 score=68", "Total duplication score: 68", "Status: findings"]
+DuplicationProcess.verify_output(module_identical_actual, DuplicationProcess::OutputExpectation.new(2, module_identical_fields, "identical Flay module group differed"))
+module_identical_reference_fields = ["IDENTICAL code found in :module (mass*2 = 68)", "#{module_identical_path}:1", "#{module_identical_path}:20", "Total score (lower is better) = 68"]
+DuplicationProcess.verify_output(module_identical_reference, DuplicationProcess::OutputExpectation.new(0, module_identical_reference_fields, "Flay identical module group changed"))
+
 namespace_class_path = "test/fixtures/duplication_class_methods_namespace.rb"
 namespace_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(namespace_class_path, "fleek", ""))
 namespace_class_reference = DuplicationProcess.run(DuplicationProcess::Input.new(namespace_class_path, "flay", ""))
@@ -320,8 +344,11 @@ DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_m
 class_group_with_pair_path = "test/fixtures/duplication_class_methods_class_group_with_conditional_pair.rb"
 class_group_with_pair_actual = DuplicationProcess.run(DuplicationProcess::Input.new(class_group_with_pair_path, "fleek", ""))
 class_group_with_pair_reference = DuplicationProcess.run(DuplicationProcess::Input.new(class_group_with_pair_path, "flay", ""))
-class_group_with_pair_fields = ["kind=\"similar\"", "locations=\"#{class_group_with_pair_path}:20,#{class_group_with_pair_path}:32\"", "mass=62 score=62", "Total duplication score: 62", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(class_group_with_pair_actual, DuplicationProcess::OutputExpectation.new(1, class_group_with_pair_fields, "independent class-method candidates were hidden by a possible class group"))
+class_group_with_pair_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{class_group_with_pair_path}:20,#{class_group_with_pair_path}:32\" mass=62 score=62", "node=\"class\" kind=\"similar\" locations=\"#{class_group_with_pair_path}:1,#{class_group_with_pair_path}:10\" mass=50 score=50", "Total duplication score: 112", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(class_group_with_pair_actual, DuplicationProcess::OutputExpectation.new(2, class_group_with_pair_fields, "Flay class and independent method groups differed"))
+class_method_group_position = class_group_with_pair_actual[1].index("node=\"defn\"")
+class_group_position = class_group_with_pair_actual[1].index("node=\"class\"")
+DuplicationProcess.verify(class_method_group_position < class_group_position, "Flay group ordering differed")
 class_group_with_pair_reference_fields = ["Similar code found in :defn (mass = 62)", "#{class_group_with_pair_path}:20", "#{class_group_with_pair_path}:32", "Similar code found in :class (mass = 50)", "#{class_group_with_pair_path}:1", "#{class_group_with_pair_path}:10", "Total score (lower is better) = 112"]
 DuplicationProcess.verify_output(class_group_with_pair_reference, DuplicationProcess::OutputExpectation.new(0, class_group_with_pair_reference_fields, "Flay groups with conditional class-method candidates changed"))
 
@@ -340,6 +367,8 @@ class_identical_path = "test/fixtures/duplication_class_methods_identical.rb"
 DuplicationProcess.verify_class_method_parity(class_identical_path, :identical)
 
 ambiguous_class_methods = DuplicationProcess.run(DuplicationProcess::Input.new("test/fixtures/duplication_class_methods_ambiguous.rb", "fleek", ""))
-DuplicationProcess.verify_output(ambiguous_class_methods, DuplicationProcess::OutputExpectation.new(1, ["Status: incomplete"], "ambiguous class method groups were reported as complete"))
+ambiguous_class_methods_path = "test/fixtures/duplication_class_methods_ambiguous.rb"
+ambiguous_class_methods_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{ambiguous_class_methods_path}:2,#{ambiguous_class_methods_path}:19,#{ambiguous_class_methods_path}:36\" mass=48 score=48", "Total duplication score: 48", "File duplication score: \"#{ambiguous_class_methods_path}\" score=48", "Status: findings"]
+DuplicationProcess.verify_output(ambiguous_class_methods, DuplicationProcess::OutputExpectation.new(2, ambiguous_class_methods_fields, "multiple Flay method candidates were not grouped"))
 
 puts "Duplication contract: pass"
