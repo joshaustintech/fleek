@@ -411,6 +411,22 @@ DuplicationProcess.verify_output(qualified_namespace_eight_actual, DuplicationPr
 qualified_namespace_eight_reference_fields = ["Similar code found in :module (mass = 68)", "#{qualified_namespace_eight_path}:1", "#{qualified_namespace_eight_path}:12", "Total score (lower is better) = 68"]
 DuplicationProcess.verify_output(qualified_namespace_eight_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_eight_reference_fields, "eight-component qualified module Flay group changed"))
 
+qualified_namespace_nine_path = "test/fixtures/duplication_qualified_namespace_nine_components.rb"
+qualified_namespace_nine_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_nine_path, "fleek", ""))
+qualified_namespace_nine_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_nine_path, "flay", ""))
+qualified_namespace_nine_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_nine_path}:1,#{qualified_namespace_nine_path}:12\" mass=70 score=70", "Total duplication score: 70", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(qualified_namespace_nine_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_nine_fields, "nine-component qualified module class group differed"))
+qualified_namespace_nine_reference_fields = ["Similar code found in :module (mass = 70)", "#{qualified_namespace_nine_path}:1", "#{qualified_namespace_nine_path}:12", "Total score (lower is better) = 70"]
+DuplicationProcess.verify_output(qualified_namespace_nine_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_nine_reference_fields, "nine-component qualified module Flay group changed"))
+
+qualified_namespace_ten_path = "test/fixtures/duplication_qualified_namespace_ten_components.rb"
+qualified_namespace_ten_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_ten_path, "fleek", ""))
+qualified_namespace_ten_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_ten_path, "flay", ""))
+qualified_namespace_ten_fields = ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(qualified_namespace_ten_actual, DuplicationProcess::OutputExpectation.new(1, qualified_namespace_ten_fields, "ten-component qualified module path boundary was treated as complete"))
+qualified_namespace_ten_reference_fields = ["Similar code found in :module (mass = 72)", "#{qualified_namespace_ten_path}:1", "#{qualified_namespace_ten_path}:12", "Total score (lower is better) = 72"]
+DuplicationProcess.verify_output(qualified_namespace_ten_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_ten_reference_fields, "ten-component qualified module Flay reference changed"))
+
 clean_scope_path = "test/fixtures/duplication_class_scopes_clean.rb"
 clean_scope_actual = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "fleek", ""))
 clean_scope_reference = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "flay", ""))

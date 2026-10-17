@@ -242,7 +242,7 @@ class Fleek
       size_t parameter_mass;
       int line;
       int scope_kind;
-      pm_constant_id_t scope_names[9];
+      pm_constant_id_t scope_names[10];
       size_t scope_depth;
       size_t scope_mass;
     } fleek_duplication_method_t;
@@ -2396,25 +2396,28 @@ class Fleek
       return true;
     }
     static bool fleek_duplication_constant_path_names(const pm_node_t *constant_path, pm_constant_id_t *names, size_t capacity, size_t *count) {
-      pm_constant_id_t reversed[9] = { 0 };
       size_t found = 0;
       const pm_node_t *cursor = constant_path;
       while (cursor != NULL) {
         if (PM_NODE_TYPE_P(cursor, PM_CONSTANT_READ_NODE)) {
           if (found == capacity) return false;
-          reversed[found++] = ((const pm_constant_read_node_t *) cursor)->name;
+          names[found++] = ((const pm_constant_read_node_t *) cursor)->name;
           cursor = NULL;
         } else if (PM_NODE_TYPE_P(cursor, PM_CONSTANT_PATH_NODE)) {
           const pm_constant_path_node_t *path = (const pm_constant_path_node_t *) cursor;
           if (path->parent == NULL || found == capacity) return false;
-          reversed[found++] = path->name;
+          names[found++] = path->name;
           cursor = path->parent;
         } else {
           return false;
         }
       }
       if (found == 0) return false;
-      for (size_t index = 0; index < found; index++) names[index] = reversed[found - index - 1];
+      for (size_t index = 0; index < found / 2; index++) {
+        pm_constant_id_t name = names[index];
+        names[index] = names[found - index - 1];
+        names[found - index - 1] = name;
+      }
       *count = found;
       return true;
     }
@@ -2712,9 +2715,9 @@ class Fleek
     static bool fleek_duplication_collect_namespace_classes(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set) {
       if (!PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
       const pm_module_node_t *module_node = (const pm_module_node_t *) node;
-      pm_constant_id_t module_names[9] = { 0 };
+      pm_constant_id_t module_names[10] = { 0 };
       size_t module_name_count = 0;
-      if (!fleek_duplication_constant_path_names(module_node->constant_path, module_names, 9, &module_name_count)) { fleek_duplication_partial = 1; return true; }
+      if (!fleek_duplication_constant_path_names(module_node->constant_path, module_names, 10, &module_name_count)) { fleek_duplication_partial = 1; return true; }
       set->namespace_count++;
       if (module_node->body == NULL) return true;
       if (!PM_NODE_TYPE_P(module_node->body, PM_STATEMENTS_NODE)) return false;
@@ -2722,7 +2725,7 @@ class Fleek
       if (body->body.size > 32) return false;
       if (module_name_count > 1) {
         if (body->body.size == 0) return true;
-        if (module_name_count >= 9) { fleek_duplication_partial = 1; return true; }
+        if (module_name_count >= 10) { fleek_duplication_partial = 1; return true; }
         if (body->body.size > 1) return fleek_duplication_collect_qualified_namespace_classes(module_node, module_names, module_name_count, body, source, set);
         if (!PM_NODE_TYPE_P(body->body.nodes[0], PM_CLASS_NODE)) { fleek_duplication_partial = 1; return true; }
         const pm_class_node_t *class_node = (const pm_class_node_t *) body->body.nodes[0];
@@ -3832,7 +3835,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods in one simple module or a sole nested-module chain up to nine modules, one direct class under a sole nested-module chain up to seven modules, nested class chains up to four classes with direct sibling classes containing supported methods or one nested class wrapper with supported methods, or direct classes with supported methods under a relative qualified module path with two to eight constant components; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods in one simple module or a sole nested-module chain up to nine modules, one direct class under a sole nested-module chain up to seven modules, nested class chains up to four classes with direct sibling classes containing supported methods or one nested class wrapper with supported methods, or direct classes with supported methods under a relative qualified module path with two to nine constant components; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -3915,7 +3918,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods in one simple module or a sole nested-module chain up to nine modules, one direct class under a sole nested-module chain up to seven modules, nested class chains up to four classes with direct sibling classes containing supported methods or one nested class wrapper with supported methods, or direct classes with supported methods under a relative qualified module path with two to eight constant components; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods in one simple module or a sole nested-module chain up to nine modules, one direct class under a sole nested-module chain up to seven modules, nested class chains up to four classes with direct sibling classes containing supported methods or one nested class wrapper with supported methods, or direct classes with supported methods under a relative qualified module path with two to nine constant components; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter
