@@ -2,11 +2,11 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0070](0070-ten-component-qualified-module-classes.md).
 
 ## Context
 
-Flay 2.14.4 reports class-method module groups under relative qualified module paths with nine constant components. Fleek supported paths through eight components. The constant-path collector used a fixed-size reverse buffer as well as a caller-provided destination, so both storage limits needed to cover the new depth.
+Historical context: Flay 2.14.4 reports class-method module groups under relative qualified module paths with nine constant components. Fleek supported paths through eight components. The constant-path collector used a fixed-size reverse buffer as well as a caller-provided destination, so both storage limits needed to cover the new depth.
 
 ## Decision
 
