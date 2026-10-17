@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0079](0079-seven-level-nested-class-candidates.md).
 
 ## Context
 
@@ -14,8 +14,8 @@ Extend the single nested-class chain traversal through six classes. Keep seven-l
 
 ## Consequences
 
-Six-level class groups retain outer-scope location, full scope identity, and Flay mass. Seven-level chains remain partial. Direct-sibling and wrapper forms keep their existing limits.
+Historical decision: six-level class groups are complete; seven-level chains were partial at the time. ADR 0079 extends direct nested-class chains through seven and keeps eight-level chains partial. Direct-sibling and wrapper forms retain their independent limits.
 
 ## Evidence
 
-`test/fixtures/duplication_six_level_nested_class_boundary.rb` matches Flay 2.14.4 at similar `:class` mass/score 60 and lines 1/20. `test/fixtures/duplication_seven_level_nested_class_boundary.rb` matches Flay at mass/score 62 and lines 1/22 while Fleek reports incomplete coverage. Mutations restore the five-class cutoff and relax the six-class cutoff; both must fail public contracts.
+Historical evidence is retained in [ADR 0079](0079-seven-level-nested-class-candidates.md), which records current seven/eight-level contracts and mutation checks.

@@ -2525,7 +2525,7 @@ class Fleek
           if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) ||
               !PM_NODE_TYPE_P(nested_class->constant_path, PM_CONSTANT_READ_NODE) || nested_class->body == NULL ||
               !PM_NODE_TYPE_P(nested_class->body, PM_STATEMENTS_NODE)) { fleek_duplication_partial = 1; return true; }
-          if (class_depth >= 6) { fleek_duplication_partial = 1; return true; }
+          if (class_depth >= 7) { fleek_duplication_partial = 1; return true; }
           if (!fleek_duplication_collect_class_methods((const pm_node_t *) nested_class, class_depth + 1, source, set)) return false;
           for (size_t index = first_candidate; index < set->count; index++) {
             if (set->candidates[index].scope_depth >= 8) { fleek_duplication_partial = 1; continue; }
@@ -3835,7 +3835,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods in one simple module or a sole nested-module chain up to twelve modules, one direct class under a sole nested-module chain up to eleven modules, nested class chains through six classes with existing bounded direct-sibling and wrapper forms, or direct classes with supported methods under a relative qualified module path with two to sixteen constant components; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods in one simple module or a sole nested-module chain up to twelve modules, one direct class under a sole nested-module chain up to eleven modules, nested class chains through seven classes with existing bounded direct-sibling and wrapper forms, or direct classes with supported methods under a relative qualified module path with two to sixteen constant components; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -3918,7 +3918,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods in one simple module or a sole nested-module chain up to twelve modules, one direct class under a sole nested-module chain up to eleven modules, nested class chains through six classes with existing bounded direct-sibling and wrapper forms, or direct classes with supported methods under a relative qualified module path with two to sixteen constant components; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods in one simple module or a sole nested-module chain up to twelve modules, one direct class under a sole nested-module chain up to eleven modules, nested class chains through seven classes with existing bounded direct-sibling and wrapper forms, or direct classes with supported methods under a relative qualified module path with two to sixteen constant components; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter

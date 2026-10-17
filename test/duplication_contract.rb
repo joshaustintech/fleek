@@ -414,10 +414,18 @@ DuplicationProcess.verify_output(six_level_nested_class_reference, DuplicationPr
 seven_level_nested_class_path = "test/fixtures/duplication_seven_level_nested_class_boundary.rb"
 seven_level_nested_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(seven_level_nested_class_path, "fleek", ""))
 seven_level_nested_class_reference = DuplicationProcess.run(DuplicationProcess::Input.new(seven_level_nested_class_path, "flay", ""))
-seven_level_nested_class_actual_fields = ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(seven_level_nested_class_actual, DuplicationProcess::OutputExpectation.new(1, seven_level_nested_class_actual_fields, "seven-level nested-class boundary was treated as complete"))
+seven_level_nested_class_actual_fields = ["node=\"class\" kind=\"similar\" locations=\"#{seven_level_nested_class_path}:1,#{seven_level_nested_class_path}:22\" mass=62 score=62", "Total duplication score: 62", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(seven_level_nested_class_actual, DuplicationProcess::OutputExpectation.new(2, seven_level_nested_class_actual_fields, "seven-level nested-class candidates differed"))
 seven_level_nested_class_reference_fields = ["Similar code found in :class (mass = 62)", "#{seven_level_nested_class_path}:1", "#{seven_level_nested_class_path}:22", "Total score (lower is better) = 62"]
 DuplicationProcess.verify_output(seven_level_nested_class_reference, DuplicationProcess::OutputExpectation.new(0, seven_level_nested_class_reference_fields, "seven-level nested-class Flay group changed"))
+
+eight_level_nested_class_path = "test/fixtures/duplication_eight_level_nested_class_boundary.rb"
+eight_level_nested_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(eight_level_nested_class_path, "fleek", ""))
+eight_level_nested_class_reference = DuplicationProcess.run(DuplicationProcess::Input.new(eight_level_nested_class_path, "flay", ""))
+eight_level_nested_class_fields = ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(eight_level_nested_class_actual, DuplicationProcess::OutputExpectation.new(1, eight_level_nested_class_fields, "eight-level nested-class boundary was treated as complete"))
+eight_level_nested_class_reference_fields = ["Similar code found in :class (mass = 64)", "#{eight_level_nested_class_path}:1", "#{eight_level_nested_class_path}:24", "Total score (lower is better) = 64"]
+DuplicationProcess.verify_output(eight_level_nested_class_reference, DuplicationProcess::OutputExpectation.new(0, eight_level_nested_class_reference_fields, "eight-level nested-class Flay group changed"))
 
 nested_class_siblings_path = "test/fixtures/duplication_nested_class_siblings.rb"
 nested_class_siblings_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_class_siblings_path, "fleek", ""))
