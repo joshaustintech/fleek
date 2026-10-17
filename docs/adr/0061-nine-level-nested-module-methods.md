@@ -1,4 +1,4 @@
-# ADR 0061: Support nine-level nested module methods
+# ADR 0061: Support nested module methods with a fixed depth bound
 
 ## Status
 
@@ -6,16 +6,16 @@ Accepted.
 
 ## Context
 
-Flay 2.14.4 reports a complete module group for matching direct methods inside a sole chain of nine nested modules. Fleek previously supported eight levels and marked this reference-supported shape incomplete. Extending without an explicit bound would make native candidate storage and recursive traversal unbounded.
+Flay 2.14.4 reports a complete module group for matching direct methods inside a sole chain of nested modules. Fleek supports these bounded scopes while keeping candidate storage and recursive traversal explicitly finite.
 
 ## Decision
 
-Extend the fixed nested-module method bound from eight levels to nine. Store up to nine module names in a candidate, retain up to nine names while walking the constant path, and mark chains deeper than nine incomplete. Preserve the existing partial result behavior for the unsupported deeper scope.
+Support sole nested-module method chains through ten levels. Store up to ten module names in a candidate and retain up to ten names while walking the constant path. Mark chains deeper than ten incomplete. Preserve the existing partial result behavior for the unsupported deeper scope.
 
 ## Consequences
 
-Nine-level module method groups are eligible for complete reporting. Ten-level chains remain partial while retaining any independent supported findings. The class-under-module and relative-qualified-class bounds are unchanged.
+Ten-level module method groups are eligible for complete reporting. Eleven-level chains remain partial while retaining any independent supported findings. The class-under-module and relative-qualified-class bounds are unchanged.
 
 ## Evidence
 
-`test/fixtures/duplication_nine_level_module_boundary.rb` matches Flay's similar module group at mass/score 48 and declaration lines 1 and 25. `test/fixtures/duplication_ten_level_module_boundary.rb` matches Flay's mass/score 50 group at lines 1 and 27 while Fleek reports incomplete coverage. The public contract checks both results, and the `Flay tenth nested module boundary` mutation raises the guard to ten so the ten-level contract must detect the regression.
+`test/fixtures/duplication_nine_level_module_boundary.rb` matches Flay's similar module group at mass/score 48 and declaration lines 1 and 25. `test/fixtures/duplication_ten_level_module_boundary.rb` matches Flay's mass/score 50 group at lines 1 and 27 with complete coverage. `test/fixtures/duplication_eleven_level_module_boundary.rb` matches Flay's mass/score 52 group at lines 1 and 29 while Fleek reports incomplete coverage. The public contract checks all three results, and the `Flay eleventh nested module boundary` mutation raises the guard to eleven so the boundary contract must detect the regression.
