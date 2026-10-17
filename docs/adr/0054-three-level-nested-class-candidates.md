@@ -18,4 +18,4 @@ The supported boundary is explicit and bounded. Deeper chains remain visible as 
 
 ## Evidence
 
-`test/fixtures/duplication_deep_nested_class_boundary.rb` matches Flay 2.14.4 at similar `:class` mass/score 54 and locations 1/14. `test/fixtures/duplication_deeper_nested_class_boundary.rb` confirms a four-class chain stays incomplete while Flay reports mass 56 at locations 1/16. Mutation checks protect three-level collection and reject exceeding the bound.
+`test/fixtures/duplication_deep_nested_class_boundary.rb` matched Flay 2.14.4 at similar `:class` mass/score 54 and locations 1/14. At the time, `test/fixtures/duplication_deeper_nested_class_boundary.rb` confirmed that a four-class chain stayed incomplete while Flay reported mass 56 at locations 1/16. ADR 0060 later extends the supported chain depth to four classes and records the new fifth-level incomplete boundary.
