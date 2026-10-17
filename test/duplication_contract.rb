@@ -331,6 +331,14 @@ DuplicationProcess.verify_output(nested_class_siblings_actual, DuplicationProces
 nested_class_siblings_reference_fields = ["Similar code found in :class (mass = 104)", "#{nested_class_siblings_path}:1", "#{nested_class_siblings_path}:23", "Total score (lower is better) = 104"]
 DuplicationProcess.verify_output(nested_class_siblings_reference, DuplicationProcess::OutputExpectation.new(0, nested_class_siblings_reference_fields, "nested-class siblings Flay group changed"))
 
+nested_sibling_methods_path = "test/fixtures/duplication_nested_class_sibling_methods.rb"
+nested_sibling_methods_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_sibling_methods_path, "fleek", ""))
+nested_sibling_methods_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_sibling_methods_path, "flay", ""))
+nested_sibling_methods_actual_fields = ["node=\"class\" kind=\"similar\" locations=\"#{nested_sibling_methods_path}:1,#{nested_sibling_methods_path}:29\" mass=118 score=118", "Total duplication score: 118", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(nested_sibling_methods_actual, DuplicationProcess::OutputExpectation.new(2, nested_sibling_methods_actual_fields, "multi-method nested class siblings group differed"))
+nested_sibling_methods_reference_fields = ["Similar code found in :class (mass = 118)", "#{nested_sibling_methods_path}:1", "#{nested_sibling_methods_path}:29", "Total score (lower is better) = 118"]
+DuplicationProcess.verify_output(nested_sibling_methods_reference, DuplicationProcess::OutputExpectation.new(0, nested_sibling_methods_reference_fields, "multi-method nested class siblings Flay group changed"))
+
 nested_wrapped_siblings_path = "test/fixtures/duplication_nested_wrapped_class_siblings.rb"
 nested_wrapped_siblings_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_wrapped_siblings_path, "fleek", ""))
 nested_wrapped_siblings_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_wrapped_siblings_path, "flay", ""))

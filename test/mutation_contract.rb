@@ -100,6 +100,7 @@ class MutationCase
     "Flay nested class depth boundary" => "test/duplication_contract.rb",
     "Flay nested class sibling mass" => "test/duplication_contract.rb",
     "Flay nested wrapped class siblings" => "test/duplication_contract.rb",
+    "Flay nested sibling multi-methods" => "test/duplication_contract.rb",
     "Flay nested sibling path mass" => "test/duplication_contract.rb",
     "Flay qualified namespace class collection" => "test/duplication_contract.rb",
     "Flay qualified namespace multiple classes" => "test/duplication_contract.rb",
@@ -722,15 +723,20 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay nested class sibling mass",
   "nested-class siblings group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "else if (nested_body->body.size == 1 && class_depth < 3 && PM_NODE_TYPE_P(nested_body->body.nodes[0], PM_CLASS_NODE))",
-  "else if (false)",
+  "if (!direct_methods && nested_body->body.size == 1 && class_depth < 3 && PM_NODE_TYPE_P(nested_body->body.nodes[0], PM_CLASS_NODE))",
+  "if (false)",
   "Flay nested wrapped class siblings",
   "nested wrapped class siblings group differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "bool direct_methods = nested_body->body.size > 0;",
+  "bool direct_methods = nested_body->body.size == 1;",
+  "Flay nested sibling multi-methods",
+  "multi-method nested class siblings group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (name == set->candidates[candidate].scope_depth) { duplicate_path = true; break; }",
   "if (false) { duplicate_path = true; break; }",
   "Flay nested sibling path mass",
-  "nested wrapped class siblings group differed")).run
+  "multi-method nested class siblings group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (module_name_count > 1) {",
   "if (false) {",
