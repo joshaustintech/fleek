@@ -95,7 +95,8 @@ class MutationCase
     "Flay nested module candidate collection" => "test/duplication_contract.rb",
     "Flay deep nested module candidate collection" => "test/duplication_contract.rb",
     "Flay eleven-level nested module boundary" => "test/duplication_contract.rb",
-    "Flay twelve-level nested module boundary" => "test/duplication_contract.rb",
+    "Flay twelve-level nested module inclusion" => "test/duplication_contract.rb",
+    "Flay thirteen-level nested module boundary" => "test/duplication_contract.rb",
     "Flay nested namespace class collection" => "test/duplication_contract.rb",
     "Flay ten-level nested-module class boundary" => "test/duplication_contract.rb",
     "Flay nested class scope mass" => "test/duplication_contract.rb",
@@ -704,15 +705,15 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay deep nested module candidate collection",
   "deep nested Flay module candidates differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (depth == 11 || !PM_NODE_TYPE_P(current->constant_path, PM_CONSTANT_READ_NODE))",
-  "if (depth == 10 || !PM_NODE_TYPE_P(current->constant_path, PM_CONSTANT_READ_NODE))",
-  "Flay eleven-level nested module boundary",
-  "eleven-level nested module candidates differed")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (depth == 11 || !PM_NODE_TYPE_P(current->constant_path, PM_CONSTANT_READ_NODE))",
   "if (depth == 12 || !PM_NODE_TYPE_P(current->constant_path, PM_CONSTANT_READ_NODE))",
-  "Flay twelve-level nested module boundary",
-  "twelve-level nested module boundary was treated as complete")).run
+  "if (depth == 11 || !PM_NODE_TYPE_P(current->constant_path, PM_CONSTANT_READ_NODE))",
+  "Flay twelve-level nested module inclusion",
+  "twelve-level nested module group differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (depth == 12 || !PM_NODE_TYPE_P(current->constant_path, PM_CONSTANT_READ_NODE))",
+  "if (depth == 13 || !PM_NODE_TYPE_P(current->constant_path, PM_CONSTANT_READ_NODE))",
+  "Flay thirteen-level nested module boundary",
+  "thirteen-level nested module boundary was treated as complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (!fleek_duplication_collect_class_methods((const pm_node_t *) class_node, 1, source, set)) return false;",
   "return true;",
@@ -992,7 +993,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'print_duplication_source(path, report.source_scope)',
   'print_duplication_source(path, "included")',
   "Flay partial source label",
-  "twelve-level nested module boundary was treated as complete")).run
+  "thirteen-level nested module boundary was treated as complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'report.paths.length - report.partial_paths.length',
   'report.paths.length',

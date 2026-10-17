@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0077](0077-twelve-level-nested-module-methods.md).
 
 ## Context
 
@@ -14,8 +14,8 @@ Extend direct method collection under sole nested-module chains through eleven m
 
 ## Consequences
 
-Eleven-module method groups are complete with full scope identity, outer module location, and Flay mass. Twelve-module method chains remain partial. No change is made to nested class or qualified namespace syntax.
+Historical decision: eleven-module method groups are complete; twelve-module method chains were partial at the time. ADR 0077 extends the bound through twelve modules and keeps thirteen-module chains partial. No change is made to nested class or qualified namespace syntax.
 
 ## Evidence
 
-`test/fixtures/duplication_eleven_level_module_boundary.rb` matches Flay 2.14.4 at similar `:module` mass/score 52 and lines 1/29. `test/fixtures/duplication_twelve_level_module_boundary.rb` matches Flay at mass/score 54 and lines 1/31 while Fleek reports incomplete coverage. Public contracts compare both boundaries; mutations lower the supported depth and relax the partial guard.
+Historical evidence is retained in [ADR 0077](0077-twelve-level-nested-module-methods.md), which records the current 12/13-level contracts and mutation checks.
