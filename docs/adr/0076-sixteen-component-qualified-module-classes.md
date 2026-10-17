@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0080](0080-seventeen-component-qualified-module-classes.md).
 
 ## Context
 
@@ -14,8 +14,8 @@ Expand both fixed buffers to seventeen names and support direct classes with sup
 
 ## Consequences
 
-Sixteen-component groups report complete coverage and match Flay's node mass, score, locations, and ordering. Seventeen-component paths remain explicitly partial.
+Historical decision: sixteen-component groups are complete; seventeen-component paths were partial at the time. ADR 0080 extends qualified paths through seventeen components and keeps eighteen-component paths partial.
 
 ## Evidence
 
-`test/fixtures/duplication_qualified_namespace_sixteen_components.rb` matches Flay 2.14.4 at similar `:module` mass/score 84 and lines 1/12. `test/fixtures/duplication_qualified_namespace_seventeen_components.rb` matches Flay at mass/score 86 and lines 1/12 while Fleek reports incomplete. Public CLI contracts compare both; mutations lower the supported boundary and accept the unsupported boundary.
+Historical evidence is retained in [ADR 0080](0080-seventeen-component-qualified-module-classes.md), which records the current 17/18-component contracts and mutation checks.

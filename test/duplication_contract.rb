@@ -566,10 +566,18 @@ DuplicationProcess.verify_output(qualified_namespace_sixteen_reference, Duplicat
 qualified_namespace_seventeen_path = "test/fixtures/duplication_qualified_namespace_seventeen_components.rb"
 qualified_namespace_seventeen_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_seventeen_path, "fleek", ""))
 qualified_namespace_seventeen_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_seventeen_path, "flay", ""))
-qualified_namespace_seventeen_fields = ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(qualified_namespace_seventeen_actual, DuplicationProcess::OutputExpectation.new(1, qualified_namespace_seventeen_fields, "seventeen-component qualified module path boundary was treated as complete"))
+qualified_namespace_seventeen_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_seventeen_path}:1,#{qualified_namespace_seventeen_path}:12\" mass=86 score=86", "Total duplication score: 86", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(qualified_namespace_seventeen_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_seventeen_fields, "seventeen-component qualified module class group differed"))
 qualified_namespace_seventeen_reference_fields = ["Similar code found in :module (mass = 86)", "#{qualified_namespace_seventeen_path}:1", "#{qualified_namespace_seventeen_path}:12", "Total score (lower is better) = 86"]
 DuplicationProcess.verify_output(qualified_namespace_seventeen_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_seventeen_reference_fields, "seventeen-component qualified module Flay reference changed"))
+
+qualified_namespace_eighteen_path = "test/fixtures/duplication_qualified_namespace_eighteen_components.rb"
+qualified_namespace_eighteen_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_eighteen_path, "fleek", ""))
+qualified_namespace_eighteen_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_eighteen_path, "flay", ""))
+qualified_namespace_eighteen_fields = ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(qualified_namespace_eighteen_actual, DuplicationProcess::OutputExpectation.new(1, qualified_namespace_eighteen_fields, "eighteen-component qualified module path boundary was treated as complete"))
+qualified_namespace_eighteen_reference_fields = ["Similar code found in :module (mass = 88)", "#{qualified_namespace_eighteen_path}:1", "#{qualified_namespace_eighteen_path}:12", "Total score (lower is better) = 88"]
+DuplicationProcess.verify_output(qualified_namespace_eighteen_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_eighteen_reference_fields, "eighteen-component qualified module Flay reference changed"))
 
 clean_scope_path = "test/fixtures/duplication_class_scopes_clean.rb"
 clean_scope_actual = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "fleek", ""))
