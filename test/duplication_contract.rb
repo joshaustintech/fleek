@@ -323,6 +323,14 @@ DuplicationProcess.verify_output(deeper_nested_class_actual, DuplicationProcess:
 deeper_nested_class_reference_fields = ["Similar code found in :class (mass = 56)", "#{deeper_nested_class_path}:1", "#{deeper_nested_class_path}:16", "Total score (lower is better) = 56"]
 DuplicationProcess.verify_output(deeper_nested_class_reference, DuplicationProcess::OutputExpectation.new(0, deeper_nested_class_reference_fields, "four-level nested-class Flay group changed"))
 
+nested_class_siblings_path = "test/fixtures/duplication_nested_class_siblings.rb"
+nested_class_siblings_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_class_siblings_path, "fleek", ""))
+nested_class_siblings_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_class_siblings_path, "flay", ""))
+nested_class_siblings_actual_fields = ["node=\"class\" kind=\"similar\" locations=\"#{nested_class_siblings_path}:1,#{nested_class_siblings_path}:23\" mass=104 score=104", "Total duplication score: 104", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(nested_class_siblings_actual, DuplicationProcess::OutputExpectation.new(2, nested_class_siblings_actual_fields, "nested-class siblings group differed"))
+nested_class_siblings_reference_fields = ["Similar code found in :class (mass = 104)", "#{nested_class_siblings_path}:1", "#{nested_class_siblings_path}:23", "Total score (lower is better) = 104"]
+DuplicationProcess.verify_output(nested_class_siblings_reference, DuplicationProcess::OutputExpectation.new(0, nested_class_siblings_reference_fields, "nested-class siblings Flay group changed"))
+
 qualified_namespace_class_path = "test/fixtures/duplication_qualified_namespace_class_group.rb"
 qualified_namespace_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_class_path, "fleek", ""))
 qualified_namespace_class_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_class_path, "flay", ""))
