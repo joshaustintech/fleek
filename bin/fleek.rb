@@ -2615,6 +2615,43 @@ class Fleek
       return true;
     }
 
+    static bool fleek_duplication_collect_qualified_namespace_classes(const pm_module_node_t *module_node, const pm_constant_id_t *module_names, size_t module_name_count, const pm_statements_node_t *body, const uint8_t *source, fleek_duplication_class_candidates_t *set) {
+      size_t scope_index = set->scope_count++;
+      size_t first_candidate = set->count;
+      size_t module_candidate_count = 0;
+      size_t module_class_count = 0;
+      for (size_t child_index = 0; child_index < body->body.size; child_index++) {
+        const pm_node_t *child = body->body.nodes[child_index];
+        if (!PM_NODE_TYPE_P(child, PM_CLASS_NODE)) { fleek_duplication_partial = 1; continue; }
+        const pm_class_node_t *class_node = (const pm_class_node_t *) child;
+        size_t class_first_candidate = set->count;
+        if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) || class_node->body == NULL ||
+            !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE) ||
+            !fleek_duplication_collect_class_methods(child, source, set)) { fleek_duplication_partial = 1; continue; }
+        const pm_statements_node_t *class_body = (const pm_statements_node_t *) class_node->body;
+        if (class_body->body.size != 1 || !PM_NODE_TYPE_P(class_body->body.nodes[0], PM_DEF_NODE) || set->count != class_first_candidate + 1) {
+          fleek_duplication_partial = 1;
+          continue;
+        }
+        size_t candidate = class_first_candidate;
+        module_class_count++;
+        set->scope_indices[candidate] = scope_index;
+        set->scope_lines[candidate] = fleek_source_line(source, module_node->base.location.start);
+        set->candidates[candidate].scope_kind = 2;
+        set->candidates[candidate].scope_depth = module_name_count + 1;
+        for (size_t name = 0; name < module_name_count; name++) set->candidates[candidate].scope_names[name] = module_names[name];
+        set->candidates[candidate].scope_names[module_name_count] = ((const pm_constant_read_node_t *) class_node->constant_path)->name;
+        module_candidate_count++;
+      }
+      for (size_t index = first_candidate; index < set->count; index++) {
+        if (set->scope_indices[index] != scope_index) continue;
+        set->scope_body_counts[index] = body->body.size;
+        set->scope_candidate_counts[index] = module_candidate_count;
+        set->candidates[index].scope_mass = module_name_count + module_class_count + 1;
+      }
+      return true;
+    }
+
     static bool fleek_duplication_collect_namespace_classes(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set) {
       if (!PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
       const pm_module_node_t *module_node = (const pm_module_node_t *) node;
@@ -2628,9 +2665,13 @@ class Fleek
       if (body->body.size > 32) return false;
       if (module_name_count > 1) {
         if (body->body.size == 0) return true;
-        if (body->body.size != 1 || !PM_NODE_TYPE_P(body->body.nodes[0], PM_CLASS_NODE) || module_name_count >= 8) { fleek_duplication_partial = 1; return true; }
+        if (module_name_count >= 8) { fleek_duplication_partial = 1; return true; }
+        if (body->body.size > 1) return fleek_duplication_collect_qualified_namespace_classes(module_node, module_names, module_name_count, body, source, set);
+        if (!PM_NODE_TYPE_P(body->body.nodes[0], PM_CLASS_NODE)) { fleek_duplication_partial = 1; return true; }
         const pm_class_node_t *class_node = (const pm_class_node_t *) body->body.nodes[0];
         size_t first_candidate = set->count;
+        if (class_node->body != NULL && (!PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE) ||
+            ((const pm_statements_node_t *) class_node->body)->body.size > 1)) { fleek_duplication_partial = 1; return true; }
         if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) ||
             !fleek_duplication_collect_class_methods((const pm_node_t *) class_node, source, set)) { fleek_duplication_partial = 1; return true; }
         for (size_t index = first_candidate; index < set->count; index++) {
@@ -3711,7 +3752,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods in one simple module or a sole nested-module chain up to eight modules, one direct class under a sole nested-module chain up to seven modules, one class under a single direct nested-class wrapper, or one direct class under a relative qualified module path with two to seven constant components; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods in one simple module or a sole nested-module chain up to eight modules, one direct class under a sole nested-module chain up to seven modules, one class under a single direct nested-class wrapper, or direct classes with one method each under a relative qualified module path with two to seven constant components; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -3794,7 +3835,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods in one simple module or a sole nested-module chain up to eight modules, one direct class under a sole nested-module chain up to seven modules, one class under a single direct nested-class wrapper, or one direct class under a relative qualified module path with two to seven constant components; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods in one simple module or a sole nested-module chain up to eight modules, one direct class under a sole nested-module chain up to seven modules, one class under a single direct nested-class wrapper, or direct classes with one method each under a relative qualified module path with two to seven constant components; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter

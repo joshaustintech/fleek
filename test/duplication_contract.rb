@@ -323,6 +323,22 @@ DuplicationProcess.verify_output(qualified_namespace_class_actual, DuplicationPr
 qualified_namespace_class_reference_fields = ["Similar code found in :module (mass = 56)", "#{qualified_namespace_class_path}:1", "#{qualified_namespace_class_path}:12", "Total score (lower is better) = 56"]
 DuplicationProcess.verify_output(qualified_namespace_class_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_class_reference_fields, "qualified-namespace class Flay group changed"))
 
+qualified_namespace_multiple_classes_path = "test/fixtures/duplication_qualified_namespace_multiple_classes.rb"
+qualified_namespace_multiple_classes_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_multiple_classes_path, "fleek", ""))
+qualified_namespace_multiple_classes_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_multiple_classes_path, "flay", ""))
+qualified_namespace_multiple_classes_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_multiple_classes_path}:1,#{qualified_namespace_multiple_classes_path}:21\" mass=106 score=106", "Total duplication score: 106", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(qualified_namespace_multiple_classes_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_multiple_classes_fields, "multiple qualified-namespace class group differed"))
+qualified_namespace_multiple_classes_reference_fields = ["Similar code found in :module (mass = 106)", "#{qualified_namespace_multiple_classes_path}:1", "#{qualified_namespace_multiple_classes_path}:21", "Total score (lower is better) = 106"]
+DuplicationProcess.verify_output(qualified_namespace_multiple_classes_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_multiple_classes_reference_fields, "multiple qualified-namespace class Flay group changed"))
+
+qualified_namespace_multi_method_path = "test/fixtures/duplication_qualified_namespace_multi_method_class_boundary.rb"
+qualified_namespace_multi_method_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_multi_method_path, "fleek", ""))
+qualified_namespace_multi_method_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_multi_method_path, "flay", ""))
+qualified_namespace_multi_method_fields = ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(qualified_namespace_multi_method_actual, DuplicationProcess::OutputExpectation.new(1, qualified_namespace_multi_method_fields, "multi-method qualified class was treated as complete"))
+qualified_namespace_multi_method_reference_fields = ["Similar code found in :module (mass = 104)", "#{qualified_namespace_multi_method_path}:1", "#{qualified_namespace_multi_method_path}:19", "Total score (lower is better) = 104"]
+DuplicationProcess.verify_output(qualified_namespace_multi_method_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_multi_method_reference_fields, "multi-method qualified-class Flay group changed"))
+
 qualified_namespace_depth_path = "test/fixtures/duplication_qualified_namespace_depth_boundary.rb"
 qualified_namespace_depth_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_depth_path, "fleek", ""))
 qualified_namespace_depth_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_depth_path, "flay", ""))
