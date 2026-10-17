@@ -98,7 +98,8 @@ class MutationCase
     "Flay nested namespace class collection" => "test/duplication_contract.rb",
     "Flay ten-level nested-module class boundary" => "test/duplication_contract.rb",
     "Flay nested class scope mass" => "test/duplication_contract.rb",
-    "Flay sixth nested class boundary" => "test/duplication_contract.rb",
+    "Flay six-level nested class boundary" => "test/duplication_contract.rb",
+    "Flay seven-level nested class boundary" => "test/duplication_contract.rb",
     "Flay nested class sibling mass" => "test/duplication_contract.rb",
     "Flay nested wrapped class siblings" => "test/duplication_contract.rb",
     "Flay nested sibling multi-methods" => "test/duplication_contract.rb",
@@ -722,10 +723,15 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay nested class scope mass",
   "nested-class group was not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
+  "if (class_depth >= 6)",
   "if (class_depth >= 5)",
-  "if (false)",
-  "Flay sixth nested class boundary",
-  "six-level nested-class boundary was treated as complete")).run
+  "Flay six-level nested class boundary",
+  "six-level nested-class candidates differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (class_depth >= 6)",
+  "if (class_depth > 6)",
+  "Flay seven-level nested class boundary",
+  "seven-level nested-class boundary was treated as complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "set->candidates[candidate].scope_mass = inner_name == 0 ? 1 : 2;",
   "set->candidates[candidate].scope_mass = 0;",
