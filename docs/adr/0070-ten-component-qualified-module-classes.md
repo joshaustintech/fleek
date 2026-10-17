@@ -2,11 +2,11 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0071](0071-eleven-component-qualified-module-classes.md).
 
 ## Context
 
-Flay 2.14.4 reports class-method module groups under relative qualified module paths with ten constant components. Fleek stopped at nine, leaving a reference-supported group incomplete. Existing candidate identity and constant-path buffers already hold eleven names, enough for ten module components plus the class.
+Historical context: Flay 2.14.4 reports class-method module groups under relative qualified module paths with ten constant components. Fleek stopped at nine, leaving a reference-supported group incomplete. Existing candidate identity and constant-path buffers already hold eleven names, enough for ten module components plus the class.
 
 ## Decision
 

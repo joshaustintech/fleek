@@ -111,8 +111,8 @@ class MutationCase
     "Flay qualified namespace multi-method classes" => "test/duplication_contract.rb",
     "Flay multiple qualified multi-method classes" => "test/duplication_contract.rb",
     "Flay qualified namespace class mass" => "test/duplication_contract.rb",
-    "Flay tenth qualified namespace component" => "test/duplication_contract.rb",
-    "Flay eleventh qualified namespace boundary" => "test/duplication_contract.rb",
+    "Flay eleventh qualified namespace component" => "test/duplication_contract.rb",
+    "Flay twelfth qualified namespace boundary" => "test/duplication_contract.rb",
     "Flay qualified namespace depth grouping" => "test/duplication_contract.rb",
     "Flay outer scope identity" => "test/duplication_contract.rb",
     "Flay module group kind" => "test/duplication_contract.rb",
@@ -789,15 +789,15 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay qualified namespace class mass",
   "qualified-namespace class group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
+  "module_name_count >= 12",
   "module_name_count >= 11",
-  "module_name_count >= 10",
-  "Flay tenth qualified namespace component",
-  "ten-component qualified module class group differed")).run
+  "Flay eleventh qualified namespace component",
+  "eleven-component qualified module class group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "module_name_count >= 11",
-  "module_name_count > 11",
-  "Flay eleventh qualified namespace boundary",
-  "eleven-component qualified module path boundary was treated as complete")).run
+  "module_name_count >= 12",
+  "module_name_count > 12",
+  "Flay twelfth qualified namespace boundary",
+  "twelve-component qualified module path boundary was treated as complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "set->candidates[left].scope_depth == set->candidates[right].scope_depth &&\n        set->scope_candidate_counts[left]",
   "set->scope_candidate_counts[left]",
