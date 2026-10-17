@@ -2,11 +2,11 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0074](0074-fourteen-component-qualified-module-classes.md).
 
 ## Context
 
-Flay 2.14.4 reports class-method module groups under relative qualified module paths with thirteen constant components. Fleek stopped at twelve. Candidate identity and module path buffers need fourteen constant slots: thirteen module names plus the class name.
+Historical context: Flay 2.14.4 reports class-method module groups under relative qualified module paths with thirteen constant components. Fleek stopped at twelve. Candidate identity and module path buffers need fourteen constant slots: thirteen module names plus the class name.
 
 ## Decision
 

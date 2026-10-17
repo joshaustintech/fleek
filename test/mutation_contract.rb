@@ -111,8 +111,8 @@ class MutationCase
     "Flay qualified namespace multi-method classes" => "test/duplication_contract.rb",
     "Flay multiple qualified multi-method classes" => "test/duplication_contract.rb",
     "Flay qualified namespace class mass" => "test/duplication_contract.rb",
-    "Flay thirteenth qualified namespace component" => "test/duplication_contract.rb",
-    "Flay fourteenth qualified namespace boundary" => "test/duplication_contract.rb",
+    "Flay fourteenth qualified namespace component" => "test/duplication_contract.rb",
+    "Flay fifteenth qualified namespace boundary" => "test/duplication_contract.rb",
     "Flay qualified namespace depth grouping" => "test/duplication_contract.rb",
     "Flay outer scope identity" => "test/duplication_contract.rb",
     "Flay module group kind" => "test/duplication_contract.rb",
@@ -789,15 +789,15 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay qualified namespace class mass",
   "qualified-namespace class group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
+  "module_name_count >= 15",
   "module_name_count >= 14",
-  "module_name_count >= 13",
-  "Flay thirteenth qualified namespace component",
-  "thirteen-component qualified module class group differed")).run
+  "Flay fourteenth qualified namespace component",
+  "fourteen-component qualified module class group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "module_name_count >= 14",
-  "module_name_count > 14",
-  "Flay fourteenth qualified namespace boundary",
-  "fourteen-component qualified module path boundary was treated as complete")).run
+  "module_name_count >= 15",
+  "module_name_count > 15",
+  "Flay fifteenth qualified namespace boundary",
+  "fifteen-component qualified module path boundary was treated as complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "set->candidates[left].scope_depth == set->candidates[right].scope_depth &&\n        set->scope_candidate_counts[left]",
   "set->scope_candidate_counts[left]",
