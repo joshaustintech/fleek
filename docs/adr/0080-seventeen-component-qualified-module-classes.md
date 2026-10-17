@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes [ADR 0076](0076-sixteen-component-qualified-module-classes.md).
+Superseded by [ADR 0085](0085-eighteen-component-qualified-module-classes.md). Historical record; its seventeen-component limit was extended.
 
 ## Context
 
