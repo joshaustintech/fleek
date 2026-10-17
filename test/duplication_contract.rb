@@ -302,10 +302,18 @@ DuplicationProcess.verify_output(ten_level_module_reference, DuplicationProcess:
 eleven_level_module_path = "test/fixtures/duplication_eleven_level_module_boundary.rb"
 eleven_level_module_actual = DuplicationProcess.run(DuplicationProcess::Input.new(eleven_level_module_path, "fleek", ""))
 eleven_level_module_reference = DuplicationProcess.run(DuplicationProcess::Input.new(eleven_level_module_path, "flay", ""))
-eleven_level_module_fields = ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(eleven_level_module_actual, DuplicationProcess::OutputExpectation.new(1, eleven_level_module_fields, "eleven-level nested module boundary was treated as complete"))
+eleven_level_module_fields = ["node=\"module\" kind=\"similar\" locations=\"#{eleven_level_module_path}:1,#{eleven_level_module_path}:29\" mass=52 score=52", "Total duplication score: 52", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(eleven_level_module_actual, DuplicationProcess::OutputExpectation.new(2, eleven_level_module_fields, "eleven-level nested module candidates differed"))
 eleven_level_module_reference_fields = ["Similar code found in :module (mass = 52)", "#{eleven_level_module_path}:1", "#{eleven_level_module_path}:29", "Total score (lower is better) = 52"]
 DuplicationProcess.verify_output(eleven_level_module_reference, DuplicationProcess::OutputExpectation.new(0, eleven_level_module_reference_fields, "eleven-level Flay module group changed"))
+
+twelve_level_module_path = "test/fixtures/duplication_twelve_level_module_boundary.rb"
+twelve_level_module_actual = DuplicationProcess.run(DuplicationProcess::Input.new(twelve_level_module_path, "fleek", ""))
+twelve_level_module_reference = DuplicationProcess.run(DuplicationProcess::Input.new(twelve_level_module_path, "flay", ""))
+twelve_level_module_fields = ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(twelve_level_module_actual, DuplicationProcess::OutputExpectation.new(1, twelve_level_module_fields, "twelve-level nested module boundary was treated as complete"))
+twelve_level_module_reference_fields = ["Similar code found in :module (mass = 54)", "#{twelve_level_module_path}:1", "#{twelve_level_module_path}:31", "Total score (lower is better) = 54"]
+DuplicationProcess.verify_output(twelve_level_module_reference, DuplicationProcess::OutputExpectation.new(0, twelve_level_module_reference_fields, "twelve-level Flay module group changed"))
 
 nested_namespace_class_path = "test/fixtures/duplication_nested_namespace_class_group.rb"
 nested_namespace_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_namespace_class_path, "fleek", ""))

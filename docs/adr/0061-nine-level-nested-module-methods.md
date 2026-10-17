@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0069](0069-eleven-level-nested-module-methods.md).
 
 ## Context
 
@@ -14,7 +14,7 @@ Support sole nested-module method chains through ten levels. Store up to ten mod
 
 ## Consequences
 
-Ten-level module method groups are eligible for complete reporting. Eleven-level chains remain partial while retaining any independent supported findings. The class-under-module and relative-qualified-class bounds are unchanged.
+Historical result: ten-level module method groups are eligible for complete reporting; eleven-level chains remain partial. ADR 0069 extends direct module method chains through eleven levels and keeps twelve-level chains partial. The class-under-module and relative-qualified-class bounds remain independent.
 
 ## Evidence
 
