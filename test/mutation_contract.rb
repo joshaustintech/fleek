@@ -699,7 +699,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay nested module depth boundary",
   "eight-level Flay module candidates differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (!fleek_duplication_collect_class_methods((const pm_node_t *) class_node, source, set)) return false;",
+  "if (!fleek_duplication_collect_class_methods((const pm_node_t *) class_node, 1, source, set)) return false;",
   "return true;",
   "Flay nested namespace class collection",
   "nested-namespace class group differed")).run
@@ -709,10 +709,10 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay nested class scope mass",
   "nested-class group was not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "nested_body->body.size == 1 && PM_NODE_TYPE_P(nested_body->body.nodes[0], PM_CLASS_NODE)",
-  "false",
+  "if (class_depth >= 3)",
+  "if (false)",
   "Flay nested class depth boundary",
-  "deep nested-class boundary was treated as complete")).run
+  "four-level nested-class boundary was treated as complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (module_name_count > 1) {",
   "if (false) {",
@@ -864,8 +864,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay additional class method rejection",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (method_count != 0 || ffi_module_count != 0 || !fleek_duplication_collect_class_methods(statement, (const uint8_t *) source, &class_candidates)) {",
-  "if (scope_count != 0 || method_count != 0 || ffi_module_count != 0 || !fleek_duplication_collect_class_methods(statement, (const uint8_t *) source, &class_candidates)) {",
+  "if (method_count != 0 || ffi_module_count != 0 || !fleek_duplication_collect_class_methods(statement, 1, (const uint8_t *) source, &class_candidates)) {",
+  "if (scope_count != 0 || method_count != 0 || ffi_module_count != 0 || !fleek_duplication_collect_class_methods(statement, 1, (const uint8_t *) source, &class_candidates)) {",
   "Flay multiple class declarations",
   "class methods across classes were not compared")).run
 MutationCase.new(MutationCase::Configuration.new(source,
