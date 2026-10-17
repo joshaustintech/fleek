@@ -244,6 +244,7 @@ class Fleek
       int scope_kind;
       pm_constant_id_t scope_names[8];
       size_t scope_depth;
+      size_t scope_mass;
     } fleek_duplication_method_t;
 
     typedef struct {
@@ -2394,6 +2395,29 @@ class Fleek
       for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') result->line++;
       return true;
     }
+    static bool fleek_duplication_constant_path_names(const pm_node_t *constant_path, pm_constant_id_t *names, size_t capacity, size_t *count) {
+      pm_constant_id_t reversed[8] = { 0 };
+      size_t found = 0;
+      const pm_node_t *cursor = constant_path;
+      while (cursor != NULL) {
+        if (PM_NODE_TYPE_P(cursor, PM_CONSTANT_READ_NODE)) {
+          if (found == capacity) return false;
+          reversed[found++] = ((const pm_constant_read_node_t *) cursor)->name;
+          cursor = NULL;
+        } else if (PM_NODE_TYPE_P(cursor, PM_CONSTANT_PATH_NODE)) {
+          const pm_constant_path_node_t *path = (const pm_constant_path_node_t *) cursor;
+          if (path->parent == NULL || found == capacity) return false;
+          reversed[found++] = path->name;
+          cursor = path->parent;
+        } else {
+          return false;
+        }
+      }
+      if (found == 0) return false;
+      for (size_t index = 0; index < found; index++) names[index] = reversed[found - index - 1];
+      *count = found;
+      return true;
+    }
     static bool fleek_duplication_class_shapes_equal(const fleek_duplication_method_t *left, const fleek_duplication_method_t *right) {
       if (left->shape_count != right->shape_count || left->data.ast.tree_count != right->data.ast.tree_count) return false;
       for (size_t index = 0; index < left->data.ast.tree_count; index++) if (left->data.ast.tree[index] != right->data.ast.tree[index]) return false;
@@ -2509,6 +2533,7 @@ class Fleek
         set->candidates[index].scope_kind = 1;
         set->candidates[index].scope_names[0] = ((const pm_constant_read_node_t *) class_node->constant_path)->name;
         set->candidates[index].scope_depth = 1;
+        set->candidates[index].scope_mass = 1;
       }
       return true;
     }
@@ -2529,6 +2554,7 @@ class Fleek
         set->scope_lines[set->count] = fleek_source_line(source, scope_node->base.location.start);
         set->candidates[set->count].scope_kind = 2;
         set->candidates[set->count].scope_depth = scope_depth;
+        set->candidates[set->count].scope_mass = scope_depth;
         for (size_t name = 0; name < scope_depth; name++) set->candidates[set->count].scope_names[name] = scope_names[name];
         set->count++;
       }
@@ -2561,6 +2587,7 @@ class Fleek
         for (size_t index = first_candidate; index < set->count; index++) {
           set->candidates[index].scope_kind = 2;
           set->candidates[index].scope_depth = depth + 2;
+          set->candidates[index].scope_mass = depth + 2;
           for (size_t name = 0; name <= depth + 1; name++) set->candidates[index].scope_names[name] = scope_names[name];
           set->scope_lines[index] = fleek_source_line(source, scope_node->base.location.start);
         }
@@ -2573,24 +2600,39 @@ class Fleek
     static bool fleek_duplication_collect_namespace_classes(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set) {
       if (!PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
       const pm_module_node_t *module_node = (const pm_module_node_t *) node;
-      if (!PM_NODE_TYPE_P(module_node->constant_path, PM_CONSTANT_READ_NODE)) return false;
+      pm_constant_id_t module_names[8] = { 0 };
+      size_t module_name_count = 0;
+      if (!fleek_duplication_constant_path_names(module_node->constant_path, module_names, 8, &module_name_count)) { fleek_duplication_partial = 1; return true; }
       set->namespace_count++;
       if (module_node->body == NULL) return true;
       if (!PM_NODE_TYPE_P(module_node->body, PM_STATEMENTS_NODE)) return false;
       const pm_statements_node_t *body = (const pm_statements_node_t *) module_node->body;
       if (body->body.size > 32) return false;
+      if (module_name_count > 1) {
+        if (body->body.size == 0) return true;
+        if (body->body.size != 1 || !PM_NODE_TYPE_P(body->body.nodes[0], PM_CLASS_NODE) || module_name_count >= 8) { fleek_duplication_partial = 1; return true; }
+        const pm_class_node_t *class_node = (const pm_class_node_t *) body->body.nodes[0];
+        size_t first_candidate = set->count;
+        if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) ||
+            !fleek_duplication_collect_class_methods((const pm_node_t *) class_node, source, set)) { fleek_duplication_partial = 1; return true; }
+        for (size_t index = first_candidate; index < set->count; index++) {
+          set->candidates[index].scope_kind = 2;
+          set->candidates[index].scope_depth = module_name_count + 1;
+          set->candidates[index].scope_mass = module_name_count + 2;
+          for (size_t name = 0; name < module_name_count; name++) set->candidates[index].scope_names[name] = module_names[name];
+          set->candidates[index].scope_names[module_name_count] = ((const pm_constant_read_node_t *) class_node->constant_path)->name;
+          set->scope_lines[index] = fleek_source_line(source, module_node->base.location.start);
+        }
+        return true;
+      }
       for (size_t index = 0; index < body->body.size; index++) {
         if (PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE)) {
-          pm_constant_id_t scope_names[8] = { 0 };
-          scope_names[0] = ((const pm_constant_read_node_t *) module_node->constant_path)->name;
-          return fleek_duplication_collect_namespace_methods(module_node, scope_names, 1, body, source, set);
+          return fleek_duplication_collect_namespace_methods(module_node, module_names, module_name_count, body, source, set);
         }
       }
       if (body->body.size == 1 && PM_NODE_TYPE_P(body->body.nodes[0], PM_MODULE_NODE)) {
-        pm_constant_id_t scope_names[8] = { 0 };
-        scope_names[0] = ((const pm_constant_read_node_t *) module_node->constant_path)->name;
         return fleek_duplication_collect_nested_module_methods(module_node,
-          (const pm_module_node_t *) body->body.nodes[0], scope_names, 1, source, set);
+          (const pm_module_node_t *) body->body.nodes[0], module_names, module_name_count, source, set);
       }
       for (size_t index = 0; index < body->body.size; index++) {
         const pm_node_t *child = body->body.nodes[index];
@@ -2701,7 +2743,7 @@ class Fleek
           }
         }
         const char *node = set->candidates[first].scope_kind == 1 ? "class" : "module";
-        size_t node_mass = fleek_duplication_scope_method_mass(set, first) + set->candidates[first].scope_depth;
+        size_t node_mass = fleek_duplication_scope_method_mass(set, first) + set->candidates[first].scope_mass;
         if (!fleek_duplication_append_group(node, identical, node_mass, lines, count)) return false;
       }
       return true;
@@ -3651,7 +3693,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods in one simple module or a sole nested-module chain up to eight modules, or one direct class under a sole nested-module chain up to seven modules; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods in one simple module or a sole nested-module chain up to eight modules, one direct class under a sole nested-module chain up to seven modules, or one direct class under a relative qualified module path with two to seven constant components; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -3734,7 +3776,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods in one simple module or a sole nested-module chain up to eight modules, or one direct class under a sole nested-module chain up to seven modules; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods in one simple module or a sole nested-module chain up to eight modules, one direct class under a sole nested-module chain up to seven modules, or one direct class under a relative qualified module path with two to seven constant components; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter

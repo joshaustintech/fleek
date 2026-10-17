@@ -299,6 +299,22 @@ DuplicationProcess.verify_output(nested_namespace_class_actual, DuplicationProce
 nested_namespace_class_reference_fields = ["Similar code found in :module (mass = 54)", "#{nested_namespace_class_path}:1", "#{nested_namespace_class_path}:14", "Total score (lower is better) = 54"]
 DuplicationProcess.verify_output(nested_namespace_class_reference, DuplicationProcess::OutputExpectation.new(0, nested_namespace_class_reference_fields, "nested-namespace class Flay group changed"))
 
+qualified_namespace_class_path = "test/fixtures/duplication_qualified_namespace_class_group.rb"
+qualified_namespace_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_class_path, "fleek", ""))
+qualified_namespace_class_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_class_path, "flay", ""))
+qualified_namespace_class_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_class_path}:1,#{qualified_namespace_class_path}:12\" mass=56 score=56", "Total duplication score: 56", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(qualified_namespace_class_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_class_fields, "qualified-namespace class group differed"))
+qualified_namespace_class_reference_fields = ["Similar code found in :module (mass = 56)", "#{qualified_namespace_class_path}:1", "#{qualified_namespace_class_path}:12", "Total score (lower is better) = 56"]
+DuplicationProcess.verify_output(qualified_namespace_class_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_class_reference_fields, "qualified-namespace class Flay group changed"))
+
+qualified_namespace_depth_path = "test/fixtures/duplication_qualified_namespace_depth_boundary.rb"
+qualified_namespace_depth_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_depth_path, "fleek", ""))
+qualified_namespace_depth_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_depth_path, "flay", ""))
+qualified_namespace_depth_fields = ["Group: check=\"flay:StructuralDuplication\" node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_depth_path}:1,#{qualified_namespace_depth_path}:12\" mass=66 score=66", "Total duplication score: 66", "scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(qualified_namespace_depth_actual, DuplicationProcess::OutputExpectation.new(1, qualified_namespace_depth_fields, "qualified-namespace depth boundary differed"))
+qualified_namespace_depth_reference_fields = "Similar code found in :module (mass = 68)|#{qualified_namespace_depth_path}:23|#{qualified_namespace_depth_path}:34|Similar code found in :module (mass = 66)|#{qualified_namespace_depth_path}:1|#{qualified_namespace_depth_path}:12|Total score (lower is better) = 134".split("|")
+DuplicationProcess.verify_output(qualified_namespace_depth_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_depth_reference_fields, "qualified-namespace depth Flay groups changed"))
+
 clean_scope_path = "test/fixtures/duplication_class_scopes_clean.rb"
 clean_scope_actual = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "fleek", ""))
 clean_scope_reference = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "flay", ""))
