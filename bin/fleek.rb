@@ -2525,7 +2525,7 @@ class Fleek
           if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) ||
               !PM_NODE_TYPE_P(nested_class->constant_path, PM_CONSTANT_READ_NODE) || nested_class->body == NULL ||
               !PM_NODE_TYPE_P(nested_class->body, PM_STATEMENTS_NODE)) { fleek_duplication_partial = 1; return true; }
-          if (class_depth >= 4) { fleek_duplication_partial = 1; return true; }
+          if (class_depth >= 5) { fleek_duplication_partial = 1; return true; }
           if (!fleek_duplication_collect_class_methods((const pm_node_t *) nested_class, class_depth + 1, source, set)) return false;
           for (size_t index = first_candidate; index < set->count; index++) {
             if (set->candidates[index].scope_depth >= 8) { fleek_duplication_partial = 1; continue; }
@@ -2541,7 +2541,7 @@ class Fleek
           bool only_classes = true;
           for (size_t index = 0; index < body->body.size; index++) if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_CLASS_NODE)) only_classes = false;
           if (only_classes) {
-            if (class_depth >= 4) { fleek_duplication_partial = 1; return true; }
+            if (class_depth >= 5) { fleek_duplication_partial = 1; return true; }
             size_t sibling_first_candidate = set->count;
             bool siblings_complete = true;
             for (size_t index = 0; index < body->body.size; index++) {
@@ -2553,7 +2553,7 @@ class Fleek
               const pm_statements_node_t *method_body = nested_body;
               bool direct_methods = nested_body->body.size > 0;
               for (size_t method = 0; method < nested_body->body.size; method++) if (!PM_NODE_TYPE_P(nested_body->body.nodes[method], PM_DEF_NODE)) direct_methods = false;
-              if (!direct_methods && nested_body->body.size == 1 && class_depth < 4 && PM_NODE_TYPE_P(nested_body->body.nodes[0], PM_CLASS_NODE)) {
+              if (!direct_methods && nested_body->body.size == 1 && class_depth < 5 && PM_NODE_TYPE_P(nested_body->body.nodes[0], PM_CLASS_NODE)) {
                 const pm_class_node_t *inner_class = (const pm_class_node_t *) nested_body->body.nodes[0];
                 if (PM_NODE_TYPE_P(inner_class->constant_path, PM_CONSTANT_READ_NODE) && inner_class->body != NULL && PM_NODE_TYPE_P(inner_class->body, PM_STATEMENTS_NODE)) {
                   method_body = (const pm_statements_node_t *) inner_class->body;
@@ -3835,7 +3835,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods in one simple module or a sole nested-module chain up to ten modules, one direct class under a sole nested-module chain up to seven modules, nested class chains up to four classes with direct sibling classes containing supported methods or one nested class wrapper with supported methods, or direct classes with supported methods under a relative qualified module path with two to nine constant components; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods in one simple module or a sole nested-module chain up to ten modules, one direct class under a sole nested-module chain up to seven modules, nested class chains up to five classes with direct sibling classes containing supported methods or one nested class wrapper with supported methods, or direct classes with supported methods under a relative qualified module path with two to nine constant components; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -3918,7 +3918,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods in one simple module or a sole nested-module chain up to ten modules, one direct class under a sole nested-module chain up to seven modules, nested class chains up to four classes with direct sibling classes containing supported methods or one nested class wrapper with supported methods, or direct classes with supported methods under a relative qualified module path with two to nine constant components; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods in one simple module or a sole nested-module chain up to ten modules, one direct class under a sole nested-module chain up to seven modules, nested class chains up to five classes with direct sibling classes containing supported methods or one nested class wrapper with supported methods, or direct classes with supported methods under a relative qualified module path with two to nine constant components; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter

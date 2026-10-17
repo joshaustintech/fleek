@@ -97,7 +97,7 @@ class MutationCase
     "Flay eleventh nested module boundary" => "test/duplication_contract.rb",
     "Flay nested namespace class collection" => "test/duplication_contract.rb",
     "Flay nested class scope mass" => "test/duplication_contract.rb",
-    "Flay fifth nested class boundary" => "test/duplication_contract.rb",
+    "Flay sixth nested class boundary" => "test/duplication_contract.rb",
     "Flay nested class sibling mass" => "test/duplication_contract.rb",
     "Flay nested wrapped class siblings" => "test/duplication_contract.rb",
     "Flay nested sibling multi-methods" => "test/duplication_contract.rb",
@@ -716,17 +716,17 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay nested class scope mass",
   "nested-class group was not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (class_depth >= 4)",
+  "if (class_depth >= 5)",
   "if (false)",
-  "Flay fifth nested class boundary",
-  "five-level nested-class boundary was treated as complete")).run
+  "Flay sixth nested class boundary",
+  "six-level nested-class boundary was treated as complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "set->candidates[candidate].scope_mass = inner_name == 0 ? 1 : 2;",
   "set->candidates[candidate].scope_mass = 0;",
   "Flay nested class sibling mass",
   "nested-class siblings group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (!direct_methods && nested_body->body.size == 1 && class_depth < 4 && PM_NODE_TYPE_P(nested_body->body.nodes[0], PM_CLASS_NODE))",
+  "if (!direct_methods && nested_body->body.size == 1 && class_depth < 5 && PM_NODE_TYPE_P(nested_body->body.nodes[0], PM_CLASS_NODE))",
   "if (false)",
   "Flay nested wrapped class siblings",
   "nested wrapped class siblings group differed")).run
