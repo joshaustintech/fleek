@@ -7,6 +7,11 @@ class Current
         @entries = @stream.current.list(limit: params[:limit])
         render "current", status: :unprocessable_entity
       end
+
+      def refresh
+        @stream = Stream.open(params[:token])
+        render "refresh", status: :ok
+      end
     end
   end
 
@@ -17,6 +22,11 @@ class Current
         @stream = Stream.open(params[:token])
         @entries = @stream.current.list(limit: params[:limit])
         render "current", status: :unprocessable_entity
+      end
+
+      def refresh
+        @stream = Stream.open(params[:token])
+        render "refresh", status: :ok
       end
     end
   end
@@ -31,6 +41,11 @@ class Archived
         @entries = @stream.archived.list(limit: params[:limit])
         render "archive", status: :unprocessable_entity
       end
+
+      def refresh
+        @stream = Stream.open(params[:token])
+        render "refresh", status: :ok
+      end
     end
   end
 
@@ -41,6 +56,11 @@ class Archived
         @stream = Stream.open(params[:token])
         @entries = @stream.archived.list(limit: params[:limit])
         render "archive", status: :unprocessable_entity
+      end
+
+      def refresh
+        @stream = Stream.open(params[:token])
+        render "refresh", status: :ok
       end
     end
   end

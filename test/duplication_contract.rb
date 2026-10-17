@@ -334,9 +334,9 @@ DuplicationProcess.verify_output(nested_class_siblings_reference, DuplicationPro
 nested_wrapped_siblings_path = "test/fixtures/duplication_nested_wrapped_class_siblings.rb"
 nested_wrapped_siblings_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_wrapped_siblings_path, "fleek", ""))
 nested_wrapped_siblings_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_wrapped_siblings_path, "flay", ""))
-nested_wrapped_siblings_actual_fields = ["node=\"class\" kind=\"similar\" locations=\"#{nested_wrapped_siblings_path}:1,#{nested_wrapped_siblings_path}:25\" mass=106 score=106", "Total duplication score: 106", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+nested_wrapped_siblings_actual_fields = ["node=\"class\" kind=\"similar\" locations=\"#{nested_wrapped_siblings_path}:1,#{nested_wrapped_siblings_path}:35\" mass=158 score=158", "Total duplication score: 158", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
 DuplicationProcess.verify_output(nested_wrapped_siblings_actual, DuplicationProcess::OutputExpectation.new(2, nested_wrapped_siblings_actual_fields, "nested wrapped class siblings group differed"))
-nested_wrapped_siblings_reference_fields = ["Similar code found in :class (mass = 106)", "#{nested_wrapped_siblings_path}:1", "#{nested_wrapped_siblings_path}:25", "Total score (lower is better) = 106"]
+nested_wrapped_siblings_reference_fields = ["Similar code found in :class (mass = 158)", "#{nested_wrapped_siblings_path}:1", "#{nested_wrapped_siblings_path}:35", "Total score (lower is better) = 158"]
 DuplicationProcess.verify_output(nested_wrapped_siblings_reference, DuplicationProcess::OutputExpectation.new(0, nested_wrapped_siblings_reference_fields, "nested wrapped class siblings Flay group changed"))
 
 qualified_namespace_class_path = "test/fixtures/duplication_qualified_namespace_class_group.rb"
