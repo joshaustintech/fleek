@@ -6,6 +6,7 @@ MUTATION_SHARDS = nil
 class MutationCase
   # Carries one behavior mutation and its expected contract failure.
   Configuration = Struct.new(:source, :target, :replacement, :label, :expected_failure)
+  COMPILED_CONTRACTS = {}
   CONTRACTS = {
     "embedded NUL acceptance" => "test/native_parser_contract.rb",
     "Ruby 4 grammar downgrade" => "test/native_parser_contract.rb",
@@ -230,15 +231,32 @@ class MutationCase
 
   def verify_build
     File.delete("build/fleek") if File.file?("build/fleek")
-    process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-build-out", err: "/tmp/fleek-mutation-build-err")
-    _, status = MutationProcess.wait(process_id)
-    raise "#{@configuration.label} mutant failed to compile" unless status.success?
+    raise "#{@configuration.label} mutant failed to compile" unless MutationProcess.build_mutant
   end
 
   def verify_contract
-    process_id = Process.spawn(ENV["SPINEL"] || "spinel", "-E", CONTRACTS.fetch(@configuration.label), out: "/tmp/fleek-mutation-out", err: "/tmp/fleek-mutation-err")
+    contract = CONTRACTS.fetch(@configuration.label)
+    executable = compile_contract(contract)
+    process_id = Process.spawn(executable, out: "/tmp/fleek-mutation-out", err: "/tmp/fleek-mutation-err")
     _, status = MutationProcess.wait(process_id)
     verify_failure(status)
+  end
+
+  def compile_contract(contract)
+    return COMPILED_CONTRACTS.fetch(contract) if COMPILED_CONTRACTS.key?(contract)
+
+    executable = File.expand_path("build/mutation-#{Process.pid}-#{File.basename(contract, ".rb")}")
+    File.delete(executable) if File.file?(executable)
+    compile_contract_binary(contract, executable)
+
+    COMPILED_CONTRACTS[contract] = executable
+  end
+
+  def compile_contract_binary(contract, executable)
+    process_id = Process.spawn(ENV["SPINEL"] || "spinel", contract, "-o", executable,
+      out: "/tmp/fleek-mutation-contract-build-out", err: "/tmp/fleek-mutation-contract-build-err")
+    _, status = MutationProcess.wait(process_id)
+    raise "#{contract} contract failed to compile" unless status.exitstatus == 0
   end
 
   def verify_failure(status)
@@ -252,6 +270,24 @@ end
 
 # Waits for isolated mutation build and contract subprocesses.
 class MutationProcess
+  def self.build_mutant
+    process_id = Process.spawn("make", mutation_compiler_argument, mutation_root_argument, "build/fleek",
+      out: "/tmp/fleek-mutation-build-out", err: "/tmp/fleek-mutation-build-err")
+    _, status = wait(process_id)
+    status.success?
+  end
+
+  def self.mutation_compiler_argument
+    spinel = ENV["SPINEL"] || "spinel"
+    "SPINEL=#{spinel} -O 0"
+  end
+
+  def self.mutation_root_argument
+    spinel = ENV["SPINEL"] || "spinel"
+    root = ENV["SPINEL_ROOT"] || "#{File.dirname(spinel)}/.."
+    "SPINEL_ROOT=#{root}"
+  end
+
   def self.wait(process_id)
     Process.waitpid2(process_id)
   end
