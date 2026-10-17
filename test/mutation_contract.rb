@@ -99,6 +99,8 @@ class MutationCase
     "Flay thirteen-level nested module boundary" => "test/duplication_contract.rb",
     "Flay nested namespace class collection" => "test/duplication_contract.rb",
     "Flay ten-level nested-module class boundary" => "test/duplication_contract.rb",
+    "Flay eleven-level nested-module class inclusion" => "test/duplication_contract.rb",
+    "Flay twelve-level nested-module class boundary" => "test/duplication_contract.rb",
     "Flay nested class scope mass" => "test/duplication_contract.rb",
     "Flay six-level nested class boundary" => "test/duplication_contract.rb",
     "Flay seven-level nested class boundary" => "test/duplication_contract.rb",
@@ -720,7 +722,17 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay nested namespace class collection",
   "nested-namespace class group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
+  "if (depth >= 11 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
   "if (depth >= 10 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
+  "Flay eleven-level nested-module class inclusion",
+  "eleven-level nested-module class candidates differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (depth >= 11 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
+  "if (depth >= 12 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
+  "Flay twelve-level nested-module class boundary",
+  "twelve-level nested-module class boundary was treated as complete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (depth >= 11 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
   "if (depth >= 9 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
   "Flay ten-level nested-module class boundary",
   "ten-level nested-module class candidates differed")).run

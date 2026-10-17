@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0078](0078-eleven-level-nested-module-classes.md).
 
 ## Context
 
@@ -14,8 +14,8 @@ Extend direct class collection under sole nested-module chains through ten modul
 
 ## Consequences
 
-Ten-module class groups are complete with their full qualified scope, outer module location, and Flay mass. Eleven-module class paths remain partial. No change is made to qualified module syntax or nested class depth.
+Historical decision: ten-module class groups are complete; eleven-module class paths were partial at the time. ADR 0078 extends the bound through eleven modules and keeps twelve-module chains partial. No change is made to qualified module syntax or nested class depth.
 
 ## Evidence
 
-`test/fixtures/duplication_ten_level_nested_module_class_boundary.rb` matches Flay 2.14.4 at similar `:module` mass/score 70 and lines 1/30. `test/fixtures/duplication_eleven_level_nested_module_class_boundary.rb` matches Flay at mass/score 72 and lines 1/32 while Fleek reports incomplete coverage. Public contracts compare both boundaries; a mutation lowering the supported cutoff is caught. The eleven-module class stays incomplete at the preceding nested-module traversal guard, so relaxing only the class-depth guard is equivalent for this fixture and is excluded.
+Historical evidence is retained in [ADR 0078](0078-eleven-level-nested-module-classes.md), which records current 11/12-level contracts and mutation checks.
