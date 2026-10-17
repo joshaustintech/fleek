@@ -96,7 +96,7 @@ class DuplicationProcess
   def self.verify_output(observation, expectation)
     message = expectation.message
     verify(observation[0] == expectation.status, "#{message}: exit status differed")
-    expectation.fields.each { |field| verify(observation[1].include?(field), "#{message}: missing #{field}") }
+    expectation.fields.each { |field| verify(observation[1].index(field) != nil, "#{message}: missing #{field}") }
   end
 
   def self.verify_class_method_pair(path, second_line, description)
@@ -398,10 +398,18 @@ DuplicationProcess.verify_output(qualified_namespace_multiple_multi_method_refer
 qualified_namespace_depth_path = "test/fixtures/duplication_qualified_namespace_depth_boundary.rb"
 qualified_namespace_depth_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_depth_path, "fleek", ""))
 qualified_namespace_depth_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_depth_path, "flay", ""))
-qualified_namespace_depth_fields = ["Group: check=\"flay:StructuralDuplication\" node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_depth_path}:1,#{qualified_namespace_depth_path}:12\" mass=66 score=66", "Total duplication score: 66", "scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(qualified_namespace_depth_actual, DuplicationProcess::OutputExpectation.new(1, qualified_namespace_depth_fields, "qualified-namespace depth boundary differed"))
+qualified_namespace_depth_fields = {first_group: "Group: check=\"flay:StructuralDuplication\" node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_depth_path}:23,#{qualified_namespace_depth_path}:34\" mass=68 score=68", second_group: "Group: check=\"flay:StructuralDuplication\" node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_depth_path}:1,#{qualified_namespace_depth_path}:12\" mass=66 score=66", score: "Total duplication score: 134", coverage: "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", status: "Status: findings"}.values
+DuplicationProcess.verify_output(qualified_namespace_depth_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_depth_fields, "qualified-namespace depth boundary differed"))
 qualified_namespace_depth_reference_fields = "Similar code found in :module (mass = 68)|#{qualified_namespace_depth_path}:23|#{qualified_namespace_depth_path}:34|Similar code found in :module (mass = 66)|#{qualified_namespace_depth_path}:1|#{qualified_namespace_depth_path}:12|Total score (lower is better) = 134".split("|")
 DuplicationProcess.verify_output(qualified_namespace_depth_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_depth_reference_fields, "qualified-namespace depth Flay groups changed"))
+
+qualified_namespace_eight_path = "test/fixtures/duplication_qualified_namespace_eight_components.rb"
+qualified_namespace_eight_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_eight_path, "fleek", ""))
+qualified_namespace_eight_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_eight_path, "flay", ""))
+qualified_namespace_eight_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_eight_path}:1,#{qualified_namespace_eight_path}:12\" mass=68 score=68", "Total duplication score: 68", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(qualified_namespace_eight_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_eight_fields, "eight-component qualified module class group differed"))
+qualified_namespace_eight_reference_fields = ["Similar code found in :module (mass = 68)", "#{qualified_namespace_eight_path}:1", "#{qualified_namespace_eight_path}:12", "Total score (lower is better) = 68"]
+DuplicationProcess.verify_output(qualified_namespace_eight_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_eight_reference_fields, "eight-component qualified module Flay group changed"))
 
 clean_scope_path = "test/fixtures/duplication_class_scopes_clean.rb"
 clean_scope_actual = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "fleek", ""))

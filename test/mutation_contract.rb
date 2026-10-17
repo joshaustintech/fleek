@@ -109,6 +109,7 @@ class MutationCase
     "Flay multiple qualified multi-method classes" => "test/duplication_contract.rb",
     "Flay qualified namespace class mass" => "test/duplication_contract.rb",
     "Flay qualified namespace class depth" => "test/duplication_contract.rb",
+    "Flay qualified namespace depth grouping" => "test/duplication_contract.rb",
     "Flay outer scope identity" => "test/duplication_contract.rb",
     "Flay module group kind" => "test/duplication_contract.rb",
     "Flay multiple class method candidates" => "test/duplication_contract.rb",
@@ -769,9 +770,14 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay qualified namespace class mass",
   "qualified-namespace class group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
+  "module_name_count >= 9",
   "module_name_count >= 8",
-  "module_name_count >= 7",
   "Flay qualified namespace class depth",
+  "qualified-namespace depth boundary differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "set->candidates[left].scope_depth == set->candidates[right].scope_depth &&\n        set->scope_candidate_counts[left]",
+  "set->scope_candidate_counts[left]",
+  "Flay qualified namespace depth grouping",
   "qualified-namespace depth boundary differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (!fleek_constants_equal(parser, set->candidates[left].scope_names[name], set->candidates[right].scope_names[name])) return false;",
