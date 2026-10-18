@@ -218,3 +218,8 @@
 
 - ADR 0137 records recursive candidate support for Prism `PM_BREAK_NODE` and `PM_REDO_NODE`.
 - Pinned Flay 2.14.4 and Fleek match block fixtures at mass/score 20 (`break value if value`) and 18 (`redo if value`), protected by separate candidate mutations.
+
+## Ticket 22 exception-flow receipt
+
+- ADR 0138 records recursive candidate support for Prism begin, rescue, and retry nodes.
+- Pinned Flay 2.14.4 and Fleek match the rescue/retry method pair at mass/score 16, protected by node-specific and retry-mass mutations.

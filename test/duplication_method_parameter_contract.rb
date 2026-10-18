@@ -18,3 +18,4 @@ FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_super_argu
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_next.rb", "next", 24, 1, 8)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_break.rb", "break", 20, 1, 7)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_redo.rb", "redo", 18, 1, 7)
+FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_rescue_retry.rb", "rescue-retry", 16, 1, 9)
