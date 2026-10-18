@@ -102,6 +102,11 @@ class AnalysisRunner
     output.lines.map { |line| warning_from_line(line) }.compact
   end
 
+  def self.cleanup_contract_outputs(paths, actual_output_path)
+    cleanup_paths = ENV.key?("FLEEK_TEMP_ROOT") ? paths : paths + [actual_output_path]
+    cleanup_paths.each { |file| File.delete(file) if file && File.file?(file) }
+  end
+
   def self.warning_from_line(line)
     if line.include?("Finding:")
       marker = line.index(" message=")
@@ -116,6 +121,45 @@ end
 
 # Compares one compiled Flay method-candidate report with pinned Flay.
 class FlayMethodCandidateContract
+  # :reek:TooManyStatements
+  def self.verify_unsupported(path, label)
+    root = ENV["FLEEK_TEMP_ROOT"] || "/tmp"
+    actual_output_path = "#{root}/#{label}-actual.out"
+    actual_error_path = "#{root}/#{label}-actual.err"
+    reference_output_path = "#{root}/#{label}-reference.out"
+    reference_error_path = "#{root}/#{label}-reference.err"
+    actual_status = run_fleek(path, actual_output_path, actual_error_path)
+    reference_status = run_flay(path, reference_output_path, reference_error_path)
+    actual_output = File.read(actual_output_path)
+    reference_output = File.read(reference_output_path)
+    actual_valid = actual_status == 1 && actual_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded") && actual_output.include?("Status: incomplete") && File.read(actual_error_path).include?("unsupported Flay candidate syntax")
+    reference_valid = reference_status.success? && reference_output.include?("IDENTICAL code found in :defn (mass*2 = 20)") && reference_output.include?("#{path}:1") && reference_output.include?("#{path}:5") && reference_output.include?("Total score (lower is better) = 20")
+    raise "#{label} unsupported result differed from Flay: #{actual_output} #{reference_output}" unless actual_valid && reference_valid
+    puts "#{label} contract: pass"
+  ensure
+    AnalysisRunner.cleanup_contract_outputs([actual_error_path, reference_output_path, reference_error_path], actual_output_path)
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_no_group(path, label)
+    root = ENV["FLEEK_TEMP_ROOT"] || "/tmp"
+    actual_output_path = "#{root}/#{label}-actual.out"
+    actual_error_path = "#{root}/#{label}-actual.err"
+    reference_output_path = "#{root}/#{label}-reference.out"
+    reference_error_path = "#{root}/#{label}-reference.err"
+    actual_status = run_fleek(path, actual_output_path, actual_error_path)
+    reference_status = run_flay(path, reference_output_path, reference_error_path)
+    actual_output = File.read(actual_output_path)
+    reference_output = File.read(reference_output_path)
+    coverage = "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded"
+    actual_valid = actual_status.zero? && !actual_output.include?("Group:") && actual_output.include?(coverage) && actual_output.include?("Status: complete") && actual_output.include?("Total duplication score: 0")
+    reference_valid = reference_status.success? && !reference_output.include?("code found in :defn") && reference_output.include?("Total score (lower is better) = 0")
+    raise "#{label} clean result differed from Flay: #{actual_output} #{reference_output}" unless actual_valid && reference_valid
+    puts "#{label} contract: pass"
+  ensure
+    AnalysisRunner.cleanup_contract_outputs([actual_error_path, reference_output_path, reference_error_path], actual_output_path)
+  end
+
   # :reek:LongParameterList
   # :reek:TooManyStatements
   def self.verify(path, label, mass, first_line, second_line)
@@ -144,9 +188,7 @@ class FlayMethodCandidateContract
     raise "#{label} coverage was incomplete: #{actual_output}" unless actual_output.include?(coverage) && actual_output.include?("Status: findings")
     puts "#{label} contract: pass"
   ensure
-    paths = [actual_error_path, reference_output_path, reference_error_path]
-    paths << actual_output_path unless ENV.key?("FLEEK_TEMP_ROOT")
-    paths.each { |file| File.delete(file) if file && File.file?(file) }
+    AnalysisRunner.cleanup_contract_outputs([actual_error_path, reference_output_path, reference_error_path], actual_output_path)
   end
 
   def self.run_fleek(path, output, error)

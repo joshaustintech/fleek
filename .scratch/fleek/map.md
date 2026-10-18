@@ -178,3 +178,8 @@
 - ADR 0031 records bounded Prism `OrNode` support inside class-method candidates.
 - Pinned Flay 2.14.4 and Fleek match the paired fixture as similar `:defn` groups at mass/score 34, lines 2 and 12. A focused mutation protects OR support.
 - Class-level Rails declarations remain unsupported, so exact-manifest completion remains open.
+
+## Ticket 22 optional-keyword receipt
+
+- ADR 0130 records optional keyword parameters with supported literal defaults: two mass units per keyword per method, name/default identity, and optional-count grouping parity.
+- Pinned Flay 2.14.4 and Fleek match the similar group at mass/score 10 and both leave differing optional-keyword counts ungrouped. Nonliteral defaults remain incomplete in Fleek; Flay finds a mass-10 candidate. Five focused mutations protect acceptance, identity, mass, count, and rejection behavior.
