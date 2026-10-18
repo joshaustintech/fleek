@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** open  
+**Status:** claimed  
 **Type:** task  
 **Category:** enhancement  
 **Triage:** ready-for-agent
