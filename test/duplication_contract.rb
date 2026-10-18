@@ -300,6 +300,28 @@ DuplicationProcess.verify_output(required_arities_reference, DuplicationProcess:
 DuplicationProcess.verify_output(required_arities, DuplicationProcess::OutputExpectation.new(2, required_arities_fields,
   "top-level methods with different required arities differed from Flay"))
 
+optional_parameters_path = "test/fixtures/duplication_methods_optional_parameters.rb"
+optional_parameters = DuplicationProcess.run(DuplicationProcess::Input.new(optional_parameters_path, "fleek", "--mass", 3))
+optional_parameters_reference = DuplicationProcess.run(DuplicationProcess::Input.new(optional_parameters_path, "flay", "--mass", 3))
+optional_parameters_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{optional_parameters_path}:1,#{optional_parameters_path}:8\" mass=52 score=52",
+  "Total duplication score: 52", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+optional_parameters_reference_fields = ["Similar code found in :defn (mass = 52)", "#{optional_parameters_path}:1", "#{optional_parameters_path}:8", "Total score (lower is better) = 52"]
+DuplicationProcess.verify_output(optional_parameters_reference, DuplicationProcess::OutputExpectation.new(0, optional_parameters_reference_fields,
+  "Flay optional-parameter method reference changed"))
+DuplicationProcess.verify_output(optional_parameters, DuplicationProcess::OutputExpectation.new(2, optional_parameters_fields,
+  "top-level optional-parameter methods differed from Flay"))
+
+optional_defaults_path = "test/fixtures/duplication_methods_optional_parameter_defaults.rb"
+optional_defaults = DuplicationProcess.run(DuplicationProcess::Input.new(optional_defaults_path, "fleek", "--mass", 3))
+optional_defaults_reference = DuplicationProcess.run(DuplicationProcess::Input.new(optional_defaults_path, "flay", "--mass", 3))
+optional_defaults_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{optional_defaults_path}:1,#{optional_defaults_path}:8\" mass=52 score=52",
+  "Total duplication score: 52", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+optional_defaults_reference_fields = ["Similar code found in :defn (mass = 52)", "#{optional_defaults_path}:1", "#{optional_defaults_path}:8", "Total score (lower is better) = 52"]
+DuplicationProcess.verify_output(optional_defaults_reference, DuplicationProcess::OutputExpectation.new(0, optional_defaults_reference_fields,
+  "Flay optional-default method reference changed"))
+DuplicationProcess.verify_output(optional_defaults, DuplicationProcess::OutputExpectation.new(2, optional_defaults_fields,
+  "top-level methods with different optional defaults differed from Flay"))
+
 identical_path = "test/fixtures/duplication_identical.rb"
 identical = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "fleek", ""))
 identical_reference = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "flay", ""))

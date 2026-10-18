@@ -1001,7 +1001,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "if (!PM_NODE_TYPE_P(optional, PM_OPTIONAL_PARAMETER_NODE) ||",
   "if (true ||",
   "Flay optional parameter candidates",
-  "optional-parameter class method parity differed")).run
+  "top-level optional-parameter methods differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "!fleek_duplication_optional_default_supported(((const pm_optional_parameter_node_t *) optional)->value)",
   "false && !fleek_duplication_optional_default_supported(((const pm_optional_parameter_node_t *) optional)->value)",
@@ -1016,12 +1016,12 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "result->parameter_mass += 2;",
   "result->parameter_mass += 0;",
   "Flay optional parameter mass",
-  "optional-parameter class method parity differed")).run
+  "top-level optional-parameter methods differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "!fleek_duplication_optional_defaults_equal(left_parameter->value, right_parameter->value)",
   "false",
   "Flay optional default identity",
-  "optional-parameter default parity differed")).run
+  "top-level methods with different optional defaults differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "return method->parameters == NULL ? 0 : ((const pm_parameters_node_t *) method->parameters)->optionals.size;",
   "return 0;",
@@ -1141,7 +1141,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "for (size_t index = 0; index < method->shape_count; index++) if (method->data.ast.massless_nodes[index]) mass--;",
   "for (size_t index = 0; index < method->shape_count; index++) if (method->data.ast.massless_nodes[index]) mass++;",
   "Flay class method score",
-  "Rails-shaped class method parity differed")).run
+  "top-level optional-parameter methods differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "fleek_duplication_scope_method_mass(set, first) + fleek_duplication_scope_mass(parser, set, first)",
   "fleek_duplication_scope_method_mass(set, first) + fleek_duplication_scope_mass(parser, set, first) - 1",
