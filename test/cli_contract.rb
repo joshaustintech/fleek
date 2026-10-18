@@ -20,6 +20,17 @@ class CliProcess
     observe(process_id)
   end
 
+  def with_inapplicable_flag(check, flag, path)
+    process_id = Process.spawn("build/fleek", "--checks", check, flag, path, out: @output_path, err: @error_path)
+    observe(process_id)
+  end
+
+  def with_combined_liberal(path)
+    process_id = Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication,reek:ClassVariable", "--liberal", path,
+      out: @output_path, err: @error_path)
+    observe(process_id)
+  end
+
   def observe(process_id)
     finished_pid, process_status = Process.waitpid2(process_id)
     [process_status.exitstatus, File.read(@output_path), File.read(@error_path)]
@@ -34,7 +45,7 @@ raise "help parser prototype" unless help_result[1].include?("--parse-ruby4 SOUR
 raise "help named stdin" unless help_result[1].include?("--stdin SOURCE [PATH...]")
 raise "help Reek config" unless help_result[1].include?("--reek-config FILE")
 raise "help supported coverage missing" unless help_result[1].include?("Supported checks: reek:Attribute, reek:ClassVariable, reek:InstanceVariableAssumption, reek:IrresponsibleModule, reek:ModuleInitialize, reek:SubclassedFromCoreClass, and flay:StructuralDuplication")
-raise "help Flay options missing" unless help_result[1].include?("flay:StructuralDuplication [--mass MASS] [--only NODE] SOURCE")
+raise "help Flay options missing" unless help_result[1].include?("flay:StructuralDuplication [--mass MASS] [--liberal] [--only NODE] SOURCE")
 raise "help unsupported capabilities missing" unless help_result[1].include?("machine formats are unsupported")
 raise "help explicit selection missing" unless help_result[1].include?("Analysis requires --checks")
 raise "help report contract missing" unless help_result[1].include?("stable text v1")
@@ -59,9 +70,18 @@ inapplicable_only = cli_process.with_inapplicable_option("reek:ClassVariable", [
 raise "inapplicable Flay only status" unless inapplicable_only[0] == 1
 raise "inapplicable Flay only was not rejected before Reek analysis" unless inapplicable_only[2].include?("--only applies only to flay:StructuralDuplication") && inapplicable_only[1].empty?
 
+inapplicable_liberal = cli_process.with_inapplicable_flag("reek:ClassVariable", "--liberal", "test/fixtures/class_variable.rb")
+raise "inapplicable Flay liberal status" unless inapplicable_liberal[0] == 1
+raise "inapplicable Flay liberal was not rejected before Reek analysis" unless inapplicable_liberal[2].include?("--liberal applies only to flay:StructuralDuplication") && inapplicable_liberal[1].empty?
+
 inapplicable_reek_config = cli_process.with_inapplicable_option("flay:StructuralDuplication", ["--reek-config", "test/fixtures/reference.rb", "test/fixtures/reference.rb"])
 raise "inapplicable Reek config status" unless inapplicable_reek_config[0] == 1
 raise "inapplicable Reek config was not rejected before Flay analysis" unless inapplicable_reek_config[2].include?("--reek-config applies only to Reek checks") && inapplicable_reek_config[1].empty?
+
+combined_liberal = cli_process.with_combined_liberal("test/fixtures/duplication_class_methods_rails_pair.rb")
+raise "combined Flay liberal status" unless combined_liberal[0] == 2
+raise "combined Flay liberal routing" unless combined_liberal[1].include?("Duplication section:") && combined_liberal[1].include?("Smell section:") &&
+  combined_liberal[1].include?("Total duplication score: 48") && combined_liberal[1].include?("Overall status: findings") && combined_liberal[2].empty?
 
 
 puts "CLI contract: pass"

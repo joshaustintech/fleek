@@ -41,6 +41,7 @@ class DuplicationProcess
     path, tool, option, value = input.to_a
     return run_fleek(path, option, value) if tool == "fleek"
     return run_flay_with_mass(path, value) if option == "--mass"
+    return run_flay_with_liberal(path) if option == "--liberal"
     run_flay(path)
   end
 
@@ -113,6 +114,14 @@ class DuplicationProcess
     bundle = ENV["BUNDLE"] || "bundle"
     run_reference(reference_key("mass-#{mass}", path)) do
       process_id = Process.spawn(bundle, "exec", "flay", "--mass", mass.to_s, path, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
+      AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
+    end
+  end
+
+  def self.run_flay_with_liberal(path)
+    bundle = ENV["BUNDLE"] || "bundle"
+    run_reference(reference_key("liberal", path)) do
+      process_id = Process.spawn(bundle, "exec", "flay", "--liberal", path, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
       AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
     end
   end
@@ -791,8 +800,26 @@ DuplicationProcess.verify_output(ambiguous_class_methods, DuplicationProcess::Ou
 
 direct_sibling_path = "test/fixtures/duplication_class_direct_and_sibling_methods.rb"
 direct_sibling_actual = DuplicationProcess.run(DuplicationProcess::Input.new(direct_sibling_path, "fleek", ""))
-DuplicationProcess.verify_output(direct_sibling_actual, DuplicationProcess::OutputExpectation.new(1,
-  ["Status: incomplete", "node=\"class\" kind=\"similar\" locations=\"#{direct_sibling_path}:13,#{direct_sibling_path}:22\" mass=50 score=50"],
-  "direct methods beside sibling classes were reported complete"))
+direct_sibling_fields = ["node=\"class\" kind=\"similar\" locations=\"#{direct_sibling_path}:13,#{direct_sibling_path}:22\" mass=50 score=50",
+  "Total duplication score: 50", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(direct_sibling_actual, DuplicationProcess::OutputExpectation.new(2, direct_sibling_fields,
+  "direct methods beside sibling classes differed from conservative Flay"))
+direct_sibling_reference = DuplicationProcess.run(DuplicationProcess::Input.new(direct_sibling_path, "flay", ""))
+DuplicationProcess.verify(direct_sibling_reference[0] == 0 && direct_sibling_reference[1].include?("Total score (lower is better) = 50"),
+  "conservative Flay direct sibling reference changed")
+
+liberal_path = direct_sibling_path
+liberal_actual = DuplicationProcess.run(DuplicationProcess::Input.new(liberal_path, "fleek", "--liberal"))
+liberal_reference = DuplicationProcess.run(DuplicationProcess::Input.new(liberal_path, "flay", "--liberal"))
+liberal_fields = [
+  "node=\"defn\" kind=\"identical\" locations=\"#{liberal_path}:6,#{liberal_path}:14,#{liberal_path}:23\" mass=72 score=216",
+  "node=\"class\" kind=\"similar\" locations=\"#{liberal_path}:13,#{liberal_path}:22\" mass=50 score=50",
+  "Total duplication score: 266",
+  "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded",
+  "Status: findings"
+]
+liberal_reference_fields = ["IDENTICAL code found in :defn (mass*3 = 216)", "Similar code found in :class (mass = 50)", "Total score (lower is better) = 266"]
+DuplicationProcess.verify(liberal_reference[0] == 0 && DuplicationProcess.includes_all?(liberal_reference[1], liberal_reference_fields), "Flay liberal reference changed")
+DuplicationProcess.verify_output(liberal_actual, DuplicationProcess::OutputExpectation.new(2, liberal_fields, "liberal pruning omitted retained method candidates"))
 
 puts "Duplication contract: pass"

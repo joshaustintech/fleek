@@ -10,11 +10,12 @@ class Fleek
   # Retains source identity alongside its diagnostic for the text report.
   SourceFailure = Struct.new(:path, :message, :kind)
   # Carries inputs and locations through structural duplication reporting.
-  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold, :excluded_paths, :source, :result, :partial, :partial_paths, :source_scope, :only_node)
+  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold, :excluded_paths, :source, :result, :partial, :partial_paths, :source_scope, :only_node, :liberal)
   # Carries one Flay group through stable report formatting.
   DuplicationGroup = Struct.new(:node, :kind, :mass, :score, :locations)
   # Carries validated analyzer inputs through combined execution.
   CombinedAnalysis = Struct.new(:flay_inputs, :reek_inputs, :configuration, :error, :disabled_paths)
+  FLAY_CHECK = "flay:StructuralDuplication"
   # Carries source coverage through stable report output.
   Coverage = Struct.new(:selected, :analyzed, :failed, :excluded, :state)
   # Carries parsed ClassVariable inputs through coverage aggregation.
@@ -2709,11 +2710,9 @@ class Fleek
           bool only_classes = true;
           size_t class_child_count = 0;
           bool class_siblings_supported = true;
-          bool has_direct_methods = false;
           for (size_t index = 0; index < body->body.size; index++) {
             if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_CLASS_NODE)) {
               only_classes = false;
-              if (PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE)) has_direct_methods = true;
               if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE)) fleek_duplication_partial = 1;
               continue;
             }
@@ -2727,7 +2726,6 @@ class Fleek
           if (class_child_count > 1) {
             if (collect_nested_sibling_scopes) {
               if (!class_siblings_supported) fleek_duplication_partial = 1;
-              if (has_direct_methods) fleek_duplication_partial = 1;
               for (size_t index = 0; index < body->body.size; index++) {
                 if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_CLASS_NODE)) continue;
                 const pm_class_node_t *nested_class = (const pm_class_node_t *) body->body.nodes[index];
@@ -2759,6 +2757,28 @@ class Fleek
                   set->scope_body_counts[candidate] = method_body->body.size;
                   set->scope_candidate_counts[candidate] = sibling_candidate_count;
                 }
+              }
+              size_t first_direct_candidate = set->count;
+              for (size_t index = 0; index < body->body.size; index++) {
+                const pm_node_t *method_node = body->body.nodes[index];
+                if (!PM_NODE_TYPE_P(method_node, PM_DEF_NODE)) continue;
+                if (set->count == 24 || !fleek_duplication_class_method(method_node, source, &set->candidates[set->count])) {
+                  fleek_duplication_partial = 1;
+                  continue;
+                }
+                size_t candidate = set->count++;
+                set->methods[candidate] = (const pm_def_node_t *) method_node;
+                set->scope_indices[candidate] = scope_index;
+                set->scope_lines[candidate] = fleek_source_line(source, class_node->base.location.start);
+                set->candidates[candidate].scope_kind = 1;
+                set->candidates[candidate].scope_mass = 1;
+                pm_constant_id_t class_name = ((const pm_constant_read_node_t *) class_node->constant_path)->name;
+                if (!fleek_duplication_store_scope_names(&set->candidates[candidate], &class_name, 1,
+                    FLEEK_DUPLICATION_CLASS_SCOPE)) return false;
+              }
+              for (size_t candidate = first_direct_candidate; candidate < set->count; candidate++) {
+                set->scope_body_counts[candidate] = body_count;
+                set->scope_candidate_counts[candidate] = set->count - first_direct_candidate;
               }
               return true;
             }
@@ -3140,7 +3160,7 @@ class Fleek
       }
       return true;
     }
-    static bool fleek_duplication_emit_method_groups(pm_parser_t *parser, const fleek_duplication_class_candidates_t *set, int mass_threshold, const bool *covered) {
+    static bool fleek_duplication_emit_method_groups(pm_parser_t *parser, const fleek_duplication_class_candidates_t *set, int mass_threshold, const bool *covered, bool liberal) {
       bool grouped[24] = { false };
       for (size_t first = 0; first < set->count; first++) {
         if (grouped[first]) continue;
@@ -3156,7 +3176,7 @@ class Fleek
         int lines[24] = { 0 };
         for (size_t index = 0; index < count; index++) {
           size_t candidate = members[index];
-          if (covered[candidate]) pruned = true;
+          if (covered[candidate] && !liberal) pruned = true;
           lines[index] = set->candidates[candidate].line;
           if (!fleek_duplication_candidate_values_equal(parser, set, members[0], candidate, false)) identical = false;
         }
@@ -3174,11 +3194,11 @@ class Fleek
         set->candidates[candidate].scope_types = NULL;
       }
     }
-    static bool fleek_duplication_analyze_scoped_candidates(pm_parser_t *parser, const fleek_duplication_class_candidates_t *set, int mass_threshold) {
+    static bool fleek_duplication_analyze_scoped_candidates(pm_parser_t *parser, const fleek_duplication_class_candidates_t *set, int mass_threshold, bool liberal) {
       if (fleek_duplication_has_partial_subtree(set, mass_threshold)) return false;
       bool covered[24] = { false };
       return fleek_duplication_emit_scope_groups(parser, set, mass_threshold, covered) &&
-        fleek_duplication_emit_method_groups(parser, set, mass_threshold, covered);
+        fleek_duplication_emit_method_groups(parser, set, mass_threshold, covered, liberal);
     }
 
     static bool fleek_ffi_declaration_module(const pm_node_t *node, pm_parser_t *parser) {
@@ -3220,7 +3240,7 @@ class Fleek
       return true;
     }
 
-    int fleek_structural_duplication(const char *source, size_t length, int mass_threshold) {
+    int fleek_structural_duplication(const char *source, size_t length, int mass_threshold, int liberal) {
       fleek_duplication_buffer[0] = 0;
       fleek_duplication_buffer_used = 0;
       fleek_duplication_total_score = 0;
@@ -3304,7 +3324,7 @@ class Fleek
           fleek_duplication_free_candidate_scope_names(&class_candidates);
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
         }
-        if (!fleek_duplication_analyze_scoped_candidates(&parser, &class_candidates, mass_threshold)) {
+        if (!fleek_duplication_analyze_scoped_candidates(&parser, &class_candidates, mass_threshold, liberal)) {
           fleek_duplication_free_candidate_scope_names(&class_candidates);
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
         }
@@ -3432,7 +3452,7 @@ class Fleek
     ffi_func :fleek_uncommunicative_parameter_name_finding, [], :str
     ffi_func :fleek_uncommunicative_variable_name, [:str, :size_t, :str, :str], :int
     ffi_func :fleek_uncommunicative_variable_name_finding, [], :str
-    ffi_func :fleek_structural_duplication, [:str, :size_t, :int], :int
+    ffi_func :fleek_structural_duplication, [:str, :size_t, :int, :int], :int
     ffi_func :fleek_structural_duplication_finding, [], :str
     ffi_func :fleek_structural_duplication_partial, [], :int
   end
@@ -3863,9 +3883,9 @@ class Fleek
   def self.print_analysis_usage
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
     puts "       fleek --checks reek:ClassVariable[,flay:StructuralDuplication] [--reek-config FILE] SOURCE"
-    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--reek-config FILE] SOURCE..."
+    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--liberal] [--reek-config FILE] SOURCE..."
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
-    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--only NODE] SOURCE"
+    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--liberal] [--only NODE] SOURCE"
   end
 
   def self.help_requested?(arguments)
@@ -3921,7 +3941,7 @@ class Fleek
 
   def self.print_usage_error(message)
     warn message
-    warn "Use long options: --checks, --mass, and --reek-config."
+    warn "Use long options: --checks, --mass, --liberal, and --reek-config."
     warn "Usage: fleek [--help | --version]"
     1
   end
@@ -3947,7 +3967,7 @@ class Fleek
   def self.duplication_input_report(inputs, ignore_patterns)
     files, errors = discover_sources(duplication_source_paths(inputs), ReekConfiguration.new)
     included, excluded = partition_flay_sources(files, ignore_patterns)
-    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded, nil, nil, false, [], "included", duplication_only_node(inputs))
+    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded, nil, nil, false, [], "included", duplication_only_node(inputs), inputs.include?("--liberal"))
   end
 
   def self.partition_flay_sources(files, patterns)
@@ -4020,14 +4040,18 @@ class Fleek
   end
 
   def self.duplication_source_input_error(inputs)
-    unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" && input != "--only" }
+    unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" && input != "--only" && input != "--liberal" }
     return "Unsupported Flay option: #{quote_text(unsupported_option)}" if unsupported_option
     return "flay:StructuralDuplication requires at least one Ruby source path." if duplication_source_paths(inputs).empty?
     ""
   end
 
   def self.duplication_source_paths(inputs)
-    without_option_pairs(without_option_pairs(inputs, "--mass"), "--only")
+    without_option(without_option_pairs(without_option_pairs(inputs, "--mass"), "--only"), "--liberal")
+  end
+
+  def self.without_option(inputs, option)
+    inputs.reject { |input| input == option }
   end
 
   def self.duplication_mass_index(inputs)
@@ -4090,7 +4114,7 @@ class Fleek
 
   def self.run_native_duplication(report)
     source = report.source
-    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold)
+    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold, report.liberal ? 1 : 0)
     mark_partial_duplication_report(report)
   end
 
@@ -4755,7 +4779,7 @@ class Fleek
   # :reek:TooManyStatements
   def self.prepare_combined_analysis(inputs)
     flay_inputs = without_option_pairs(inputs, "--reek-config")
-    reek_inputs = without_option_pairs(without_option_pairs(inputs, "--mass"), "--only")
+    reek_inputs = without_option_pairs(without_option_pairs(without_option(inputs, "--liberal"), "--mass"), "--only")
     flay_error = structural_duplication_input_error(flay_inputs)
     configuration, reek_sources, config_error = combined_reek_configuration(reek_inputs)
     return CombinedAnalysis.new(flay_inputs, reek_inputs, nil, config_error, []) unless config_error.empty?
@@ -4840,7 +4864,7 @@ class Fleek
 
   def self.report_combined_input_error(message)
     warn "ERROR: #{message}"
-    warn "Use long options: --checks, --mass, and --reek-config."
+    warn "Use long options: --checks, --mass, --liberal, and --reek-config."
     1
   end
 
@@ -5329,7 +5353,7 @@ class Fleek
   end
 
   def self.without_flay_options(inputs)
-    without_option_pairs(without_option_pairs(inputs, "--mass"), "--only")
+    without_option_pairs(without_option_pairs(without_option(inputs, "--liberal"), "--mass"), "--only")
   end
 
   # :reek:TooManyStatements
@@ -5359,11 +5383,9 @@ class Fleek
   end
 
   def self.selected_check_option_error(check, inputs)
-    reek_only = check.start_with?("reek:") && !check.include?(",flay:")
-    return "--mass applies only to flay:StructuralDuplication." if reek_only && inputs.include?("--mass")
-    return "--only applies only to flay:StructuralDuplication." if reek_only && inputs.include?("--only")
-    return "--reek-config applies only to Reek checks." if check == "flay:StructuralDuplication" && inputs.include?("--reek-config")
-    ""
+    reek_option = inputs.find { |argument| ["--mass", "--only", "--liberal"].include?(argument) } if check.start_with?("reek:") && !check.include?(FLAY_CHECK)
+    return "#{reek_option} applies only to flay:StructuralDuplication." if reek_option
+    check == FLAY_CHECK && inputs.include?("--reek-config") ? "--reek-config applies only to Reek checks." : ""
   end
 
   def self.run_unsupported_opt_in(inputs, detector)

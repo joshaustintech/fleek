@@ -103,12 +103,16 @@ class MutationCase
     "Flay only repeated option precedence" => "test/duplication_only_node_contract.rb",
     "Flay only missing repeated value" => "test/duplication_only_node_contract.rb",
     "Flay only check applicability" => "test/cli_contract.rb",
+    "Flay liberal option recognition" => "test/duplication_contract.rb",
+    "Flay liberal candidate retention" => "test/duplication_contract.rb",
+    "Flay liberal check applicability" => "test/cli_contract.rb",
+    "Flay liberal combined routing" => "test/cli_contract.rb",
     "Reek config check applicability" => "test/cli_contract.rb",
     "Flay module method candidate collection" => "test/duplication_contract.rb",
     "Flay nested module candidate collection" => "test/duplication_contract.rb",
     "Flay module scopes inside classes" => "test/duplication_contract.rb",
     "Flay mixed sibling scope preservation" => "test/duplication_contract.rb",
-    "Flay mixed direct and sibling methods incomplete status" => "test/duplication_contract.rb",
+    "Flay direct sibling method collection" => "test/duplication_contract.rb",
     "Flay supported siblings beside unsupported class" => "test/duplication_unsupported_sibling_contract.rb",
     "Flay mixed scope kind identity" => "test/duplication_contract.rb",
     "Flay namespace class module scope kind" => "test/duplication_contract.rb",
@@ -359,7 +363,7 @@ class MutationCase
     label = @configuration.label
     raise "#{label} mutant survived" if status.success?
     message = File.read(MutationProcess.temporary_path("fleek-mutation-err"))
-    raise "unexpected #{label} failure" unless message.include?(@configuration.expected_failure)
+    raise "unexpected #{label} failure: #{message}" unless message.include?(@configuration.expected_failure)
     puts "Mutation contract: caught #{label}"
   end
 end
@@ -914,10 +918,10 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay mixed sibling scope preservation",
   "mixed sibling scopes hid the independent Flay class group")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (has_direct_methods) fleek_duplication_partial = 1;\n              for (size_t index = 0; index < body->body.size; index++) {",
-  "if (false) fleek_duplication_partial = 1;\n              for (size_t index = 0; index < body->body.size; index++) {",
-  "Flay mixed direct and sibling methods incomplete status",
-  "direct methods beside sibling classes were reported complete")).run
+  "size_t first_direct_candidate = set->count;\n              for (size_t index = 0; index < body->body.size; index++) {\n                const pm_node_t *method_node = body->body.nodes[index];\n                if (!PM_NODE_TYPE_P(method_node, PM_DEF_NODE)) continue;\n                if (set->count == 24 || !fleek_duplication_class_method(method_node, source, &set->candidates[set->count])) {",
+  "size_t first_direct_candidate = set->count;\n              for (size_t index = 0; index < body->body.size; index++) {\n                const pm_node_t *method_node = body->body.nodes[index];\n                if (!PM_NODE_TYPE_P(method_node, PM_DEF_NODE)) continue;\n                if (set->count == 24 || true) {",
+  "Flay direct sibling method collection",
+  "direct methods beside sibling classes differed from conservative Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (collect_nested_sibling_scopes) {",
   "if (false) {",
@@ -1219,8 +1223,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Reek directory detector precedence",
   "Fleek ignored the parent directory disablement")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'reek_only && inputs.include?("--mass")',
-  'false',
+  '["--mass", "--only", "--liberal"].include?(argument)',
+  '["--only", "--liberal"].include?(argument)',
   "Flay mass check applicability",
   "inapplicable Flay mass was not rejected before Reek analysis")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -1244,12 +1248,32 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay only missing repeated value",
   "missing repeated --only diagnostic changed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'reek_only && inputs.include?("--only")',
-  'false',
+  '["--mass", "--only", "--liberal"].include?(argument)',
+  '["--mass", "--liberal"].include?(argument)',
   "Flay only check applicability",
   "inapplicable Flay only was not rejected before Reek analysis")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'check == "flay:StructuralDuplication" && inputs.include?("--reek-config")',
+  'input != "--liberal"',
+  'input != "--only"',
+  "Flay liberal option recognition",
+  "liberal pruning omitted retained method candidates")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (covered[candidate] && !liberal) pruned = true;",
+  "if (covered[candidate]) pruned = true;",
+  "Flay liberal candidate retention",
+  "liberal pruning omitted retained method candidates")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  '["--mass", "--only", "--liberal"].include?(argument)',
+  '["--mass", "--only"].include?(argument)',
+  "Flay liberal check applicability",
+  "inapplicable Flay liberal was not rejected before Reek analysis")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'reek_inputs = without_option_pairs(without_option_pairs(without_option(inputs, "--liberal"), "--mass"), "--only")',
+  'reek_inputs = without_option_pairs(without_option_pairs(inputs, "--mass"), "--only")',
+  "Flay liberal combined routing",
+  "combined Flay liberal status")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'check == FLAY_CHECK && inputs.include?("--reek-config") ? "--reek-config applies only to Reek checks." : ""',
   'false',
   "Reek config check applicability",
   "inapplicable Reek config was not rejected before Flay analysis")).run
