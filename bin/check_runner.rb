@@ -42,6 +42,7 @@ class CheckRunner
     test/default_object_scope_contract.rb
     test/default_argument_api_contract.rb
   ].freeze
+  REGRESSION_TESTS = %w[test/duplication_method_regexp_contract.rb].freeze
 
   def initialize(mode)
     @mode = mode
@@ -70,13 +71,17 @@ class CheckRunner
 
   private
 
+  def test_paths
+    TESTS + REGRESSION_TESTS
+  end
+
   def tasks
     mutations = Array.new(@mutation_jobs) { |shard| [:mutation, shard] }
     case @mode
-    when "test" then TESTS.map { |path| [:spinel, path] }
+    when "test" then test_paths.map { |path| [:spinel, path] }
     when "mutation" then mutations
     when "check"
-      TESTS.map { |path| [:spinel, path] } + mutations + [[:command, "reference"], [:command, "flay"], [:command, "reek"]]
+      test_paths.map { |path| [:spinel, path] } + mutations + [[:command, "reference"], [:command, "flay"], [:command, "reek"]]
     else raise "usage: check_runner.rb test|mutation|check"
     end
   end

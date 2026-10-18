@@ -231,5 +231,5 @@
 
 ## Ticket 22 regular-expression receipt
 
-- ADR 0140 records static Prism regular-expression support and pattern/flag equality in method candidates.
-- Pinned Flay 2.14.4 and Fleek match same-pattern, changed-pattern, and changed-flag method pairs at mass 10. Four focused mutations protect support, both identity dimensions, and rejection of interpolated regex.
+- ADRs 0140 and 0141 record static and interpolated Prism regular-expression support and their identity rules in method candidates. ADR 0142 records the focused mutation-contract mapping that avoids repeated Flay work.
+- Pinned Flay 2.14.4 and Fleek match static regex method pairs at mass 10 and interpolated regex pairs at mass 16. Focused mutations protect support, mass, pattern parts, and option flags.

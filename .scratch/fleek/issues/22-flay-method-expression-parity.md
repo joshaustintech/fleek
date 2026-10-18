@@ -45,4 +45,6 @@ Top-level methods containing `begin/rescue/retry` now match Flay's identical gro
 
 Top-level methods containing `begin/ensure` now match Flay's similar group at mass/score 10, with complete coverage. The recursive collector discounts each ensure node by one point to match Flay; focused mutations protect node support and mass. See ADR 0139.
 
-Top-level methods containing static regular-expression literals now match Flay at mass/score 10. Pattern and option differences preserve similar-versus-identical classification; separate mutations protect support and both identity dimensions. A negative CLI contract and mutation confirm interpolated regular expressions remain incomplete. See ADR 0140.
+Top-level methods containing static regular-expression literals now match Flay at mass/score 10. Pattern and option differences preserve similar-versus-identical classification. Interpolated regular-expression literals now match Flay at mass/score 16 after a one-point adjustment per Prism node; pattern-part and option differences preserve similar-versus-identical classification. Dedicated compiled CLI contracts compare both forms with pinned Flay, and separate mutations protect candidate support, mass, pattern identity, and option identity. See ADRs 0140 and 0141.
+
+The dedicated regex contract keeps mutation checks narrow: regex mutations run only these six comparisons instead of repeating them for unrelated parameter and expression mutations. See ADR 0142.
