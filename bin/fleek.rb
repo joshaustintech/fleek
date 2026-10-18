@@ -241,7 +241,7 @@ class Fleek
 
     typedef struct {
       union {
-        struct { const pm_node_t *nodes[128]; uint16_t tree_starts[128]; uint16_t tree_ends[128]; uint8_t node_ends[128]; int8_t mass_adjustments[128]; int16_t tree[256]; size_t tree_count; } ast;
+        struct { const pm_node_t **nodes; size_t *tree_starts; size_t *tree_ends; size_t *node_ends; int8_t *mass_adjustments; int16_t *tree; size_t node_capacity; size_t tree_capacity; size_t tree_count; } ast;
       } data;
       size_t shape_count;
       size_t parameter_mass;
@@ -2391,6 +2391,60 @@ class Fleek
 
     const char *fleek_class_variable_finding(void) { return fleek_finding_buffer; }
 
+    static bool fleek_duplication_reserve_candidate_nodes(fleek_duplication_method_t *method, size_t required) {
+      if (required <= method->data.ast.node_capacity) return true;
+      size_t next = method->data.ast.node_capacity == 0 ? 16 : method->data.ast.node_capacity;
+      while (next < required) {
+        if (next > SIZE_MAX / 2) return false;
+        next *= 2;
+      }
+      if (next > SIZE_MAX / sizeof(const pm_node_t *) || next > SIZE_MAX / sizeof(size_t)) return false;
+      const pm_node_t **nodes = realloc(method->data.ast.nodes, next * sizeof(const pm_node_t *));
+      if (nodes == NULL) return false;
+      method->data.ast.nodes = nodes;
+      size_t *tree_starts = realloc(method->data.ast.tree_starts, next * sizeof(size_t));
+      if (tree_starts == NULL) return false;
+      method->data.ast.tree_starts = tree_starts;
+      size_t *tree_ends = realloc(method->data.ast.tree_ends, next * sizeof(size_t));
+      if (tree_ends == NULL) return false;
+      method->data.ast.tree_ends = tree_ends;
+      size_t *node_ends = realloc(method->data.ast.node_ends, next * sizeof(size_t));
+      if (node_ends == NULL) return false;
+      method->data.ast.node_ends = node_ends;
+      int8_t *adjustments = realloc(method->data.ast.mass_adjustments, next * sizeof(int8_t));
+      if (adjustments == NULL) return false;
+      method->data.ast.mass_adjustments = adjustments;
+      method->data.ast.node_capacity = next;
+      return true;
+    }
+    static bool fleek_duplication_reserve_candidate_tree(fleek_duplication_method_t *method, size_t required) {
+      if (required <= method->data.ast.tree_capacity) return true;
+      size_t next = method->data.ast.tree_capacity == 0 ? 32 : method->data.ast.tree_capacity;
+      while (next < required) {
+        if (next > SIZE_MAX / 2) return false;
+        next *= 2;
+      }
+      if (next > SIZE_MAX / sizeof(int16_t)) return false;
+      int16_t *tree = realloc(method->data.ast.tree, next * sizeof(int16_t));
+      if (tree == NULL) return false;
+      method->data.ast.tree = tree;
+      method->data.ast.tree_capacity = next;
+      return true;
+    }
+    static void fleek_duplication_free_candidate_ast(fleek_duplication_method_t *method) {
+      free(method->data.ast.nodes);
+      free(method->data.ast.tree_starts);
+      free(method->data.ast.tree_ends);
+      free(method->data.ast.node_ends);
+      free(method->data.ast.mass_adjustments);
+      free(method->data.ast.tree);
+      method->data.ast.nodes = NULL;
+      method->data.ast.tree_starts = NULL;
+      method->data.ast.tree_ends = NULL;
+      method->data.ast.node_ends = NULL;
+      method->data.ast.mass_adjustments = NULL;
+      method->data.ast.tree = NULL;
+    }
     typedef struct { fleek_duplication_method_t *method; bool overflow; const pm_node_t *parent; } fleek_duplication_ast_t;
     static void fleek_duplication_collect_class_node(const pm_node_t *node, fleek_duplication_ast_t *ast);
     static bool fleek_duplication_collect_class_child(const pm_node_t *node, void *data) {
@@ -2415,20 +2469,22 @@ class Fleek
         ast->parent = parent; return;
       }
       if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {
-        const pm_statements_node_t *statements = (const pm_statements_node_t *) node;
-        if (statements->body.size > 128) { ast->overflow = true; return; }
         const pm_node_t *parent = ast->parent; ast->parent = node;
         pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast);
         ast->parent = parent; return;
       }
       bool when_node = PM_NODE_TYPE_P(node, PM_WHEN_NODE);
-      if (ast->method->shape_count == 128 || ast->method->data.ast.tree_count + 2 + (when_node ? 1 : 0) > 256 || !fleek_duplication_class_node_supported(node)) { ast->overflow = true; return; }
+      if (!fleek_duplication_class_node_supported(node)) { ast->overflow = true; return; }
+      size_t tree_required = ast->method->data.ast.tree_count + 2 + (when_node ? 1 : 0);
+      if (tree_required < ast->method->data.ast.tree_count ||
+          !fleek_duplication_reserve_candidate_nodes(ast->method, ast->method->shape_count + 1) ||
+          !fleek_duplication_reserve_candidate_tree(ast->method, tree_required)) { ast->overflow = true; return; }
       size_t index = ast->method->shape_count++;
       ast->method->data.ast.nodes[index] = node;
       ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_RANGE_NODE) ? -2 :
         PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) ||
         (PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE)) ? -1 : 0;
-      ast->method->data.ast.tree_starts[index] = (uint16_t) ast->method->data.ast.tree_count;
+      ast->method->data.ast.tree_starts[index] = ast->method->data.ast.tree_count;
       ast->method->data.ast.tree[ast->method->data.ast.tree_count++] = (int16_t) node->type;
       /* Flay's RubyParser translation wraps every when-condition list in an array node. */
       if (when_node) {
@@ -2439,9 +2495,13 @@ class Fleek
       const pm_node_t *parent = ast->parent; ast->parent = node;
       pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast);
       ast->parent = parent;
+      if (ast->method->data.ast.tree_count == SIZE_MAX ||
+          !fleek_duplication_reserve_candidate_tree(ast->method, ast->method->data.ast.tree_count + 1)) {
+        ast->overflow = true; return;
+      }
       ast->method->data.ast.tree[ast->method->data.ast.tree_count++] = (int16_t) (-(int) node->type - 1);
-      ast->method->data.ast.tree_ends[index] = (uint16_t) ast->method->data.ast.tree_count;
-      ast->method->data.ast.node_ends[index] = (uint8_t) ast->method->shape_count;
+      ast->method->data.ast.tree_ends[index] = ast->method->data.ast.tree_count;
+      ast->method->data.ast.node_ends[index] = ast->method->shape_count;
     }
     static bool fleek_duplication_optional_default_supported(const pm_node_t *node) {
       return PM_NODE_TYPE_P(node, PM_INTEGER_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) ||
@@ -2470,7 +2530,7 @@ class Fleek
       if (method->receiver != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result) || method->body == NULL || method->equal_loc.start != NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
       fleek_duplication_ast_t ast = { result, false, NULL };
       fleek_duplication_collect_class_node(method->body, &ast);
-      if (ast.overflow || result->shape_count == 0) return false;
+      if (ast.overflow || result->shape_count == 0) { fleek_duplication_free_candidate_ast(result); return false; }
       result->line = 1;
       for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') result->line++;
       return true;
@@ -2606,7 +2666,7 @@ class Fleek
           method->body == NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
       fleek_duplication_ast_t ast = { result, false, NULL };
       fleek_duplication_collect_class_node(method->body, &ast);
-      if (ast.overflow || result->shape_count == 0) return false;
+      if (ast.overflow || result->shape_count == 0) { fleek_duplication_free_candidate_ast(result); return false; }
       result->line = 1;
       for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') result->line++;
       return true;
@@ -3187,6 +3247,7 @@ class Fleek
     }
     static void fleek_duplication_free_candidate_scope_names(fleek_duplication_class_candidates_t *set) {
       for (size_t candidate = 0; candidate < set->count; candidate++) {
+        fleek_duplication_free_candidate_ast(&set->candidates[candidate]);
         free(set->candidates[candidate].scope_names);
         free(set->candidates[candidate].scope_types);
         set->candidates[candidate].scope_names = NULL;
@@ -3261,6 +3322,8 @@ class Fleek
         pm_node_t *statement = program->statements->body.nodes[index];
         if (PM_NODE_TYPE_P(statement, PM_CLASS_NODE)) {
           if (method_count != 0 || ffi_module_count != 0 || !fleek_duplication_collect_class_methods(statement, (const uint8_t *) source, &class_candidates, collect_nested_sibling_scopes)) {
+            fleek_duplication_free_candidate_ast(&first_method);
+            fleek_duplication_free_candidate_ast(&second_method);
             fleek_duplication_free_candidate_scope_names(&class_candidates);
             pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
           }
@@ -3269,6 +3332,8 @@ class Fleek
         }
         if (PM_NODE_TYPE_P(statement, PM_MODULE_NODE)) {
           if (method_count != 0 || ffi_module_count != 0) {
+            fleek_duplication_free_candidate_ast(&first_method);
+            fleek_duplication_free_candidate_ast(&second_method);
             fleek_duplication_free_candidate_scope_names(&class_candidates);
             pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
           }
@@ -3288,12 +3353,16 @@ class Fleek
         }
         if (!PM_NODE_TYPE_P(statement, PM_DEF_NODE) || scope_count != 0) {
           if (!PM_NODE_TYPE_P(statement, PM_NIL_NODE)) {
+            fleek_duplication_free_candidate_ast(&first_method);
+            fleek_duplication_free_candidate_ast(&second_method);
             fleek_duplication_free_candidate_scope_names(&class_candidates);
             pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
           }
           continue;
         }
         if (method_count == 2 || !fleek_duplication_method(statement, (const uint8_t *) source, method_count == 0 ? &first_method : &second_method)) {
+          fleek_duplication_free_candidate_ast(&first_method);
+          fleek_duplication_free_candidate_ast(&second_method);
           fleek_duplication_free_candidate_scope_names(&class_candidates);
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
         }
@@ -3322,6 +3391,8 @@ class Fleek
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
       }
       if (method_count != 2) {
+        fleek_duplication_free_candidate_ast(&first_method);
+        fleek_duplication_free_candidate_ast(&second_method);
         fleek_duplication_free_candidate_scope_names(&class_candidates);
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
       }
@@ -3334,10 +3405,14 @@ class Fleek
       if (same_shape && mass >= (size_t) mass_threshold) {
         int lines[2] = { first_method.line, second_method.line };
         if (!fleek_duplication_append_group("defn", identical, mass, lines, 2)) {
+          fleek_duplication_free_candidate_ast(&first_method);
+          fleek_duplication_free_candidate_ast(&second_method);
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
         }
       }
       int score = fleek_duplication_total_score;
+      fleek_duplication_free_candidate_ast(&first_method);
+      fleek_duplication_free_candidate_ast(&second_method);
       pm_node_destroy(&parser, root);
       pm_parser_free(&parser);
       pm_options_free(&options);
