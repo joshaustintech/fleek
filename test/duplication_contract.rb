@@ -336,6 +336,14 @@ DuplicationProcess.verify_output(cross_class_group_reference, DuplicationProcess
 cross_class_group_actual_fields = ["node=\"class\" kind=\"similar\" locations=\"#{cross_class_group_path}:1,#{cross_class_group_path}:10\" mass=50 score=50", "Total duplication score: 50", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
 DuplicationProcess.verify_output(cross_class_group_actual, DuplicationProcess::OutputExpectation.new(2, cross_class_group_actual_fields, "cross-class Flay group differed"))
 
+nested_class_sibling_path = "test/fixtures/duplication_nested_class_sibling_wrappers.rb"
+nested_class_sibling_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_class_sibling_path, "fleek", ""))
+nested_class_sibling_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_class_sibling_path, "flay", ""))
+nested_class_sibling_fields = ["node=\"class\" kind=\"similar\" locations=\"#{nested_class_sibling_path}:2,#{nested_class_sibling_path}:13\" mass=52 score=52", "Total duplication score: 52", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(nested_class_sibling_actual, DuplicationProcess::OutputExpectation.new(2, nested_class_sibling_fields, "nested class sibling wrappers differed"))
+nested_class_sibling_reference_fields = ["Similar code found in :class (mass = 52)", "#{nested_class_sibling_path}:2", "#{nested_class_sibling_path}:13", "Total score (lower is better) = 52"]
+DuplicationProcess.verify_output(nested_class_sibling_reference, DuplicationProcess::OutputExpectation.new(0, nested_class_sibling_reference_fields, "nested class sibling wrapper Flay reference changed"))
+
 cross_scope_group_path = "test/fixtures/duplication_class_cross_scope_group.rb"
 cross_scope_group_actual = DuplicationProcess.run(DuplicationProcess::Input.new(cross_scope_group_path, "fleek", ""))
 cross_scope_group_reference = DuplicationProcess.run(DuplicationProcess::Input.new(cross_scope_group_path, "flay", ""))

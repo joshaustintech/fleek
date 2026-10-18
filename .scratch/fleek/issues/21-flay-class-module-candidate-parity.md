@@ -17,4 +17,4 @@
 
 ## Answer
 
-Implementation is in progress. Candidate scope names now use dynamically sized storage, and nested-module collection is iterative. The compiled public contract passes Flay 2.14.4 parity for generated 64-level nested module and class chains and the former 21-component qualified-path boundary. Focused traversal mutations are being verified; the full mutation/native/Flay/Reek gates and code review remain before this ticket can be resolved. Other shared-grammar gaps and compound scope forms remain open.
+Implementation is in progress. Candidate scope names now use dynamically sized storage, and nested-module collection is iterative. Public contracts pass Flay 2.14.4 parity for generated 64-level nested module and class chains, the former 21-component qualified-path boundary, and wrapped sibling-class scopes. Additional compound shapes are being discovered through paired reference checks; the full mutation/native/Flay/Reek gates and code review remain before this ticket can be resolved.
