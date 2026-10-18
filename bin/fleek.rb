@@ -2460,6 +2460,8 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_HASH_NODE) ||
         PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_CASE_NODE) || PM_NODE_TYPE_P(node, PM_WHEN_NODE) ||
         PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) ||
+        PM_NODE_TYPE_P(node, PM_BLOCK_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE) ||
+        PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE) || PM_NODE_TYPE_P(node, PM_REQUIRED_PARAMETER_NODE) ||
         PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE);
     }
     static void fleek_duplication_collect_class_node(const pm_node_t *node, fleek_duplication_ast_t *ast) {
@@ -2481,7 +2483,8 @@ class Fleek
           !fleek_duplication_reserve_candidate_tree(ast->method, tree_required)) { ast->overflow = true; return; }
       size_t index = ast->method->shape_count++;
       ast->method->data.ast.nodes[index] = node;
-      ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_RANGE_NODE) ? -2 :
+      ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ? -2 :
+        PM_NODE_TYPE_P(node, PM_RANGE_NODE) ? -2 :
         PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) ||
         (PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE)) ? -1 : 0;
       ast->method->data.ast.tree_starts[index] = ast->method->data.ast.tree_count;
@@ -2649,6 +2652,7 @@ class Fleek
         if (PM_NODE_TYPE_P(first, PM_CONSTANT_READ_NODE) && !fleek_constants_equal(parser, ((const pm_constant_read_node_t *) first)->name, ((const pm_constant_read_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_READ_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_read_node_t *) first)->name, ((const pm_local_variable_read_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_write_node_t *) first)->name, ((const pm_local_variable_write_node_t *) second)->name)) return false;
+        if (PM_NODE_TYPE_P(first, PM_REQUIRED_PARAMETER_NODE) && !fleek_constants_equal(parser, ((const pm_required_parameter_node_t *) first)->name, ((const pm_required_parameter_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_INSTANCE_VARIABLE_READ_NODE) && !fleek_constants_equal(parser, ((const pm_instance_variable_read_node_t *) first)->name, ((const pm_instance_variable_read_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_INSTANCE_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_instance_variable_write_node_t *) first)->name, ((const pm_instance_variable_write_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_INTEGER_NODE) && pm_integer_compare(&((const pm_integer_node_t *) first)->value, &((const pm_integer_node_t *) second)->value) != 0) return false;
