@@ -1202,6 +1202,7 @@ class Fleek
           PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) ||
           PM_NODE_TYPE_P(node, PM_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_CALL_NODE) || PM_NODE_TYPE_P(node, PM_ARGUMENTS_NODE) ||
           PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) || PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) ||
+          PM_NODE_TYPE_P(node, PM_INTERPOLATED_STRING_NODE) || PM_NODE_TYPE_P(node, PM_EMBEDDED_VARIABLE_NODE) || PM_NODE_TYPE_P(node, PM_EMBEDDED_STATEMENTS_NODE) ||
           PM_NODE_TYPE_P(node, PM_INTEGER_NODE) || PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_FALSE_NODE) ||
           PM_NODE_TYPE_P(node, PM_NIL_NODE) || PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_AND_NODE) ||
           PM_NODE_TYPE_P(node, PM_OR_NODE) || PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) ||
@@ -2493,7 +2494,8 @@ class Fleek
     }
     static bool fleek_duplication_class_node_supported(const pm_node_t *node) {
       return PM_NODE_TYPE_P(node, PM_CALL_NODE) || PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) || PM_NODE_TYPE_P(node, PM_FLOAT_NODE) ||
+        PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) || PM_NODE_TYPE_P(node, PM_INTERPOLATED_STRING_NODE) ||
+        PM_NODE_TYPE_P(node, PM_EMBEDDED_VARIABLE_NODE) || PM_NODE_TYPE_P(node, PM_EMBEDDED_STATEMENTS_NODE) || PM_NODE_TYPE_P(node, PM_FLOAT_NODE) ||
         PM_NODE_TYPE_P(node, PM_RANGE_NODE) ||
         PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_INTEGER_NODE) ||
         PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE) || PM_NODE_TYPE_P(node, PM_AND_NODE) || PM_NODE_TYPE_P(node, PM_OR_NODE) ||
@@ -2524,7 +2526,8 @@ class Fleek
           !fleek_duplication_reserve_candidate_tree(ast->method, tree_required)) { ast->overflow = true; return; }
       size_t index = ast->method->shape_count++;
       ast->method->data.ast.nodes[index] = node;
-      ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ? -2 :
+      ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_EMBEDDED_VARIABLE_NODE) ? -1 :
+        PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ? -2 :
         PM_NODE_TYPE_P(node, PM_RANGE_NODE) ? -2 :
         PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) ||
         (PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE)) ? -1 : 0;
@@ -3162,6 +3165,9 @@ class Fleek
 
     static size_t fleek_duplication_class_method_mass(const fleek_duplication_method_t *method) {
       size_t mass = 2 + method->shape_count + method->parameter_mass;
+      for (size_t index = 0; index < method->shape_count; index++) {
+        if (PM_NODE_TYPE_P(method->data.ast.nodes[index], PM_INTERPOLATED_STRING_NODE)) mass--;
+      }
       for (size_t index = 0; index < method->shape_count; index++) {
         int8_t adjustment = method->data.ast.mass_adjustments[index];
         if (adjustment < 0) mass -= (size_t) (-adjustment);
