@@ -151,8 +151,8 @@ class MutationCase
     "Flay optional parameter count" => "test/duplication_contract.rb",
     "Flay class method conditional candidates" => "test/duplication_contract.rb",
     "Flay class method unless candidates" => "test/duplication_contract.rb",
-    "Flay class method return candidates" => "test/duplication_contract.rb",
-    "Flay class method false literal candidates" => "test/duplication_contract.rb",
+    "Flay method return candidates" => "test/duplication_contract.rb",
+    "Flay method false literal candidates" => "test/duplication_contract.rb",
     "Flay method OR candidates" => "test/duplication_contract.rb",
     "Flay method local write candidates" => "test/duplication_contract.rb",
     "Flay method local write identity" => "test/duplication_contract.rb",
@@ -1045,13 +1045,13 @@ MutationCase.new(MutationCase::Configuration.new(source,
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE);",
   "PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE);",
-  "Flay class method return candidates",
-  "conditional return class method parity differed")).run
+  "Flay method return candidates",
+  "top-level methods with conditional returns differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_AND_NODE)",
   "PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_AND_NODE)",
-  "Flay class method false literal candidates",
-  "conditional return class method parity differed")).run
+  "Flay method false literal candidates",
+  "top-level methods with conditional returns differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_OR_NODE) ||",
   "",
