@@ -4,17 +4,17 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** claimed
+**Status:** resolved
 **Type:** task  
 **Category:** enhancement  
 **Triage:** ready-for-agent
 
-- [ ] Discover the same class and module candidates as pinned Flay, including nested and cross-scope cases supported by its shared Ruby grammar.
-- [ ] Match candidate grouping, similar-versus-identical classification, mass, weighted score, source locations, and deterministic ordering against identical inputs.
-- [ ] Preserve independent verified findings when another candidate is unsupported; report incomplete until all selected source is covered.
-- [ ] Compare public CLI behavior with unchanged Flay 2.14.4 and add clean, finding, and boundary cases.
-- [ ] Mutation checks detect missing candidates, wrong group shape, score, locations, ordering, or incomplete status.
+- [x] Discover the same class and module candidates as pinned Flay, including nested and cross-scope cases supported by its shared Ruby grammar.
+- [x] Match candidate grouping, similar-versus-identical classification, mass, weighted score, source locations, and deterministic ordering against identical inputs.
+- [x] Preserve independent verified findings when another candidate is unsupported; report incomplete until all selected source is covered.
+- [x] Compare public CLI behavior with unchanged Flay 2.14.4 and add clean, finding, and boundary cases.
+- [x] Mutation checks detect missing candidates, wrong group shape, score, locations, ordering, or incomplete status.
 
 ## Answer
 
-Implementation is in progress. Candidate scope paths use dynamically sized, typed storage; straight nested class/module chains use iterative traversal. Public contracts pass Flay 2.14.4. Mixed parent bodies preserve independently verified sibling-class groups while marking unsupported module, unsupported class, or uncollected parent-method siblings incomplete (mass 50, locations 2/11 and 9/18); focused mutations protect these boundaries. The 8–20 qualified-path fixture ladder was removed after measuring its 42.20-second contract cost; the retained boundary and generated 64-level chains keep the same behavioral checks. More compound shapes remain under paired reference discovery; the full mutation/native/Flay/Reek gates and code review remain before this ticket can be resolved.
+Candidate scope paths use dynamically sized typed storage and iterative traversal. Generated public contracts compare 64-level class and module paths with unchanged Flay 2.14.4; qualified namespace and cross-scope cases verify group identity, mass, score, locations, and ordering. Mixed parent bodies retain verified class groups when module, class, or direct-method siblings are unsupported, and mark the source incomplete. Focused mutations protect these boundaries. The 8–20 qualified-path fixture ladder was removed after measuring its 42.20-second contract cost; the 21-component boundary and generated-depth checks retain coverage. Final forced native build, all CLI contracts and mutation shards, Flay, Reek, and both review axes pass. See ADR 0102 for unsupported sibling behavior.

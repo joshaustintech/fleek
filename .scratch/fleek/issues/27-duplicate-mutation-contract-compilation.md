@@ -25,4 +25,4 @@ Confirmed. Pinned Spinel `2026.09.12`, `112bae85c1a25fc5399009a849f805bfe691426b
 
 ## Resolution
 
-ADR 0099 records the chosen design and rejected lock attempt. Full gate improved from 428.76s to 238.78s (44.3%) while preserving all 183 mutations and 18 public contracts. The 300.10s mutation-only result is prior context, not a directly comparable full-gate measurement.
+ADR 0099 records shared contract binaries and the rejected lock attempt. Current measurements on the eight-logical-CPU host confirm `JOBS=8` remains the useful setting: `make mutation JOBS=16` is capped at eight workers and passes in 171.04s; `make mutation JOBS=4` passes in 240.94s. Full `make -B check JOBS=8` passes in 235.52s with the forced native rebuild, all contracts and mutation shards, Flay, and Reek. ADR 0103 records why mutation compilation stays bounded to eight workers. The earlier baseline improved from 428.76s to 238.78s (44.3%) while preserving all 183 then-configured mutations and 18 public contracts; the 300.10s mutation-only result is not directly comparable to full-gate time.
