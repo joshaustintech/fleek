@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes [ADR 0077](0077-twelve-level-nested-module-methods.md).
+Superseded by [ADR 0086](0086-fourteen-level-nested-module-methods.md). Historical record; its thirteen-module limit was extended.
 
 ## Context
 
