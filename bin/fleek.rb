@@ -88,12 +88,15 @@ class Fleek
     #include <stdint.h>
     #include <stdio.h>
     #include <ctype.h>
+    #include <limits.h>
     #include <stdlib.h>
     #include <regex.h>
+    #include <string.h>
 
     static char fleek_parse_message_buffer[512];
     static char fleek_finding_buffer[4096];
-    static char fleek_duplication_buffer[8192];
+    static char *fleek_duplication_buffer;
+    static size_t fleek_duplication_buffer_capacity;
     static size_t fleek_duplication_buffer_used;
     static int fleek_duplication_total_score;
     static char fleek_attribute_buffer[4096];
@@ -2629,18 +2632,44 @@ class Fleek
       }
       return mass;
     }
+    static bool fleek_duplication_reserve_buffer(size_t required) {
+      if (required <= fleek_duplication_buffer_capacity) return true;
+      size_t next = fleek_duplication_buffer_capacity == 0 ? 256 : fleek_duplication_buffer_capacity;
+      while (next < required) {
+        if (next > SIZE_MAX / 2) return false;
+        next *= 2;
+      }
+      char *resized = realloc(fleek_duplication_buffer, next);
+      if (resized == NULL) return false;
+      fleek_duplication_buffer = resized;
+      fleek_duplication_buffer_capacity = next;
+      return true;
+    }
+    static bool fleek_duplication_append_text(const char *text, size_t length) {
+      if (length == SIZE_MAX || fleek_duplication_buffer_used > SIZE_MAX - length - 1) return false;
+      size_t required = fleek_duplication_buffer_used + length + 1;
+      if (!fleek_duplication_reserve_buffer(required)) return false;
+      memcpy(fleek_duplication_buffer + fleek_duplication_buffer_used, text, length);
+      fleek_duplication_buffer_used += length;
+      fleek_duplication_buffer[fleek_duplication_buffer_used] = 0;
+      return true;
+    }
     static bool fleek_duplication_append_group(const char *node, bool identical, size_t node_mass, const int *lines, size_t count) {
+      if (node_mass != 0 && count > SIZE_MAX / node_mass) return false;
       size_t group_mass = node_mass * count;
-      size_t group_score = group_mass * (identical ? count : 1);
-      size_t remaining = sizeof(fleek_duplication_buffer) - fleek_duplication_buffer_used;
-      int written = snprintf(fleek_duplication_buffer + fleek_duplication_buffer_used, remaining, "%s%s\\t%s\\t%zu\\t%zu", fleek_duplication_buffer_used == 0 ? "" : "\\n", node, identical ? "identical" : "similar", group_mass, group_score);
-      if (written < 0 || (size_t) written >= remaining) return false;
-      fleek_duplication_buffer_used += (size_t) written;
+      size_t multiplier = identical ? count : 1;
+      if (group_mass != 0 && multiplier > SIZE_MAX / group_mass) return false;
+      size_t group_score = group_mass * multiplier;
+      if (group_score > (size_t) (INT_MAX - fleek_duplication_total_score)) return false;
+      char fragment[128];
+      int written = snprintf(fragment, sizeof(fragment), "%s%s\\t%s\\t%zu\\t%zu",
+        fleek_duplication_buffer_used == 0 ? "" : "\\n", node, identical ? "identical" : "similar", group_mass, group_score);
+      if (written < 0 || (size_t) written >= sizeof(fragment) ||
+          !fleek_duplication_append_text(fragment, (size_t) written)) return false;
       for (size_t index = 0; index < count; index++) {
-        remaining = sizeof(fleek_duplication_buffer) - fleek_duplication_buffer_used;
-        written = snprintf(fleek_duplication_buffer + fleek_duplication_buffer_used, remaining, "%s%d", index == 0 ? "\\t" : ",", lines[index]);
-        if (written < 0 || (size_t) written >= remaining) return false;
-        fleek_duplication_buffer_used += (size_t) written;
+        written = snprintf(fragment, sizeof(fragment), "%s%d", index == 0 ? "\\t" : ",", lines[index]);
+        if (written < 0 || (size_t) written >= sizeof(fragment) ||
+            !fleek_duplication_append_text(fragment, (size_t) written)) return false;
       }
       fleek_duplication_total_score += (int) group_score;
       return true;
@@ -3354,7 +3383,7 @@ class Fleek
     }
 
     int fleek_structural_duplication(const char *source, size_t length, int mass_threshold, int liberal) {
-      fleek_duplication_buffer[0] = 0;
+      if (fleek_duplication_buffer != NULL) fleek_duplication_buffer[0] = 0;
       fleek_duplication_buffer_used = 0;
       fleek_duplication_total_score = 0;
       fleek_duplication_partial = 0;
@@ -3487,7 +3516,7 @@ class Fleek
       return score;
     }
 
-    const char *fleek_structural_duplication_finding(void) { return fleek_duplication_buffer; }
+    const char *fleek_structural_duplication_finding(void) { return fleek_duplication_buffer == NULL ? "" : fleek_duplication_buffer; }
     int fleek_structural_duplication_partial(void) { return fleek_duplication_partial; }
 
     int fleek_parse_ruby4(const char *source, size_t length) {

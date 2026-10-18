@@ -172,6 +172,7 @@ class MutationCase
     "Flay parenthesized method expression" => "test/duplication_method_self_contract.rb",
     "Flay dynamic class method candidates" => "test/duplication_method_candidate_capacity_contract.rb",
     "Flay dynamic class method body" => "test/duplication_method_candidate_capacity_contract.rb",
+    "Flay dynamic duplication report buffer" => "test/duplication_method_candidate_capacity_contract.rb",
     "Flay method local write candidates" => "test/duplication_contract.rb",
     "Flay method local write identity" => "test/duplication_contract.rb",
     "Flay class method conditional mass" => "test/duplication_contract.rb",
@@ -859,8 +860,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay mass boundary",
   "similar method group report differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "(identical ? count : 1)",
-  "(identical ? 1 : 1)",
+  "size_t multiplier = identical ? count : 1;",
+  "size_t multiplier = 1;",
   "Flay identical multiplier",
   "top-level array-expression methods differed from Flay: missing node=\"defn\" kind=\"identical\" locations=\"test/fixtures/duplication_methods_array_expression.rb:1,test/fixtures/duplication_methods_array_expression.rb:5\" mass=38 score=76")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -1127,12 +1128,17 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "size_t next = set->capacity == 0 ? 16 : set->capacity;\n      while (next < required) {",
   "size_t next = set->capacity == 0 ? 16 : set->capacity;\n      if (required > 24) return false;\n      while (next < required) {",
   "Flay dynamic class method candidates",
-  "40 class methods were not analyzed")).run
+  "2200 class methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "body_count = body->body.size;\n        if (body->body.size == 1",
   "body_count = body->body.size;\n        if (body->body.size > 32) return false;\n        if (body->body.size == 1",
   "Flay dynamic class method body",
-  "40 class methods were not analyzed")).run
+  "2200 class methods were not analyzed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "static bool fleek_duplication_reserve_buffer(size_t required) {\n      if (required <= fleek_duplication_buffer_capacity) return true;",
+  "static bool fleek_duplication_reserve_buffer(size_t required) {\n      if (required > 8192) return false;\n      if (required <= fleek_duplication_buffer_capacity) return true;",
+  "Flay dynamic duplication report buffer",
+  "2200 class methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ? -2 :",
   "PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ? 0 :",
