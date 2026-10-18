@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes [ADR 0083](0083-twelve-level-nested-module-classes.md).
+Superseded by [ADR 0088](0088-fourteen-level-nested-module-classes.md). Historical record; its thirteen-module limit was extended.
 
 ## Context
 
