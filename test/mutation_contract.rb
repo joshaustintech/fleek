@@ -169,6 +169,7 @@ class MutationCase
     "Flay block expression mass" => "test/duplication_method_block_contract.rb",
     "Flay block parameter identity" => "test/duplication_method_block_contract.rb",
     "Flay method self receiver" => "test/duplication_method_self_contract.rb",
+    "Flay parenthesized method expression" => "test/duplication_method_self_contract.rb",
     "Flay method local write candidates" => "test/duplication_contract.rb",
     "Flay method local write identity" => "test/duplication_contract.rb",
     "Flay class method conditional mass" => "test/duplication_contract.rb",
@@ -1114,7 +1115,12 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_SELF_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ||",
   "PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ||",
   "Flay method self receiver",
-  "self-receiver methods were not analyzed")).run
+  "self_receiver methods were not analyzed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE) || PM_NODE_TYPE_P(node, PM_PARENTHESES_NODE)) {\n        const pm_node_t *parent = ast->parent; ast->parent = node;",
+  "if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {\n        const pm_node_t *parent = ast->parent; ast->parent = node;",
+  "Flay parenthesized method expression",
+  "parenthesized_expression methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ? -2 :",
   "PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ? 0 :",

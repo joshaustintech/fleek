@@ -2470,7 +2470,7 @@ class Fleek
         pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast);
         ast->parent = parent; return;
       }
-      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {
+      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE) || PM_NODE_TYPE_P(node, PM_PARENTHESES_NODE)) {
         const pm_node_t *parent = ast->parent; ast->parent = node;
         pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast);
         ast->parent = parent; return;
