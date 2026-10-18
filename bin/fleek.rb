@@ -10,7 +10,7 @@ class Fleek
   # Retains source identity alongside its diagnostic for the text report.
   SourceFailure = Struct.new(:path, :message, :kind)
   # Carries inputs and locations through structural duplication reporting.
-  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold, :excluded_paths, :source, :result, :partial, :partial_paths, :source_scope)
+  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold, :excluded_paths, :source, :result, :partial, :partial_paths, :source_scope, :only_node)
   # Carries one Flay group through stable report formatting.
   DuplicationGroup = Struct.new(:node, :kind, :mass, :score, :locations)
   # Carries validated analyzer inputs through combined execution.
@@ -3865,7 +3865,7 @@ class Fleek
     puts "       fleek --checks reek:ClassVariable[,flay:StructuralDuplication] [--reek-config FILE] SOURCE"
     puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--reek-config FILE] SOURCE..."
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
-    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] SOURCE"
+    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--only NODE] SOURCE"
   end
 
   def self.help_requested?(arguments)
@@ -3947,7 +3947,7 @@ class Fleek
   def self.duplication_input_report(inputs, ignore_patterns)
     files, errors = discover_sources(duplication_source_paths(inputs), ReekConfiguration.new)
     included, excluded = partition_flay_sources(files, ignore_patterns)
-    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded, nil, nil, false, [], "included")
+    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded, nil, nil, false, [], "included", duplication_only_node(inputs))
   end
 
   def self.partition_flay_sources(files, patterns)
@@ -3975,7 +3975,34 @@ class Fleek
   def self.structural_duplication_input_error(inputs)
     mass_error = duplication_mass_error(inputs)
     return mass_error unless mass_error.empty?
+    only_error = duplication_only_error(inputs)
+    return only_error unless only_error.empty?
     duplication_source_input_error(inputs)
+  end
+
+  # :reek:TooManyStatements
+  def self.duplication_only_error(inputs)
+    index = 0
+    while index < inputs.length
+      if inputs[index] == "--only"
+        node = inputs[index + 1]
+        return "--only requires a node type." unless node && !node.start_with?("-")
+        index += 2
+      else
+        index += 1
+      end
+    end
+    ""
+  end
+
+  def self.duplication_only_node(inputs)
+    node = ""
+    index = 0
+    while index < inputs.length
+      node = inputs[index + 1] if inputs[index] == "--only"
+      index += 1
+    end
+    node
   end
 
   def self.duplication_mass_error(inputs)
@@ -3993,15 +4020,14 @@ class Fleek
   end
 
   def self.duplication_source_input_error(inputs)
-    unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" }
+    unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" && input != "--only" }
     return "Unsupported Flay option: #{quote_text(unsupported_option)}" if unsupported_option
     return "flay:StructuralDuplication requires at least one Ruby source path." if duplication_source_paths(inputs).empty?
     ""
   end
 
   def self.duplication_source_paths(inputs)
-    mass_index = duplication_mass_index(inputs)
-    inputs.take(mass_index) + inputs.drop([mass_index + 2, inputs.length].min)
+    without_option_pairs(without_option_pairs(inputs, "--mass"), "--only")
   end
 
   def self.duplication_mass_index(inputs)
@@ -4200,8 +4226,8 @@ class Fleek
   def self.print_duplication_report(report, score, combined_report = false)
     print_duplication_header(report, combined_report)
     warn_partial_duplication_results(report)
-    print_duplication_results(report.paths, score, report.source_map)
-    print_duplication_status(report, score, combined_report)
+    groups = print_duplication_results(report, score)
+    print_duplication_status(report, groups.empty? ? 0 : score, combined_report)
   end
 
   def self.warn_partial_duplication_results(report)
@@ -4245,9 +4271,15 @@ class Fleek
     report_input_summary(coverage.selected, coverage.analyzed, coverage.failed, coverage.excluded, coverage.state)
   end
 
-  def self.print_duplication_results(paths, score, source_map)
-    groups = score > 0 ? print_duplication_groups(source_map) : []
+  # :reek:TooManyStatements
+  def self.print_duplication_results(report, score)
+    groups = score > 0 ? print_duplication_groups(report.source_map, report.only_node) : []
     puts "Total duplication score: #{score}"
+    print_duplication_file_scores(report.paths, groups)
+    groups
+  end
+
+  def self.print_duplication_file_scores(paths, groups)
     paths.each { |path| puts "File duplication score: #{quote_text(path)} score=#{duplication_file_score(path, groups)}" }
   end
 
@@ -4264,10 +4296,15 @@ class Fleek
     count * group.score / locations.length
   end
 
-  def self.print_duplication_groups(source_map)
-    groups = duplication_groups(source_map)
+  def self.print_duplication_groups(source_map, only_node = "")
+    groups = selected_duplication_groups(source_map, only_node)
     groups.each { |group| print_duplication_group(group) }
     groups
+  end
+
+  def self.selected_duplication_groups(source_map, only_node)
+    groups = duplication_groups(source_map)
+    only_node.empty? ? groups : groups.select { |group| group.node == only_node }
   end
 
   def self.duplication_groups(source_map)
@@ -4668,15 +4705,28 @@ class Fleek
   end
 
   # :reek:TooManyStatements
+  # :reek:DuplicateMethodCall
   def self.extract_reek_configuration(inputs)
-    remaining = inputs.dup
-    option_index = remaining.index("--reek-config")
-    return ["", remaining, ""] unless option_index
-    option = remaining.slice!(option_index, 2)
-    return ["", [], "--reek-config requires a file."] unless option.length == 2
-    config_path = option[1]
-    return ["", [], "--reek-config requires a non-empty file path."] if config_path.empty?
-    return ["", [], "--reek-config may appear only once."] if remaining.include?("--reek-config")
+    remaining = []
+    config_path = ""
+    config_seen = false
+    index = 0
+    input_count = inputs.length
+    while index < input_count
+      input = inputs[index]
+      if input == "--reek-config"
+        return ["", [], "--reek-config may appear only once."] if config_seen
+        value_index = index + 1
+        return ["", [], "--reek-config requires a file."] if value_index >= input_count
+        config_path = inputs[value_index]
+        return ["", [], "--reek-config requires a non-empty file path."] if config_path.empty?
+        config_seen = true
+        index += 2
+      else
+        remaining << input
+        index += 1
+      end
+    end
     [config_path, remaining, ""]
   end
 
@@ -4704,8 +4754,8 @@ class Fleek
 
   # :reek:TooManyStatements
   def self.prepare_combined_analysis(inputs)
-    flay_inputs = without_option_pair(inputs, "--reek-config")
-    reek_inputs = without_option_pair(inputs, "--mass")
+    flay_inputs = without_option_pairs(inputs, "--reek-config")
+    reek_inputs = without_option_pairs(without_option_pairs(inputs, "--mass"), "--only")
     flay_error = structural_duplication_input_error(flay_inputs)
     configuration, reek_sources, config_error = combined_reek_configuration(reek_inputs)
     return CombinedAnalysis.new(flay_inputs, reek_inputs, nil, config_error, []) unless config_error.empty?
@@ -4771,9 +4821,21 @@ class Fleek
     combined_status
   end
 
-  def self.without_option_pair(inputs, option)
-    index = inputs.index(option)
-    index ? inputs.take(index) + inputs.drop(index + 2) : inputs
+  # :reek:ControlParameter
+  # :reek:TooManyStatements
+  def self.without_option_pairs(inputs, option)
+    remaining = []
+    index = 0
+    while index < inputs.length
+      input = inputs[index]
+      if input == option
+        index += 2
+      else
+        remaining << input
+        index += 1
+      end
+    end
+    remaining
   end
 
   def self.report_combined_input_error(message)
@@ -5258,8 +5320,16 @@ class Fleek
     configuration = ReekConfiguration.load(config_path)
     configuration_error = configuration.error
     return [nil, configuration_error] unless configuration_error.empty?
-    source_paths, = discover_sources(source_inputs, ReekConfiguration.new)
+    source_paths = default_profile_source_paths(source_inputs)
     [CheckProfiles.default(configuration, source_paths), ""]
+  end
+
+  def self.default_profile_source_paths(source_inputs)
+    discover_sources(without_flay_options(source_inputs), ReekConfiguration.new)[0]
+  end
+
+  def self.without_flay_options(inputs)
+    without_option_pairs(without_option_pairs(inputs, "--mass"), "--only")
   end
 
   # :reek:TooManyStatements
@@ -5289,7 +5359,9 @@ class Fleek
   end
 
   def self.selected_check_option_error(check, inputs)
-    return "--mass applies only to flay:StructuralDuplication." if check.start_with?("reek:") && !check.include?(",flay:") && inputs.include?("--mass")
+    reek_only = check.start_with?("reek:") && !check.include?(",flay:")
+    return "--mass applies only to flay:StructuralDuplication." if reek_only && inputs.include?("--mass")
+    return "--only applies only to flay:StructuralDuplication." if reek_only && inputs.include?("--only")
     return "--reek-config applies only to Reek checks." if check == "flay:StructuralDuplication" && inputs.include?("--reek-config")
     ""
   end

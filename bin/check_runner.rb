@@ -17,6 +17,7 @@ class CheckRunner
     test/commit_identity_contract.rb
     test/text_report_contract.rb
     test/duplication_contract.rb
+    test/duplication_only_node_contract.rb
     test/duplication_unsupported_sibling_contract.rb
     test/duplication_array_expression_contract.rb
     test/duplication_hash_expression_contract.rb

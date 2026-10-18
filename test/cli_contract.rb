@@ -34,7 +34,7 @@ raise "help parser prototype" unless help_result[1].include?("--parse-ruby4 SOUR
 raise "help named stdin" unless help_result[1].include?("--stdin SOURCE [PATH...]")
 raise "help Reek config" unless help_result[1].include?("--reek-config FILE")
 raise "help supported coverage missing" unless help_result[1].include?("Supported checks: reek:Attribute, reek:ClassVariable, reek:InstanceVariableAssumption, reek:IrresponsibleModule, reek:ModuleInitialize, reek:SubclassedFromCoreClass, and flay:StructuralDuplication")
-raise "help Flay mass option missing" unless help_result[1].include?("flay:StructuralDuplication [--mass MASS] SOURCE")
+raise "help Flay options missing" unless help_result[1].include?("flay:StructuralDuplication [--mass MASS] [--only NODE] SOURCE")
 raise "help unsupported capabilities missing" unless help_result[1].include?("machine formats are unsupported")
 raise "help explicit selection missing" unless help_result[1].include?("Analysis requires --checks")
 raise "help report contract missing" unless help_result[1].include?("stable text v1")
@@ -55,6 +55,9 @@ raise "unsupported check diagnostic" unless unsupported_result[2].include?("unsu
 inapplicable_mass = cli_process.with_inapplicable_option("reek:ClassVariable", ["--mass", "16", "test/fixtures/class_variable.rb"])
 raise "inapplicable Flay mass status" unless inapplicable_mass[0] == 1
 raise "inapplicable Flay mass was not rejected before Reek analysis" unless inapplicable_mass[2].include?("--mass applies only to flay:StructuralDuplication") && inapplicable_mass[1].empty?
+inapplicable_only = cli_process.with_inapplicable_option("reek:ClassVariable", ["--only", "defn", "test/fixtures/class_variable.rb"])
+raise "inapplicable Flay only status" unless inapplicable_only[0] == 1
+raise "inapplicable Flay only was not rejected before Reek analysis" unless inapplicable_only[2].include?("--only applies only to flay:StructuralDuplication") && inapplicable_only[1].empty?
 
 inapplicable_reek_config = cli_process.with_inapplicable_option("flay:StructuralDuplication", ["--reek-config", "test/fixtures/reference.rb", "test/fixtures/reference.rb"])
 raise "inapplicable Reek config status" unless inapplicable_reek_config[0] == 1
