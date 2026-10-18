@@ -103,7 +103,8 @@ class MutationCase
     "Flay nested namespace class collection" => "test/duplication_contract.rb",
     "Flay eleven-level nested-module class regression" => "test/duplication_contract.rb",
     "Flay twelve-level nested-module class inclusion" => "test/duplication_contract.rb",
-    "Flay thirteen-level nested-module class boundary" => "test/duplication_contract.rb",
+    "Flay thirteen-level nested-module class inclusion" => "test/duplication_contract.rb",
+    "Flay fourteen-level nested-module class boundary" => "test/duplication_contract.rb",
     "Flay nested class scope mass" => "test/duplication_contract.rb",
     "Flay six-level nested class regression" => "test/duplication_contract.rb",
     "Flay seven-level nested class regression" => "test/duplication_contract.rb",
@@ -779,17 +780,22 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay nested namespace class collection",
   "nested-namespace class group differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (depth >= 12 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
+  "if (depth >= 13 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
   "if (depth >= 11 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
   "Flay twelve-level nested-module class inclusion",
   "twelve-level nested-module class candidates differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (depth >= 12 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
   "if (depth >= 13 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
-  "Flay thirteen-level nested-module class boundary",
-  "thirteen-level nested-module class boundary was treated as complete")).run
-MutationCase.new(MutationCase::Configuration.new(source,
   "if (depth >= 12 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
+  "Flay thirteen-level nested-module class inclusion",
+  "thirteen-level nested-module class candidates differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (depth >= 13 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
+  "if (depth >= 14 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
+  "Flay fourteen-level nested-module class boundary",
+  "fourteen-level nested-module class boundary was treated as complete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (depth >= 13 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
   "if (depth >= 10 || !PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE))",
   "Flay eleven-level nested-module class regression",
   "eleven-level nested-module class candidates differed")).run
