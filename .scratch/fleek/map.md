@@ -183,3 +183,8 @@
 
 - ADR 0130 records optional keyword parameters with supported literal defaults: two mass units per keyword per method, name/default identity, and optional-count grouping parity.
 - Pinned Flay 2.14.4 and Fleek match the similar group at mass/score 10 and both leave differing optional-keyword counts ungrouped. Nonliteral defaults remain incomplete in Fleek; Flay finds a mass-10 candidate. Five focused mutations protect acceptance, identity, mass, count, and rejection behavior.
+
+## Ticket 22 post-parameter receipt
+
+- ADR 0131 records required positional post parameters, with post names and counts affecting identical classification but adding no Flay mass.
+- Pinned Flay 2.14.4 and Fleek match mass/score 10, locations, and coverage for supported signatures, including differing post names and counts. Focused mutations protect support, identity, and mass.
