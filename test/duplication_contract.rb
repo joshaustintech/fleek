@@ -472,6 +472,17 @@ DuplicationProcess.verify_output(nil_expression_reference, DuplicationProcess::O
 DuplicationProcess.verify_output(nil_expression, DuplicationProcess::OutputExpectation.new(2, nil_expression_fields,
   "top-level methods with nil literals differed from Flay"))
 
+unless_expression_path = "test/fixtures/duplication_methods_unless_expression.rb"
+unless_expression = DuplicationProcess.run(DuplicationProcess::Input.new(unless_expression_path, "fleek", "--mass", 3))
+unless_expression_reference = DuplicationProcess.run(DuplicationProcess::Input.new(unless_expression_path, "flay", "--mass", 3))
+unless_expression_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{unless_expression_path}:1,#{unless_expression_path}:9\" mass=16 score=16",
+  "Total duplication score: 16", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+unless_expression_reference_fields = ["Similar code found in :defn (mass = 16)", "#{unless_expression_path}:1", "#{unless_expression_path}:9", "Total score (lower is better) = 16"]
+DuplicationProcess.verify_output(unless_expression_reference, DuplicationProcess::OutputExpectation.new(0, unless_expression_reference_fields,
+  "Flay unless-expression method reference changed"))
+DuplicationProcess.verify_output(unless_expression, DuplicationProcess::OutputExpectation.new(2, unless_expression_fields,
+  "top-level methods with unless expressions differed from Flay"))
+
 conditional_return_path = "test/fixtures/duplication_methods_conditional_return.rb"
 conditional_returns = DuplicationProcess.run(DuplicationProcess::Input.new(conditional_return_path, "fleek", "--mass", 3))
 conditional_return_reference = DuplicationProcess.run(DuplicationProcess::Input.new(conditional_return_path, "flay", "--mass", 3))
