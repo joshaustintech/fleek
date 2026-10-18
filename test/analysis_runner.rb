@@ -113,3 +113,59 @@ class AnalysisRunner
     end
   end
 end
+
+# Compares one compiled Flay method-candidate report with pinned Flay.
+class FlayMethodCandidateContract
+  # :reek:LongParameterList
+  # :reek:TooManyStatements
+  def self.verify(path, label, mass, first_line, second_line)
+    root = ENV["FLEEK_TEMP_ROOT"] || "/tmp"
+    actual_output_path = "#{root}/#{label}-actual.out"
+    actual_error_path = "#{root}/#{label}-actual.err"
+    reference_output_path = "#{root}/#{label}-reference.out"
+    reference_error_path = "#{root}/#{label}-reference.err"
+    actual_status = run_fleek(path, actual_output_path, actual_error_path)
+    reference_status = run_flay(path, reference_output_path, reference_error_path)
+    actual_output = File.read(actual_output_path)
+    reference_output = File.read(reference_output_path)
+    reference_group = reference_output.lines.find { |line| line.include?("code found in :defn") }
+    raise "#{label} Flay reference failed: #{reference_output} #{File.read(reference_error_path)}" unless reference_status.success? && reference_group
+    raise "#{label} Flay mass differed: #{reference_group}" unless reference_mass(reference_group) == mass
+    raise "#{label} methods were not analyzed: #{actual_output} #{File.read(actual_error_path)}" unless actual_status == 2
+    kind = reference_group.include?("IDENTICAL code") ? "identical" : "similar"
+    score = kind == "identical" ? mass * 2 : mass
+    locations = [first_line, second_line].map { |line| "#{path}:#{line}" }.join(",")
+    reference_fields = ["#{path}:#{first_line}", "#{path}:#{second_line}", "Total score (lower is better) = #{score}"]
+    raise "#{label} Flay locations or score differed: #{reference_output}" unless reference_fields.all? { |field| reference_output.include?(field) }
+    actual_group = actual_output.lines.find { |line| line.include?('node="defn"') }
+    expected = ["kind=\"#{kind}\"", "locations=\"#{locations}\"", "mass=#{mass} score=#{score}"]
+    raise "#{label} kind, mass, or locations differed from Flay: #{actual_group}" unless actual_group && expected.all? { |field| actual_group.include?(field) }
+    coverage = "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded"
+    raise "#{label} coverage was incomplete: #{actual_output}" unless actual_output.include?(coverage) && actual_output.include?("Status: findings")
+    puts "#{label} contract: pass"
+  ensure
+    paths = [actual_error_path, reference_output_path, reference_error_path]
+    paths << actual_output_path unless ENV.key?("FLEEK_TEMP_ROOT")
+    paths.each { |file| File.delete(file) if file && File.file?(file) }
+  end
+
+  def self.run_fleek(path, output, error)
+    process_id = Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", "--mass", "3", path,
+      out: output, err: error)
+    _, status = Process.waitpid2(process_id)
+    status.exitstatus
+  end
+
+  def self.run_flay(path, output, error)
+    process_id = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "flay", "--mass", "3", path,
+      out: output, err: error)
+    _, status = Process.waitpid2(process_id)
+    status
+  end
+
+  def self.reference_mass(group)
+    mass = group[/mass = (\d+)/, 1]
+    return mass.to_i if mass
+    group[/mass\*2 = (\d+)/, 1].to_i / 2
+  end
+end

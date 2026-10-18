@@ -102,6 +102,7 @@ class MutationCase
     "Flay method while loop candidates" => "test/duplication_contract.rb",
     "Flay method until loop candidates" => "test/duplication_contract.rb",
     "Flay method for loop candidates" => "test/duplication_method_for_contract.rb",
+    "Flay method rest parameter identity" => "test/duplication_method_rest_parameter_contract.rb",
     "Flay method hash association mass" => "test/duplication_contract.rb",
     "Flay mass check applicability" => "test/cli_contract.rb",
     "Flay only node filtering" => "test/duplication_only_node_contract.rb",
@@ -879,8 +880,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay identical multiplier",
   "top-level array-expression methods differed from Flay: missing node=\"defn\" kind=\"identical\" locations=\"test/fixtures/duplication_methods_array_expression.rb:1,test/fixtures/duplication_methods_array_expression.rb:5\" mass=38 score=76")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (parameters->rest != NULL || parameters->posts.size != 0",
-  "if (parameters->requireds.size + parameters->optionals.size > 8 || parameters->rest != NULL || parameters->posts.size != 0",
+  "if ((parameters->rest != NULL && (!PM_NODE_TYPE_P(parameters->rest, PM_REST_PARAMETER_NODE) ||\n          ((const pm_rest_parameter_node_t *) parameters->rest)->name == 0)) || parameters->posts.size != 0",
+  "if (parameters->requireds.size + parameters->optionals.size > 8 || (parameters->rest != NULL && (!PM_NODE_TYPE_P(parameters->rest, PM_REST_PARAMETER_NODE) ||\n          ((const pm_rest_parameter_node_t *) parameters->rest)->name == 0)) || parameters->posts.size != 0",
   "Flay method parameter count capacity",
   "40-parameter methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -1257,7 +1258,12 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_UNTIL_NODE) || PM_NODE_TYPE_P(node, PM_FOR_NODE) ||",
   "PM_NODE_TYPE_P(node, PM_UNTIL_NODE) ||",
   "Flay method for loop candidates",
-  "top-level methods with for-control loops differed from Flay")).run
+  "for-control methods were not analyzed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (left_parameters->rest != NULL && !fleek_constants_equal(parser,\n          ((const pm_rest_parameter_node_t *) left_parameters->rest)->name,\n          ((const pm_rest_parameter_node_t *) right_parameters->rest)->name)) return false;",
+  "if (false) return false;",
+  "Flay method rest parameter identity",
+  "rest-parameter kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "(PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE))",
   "(PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && false)",
