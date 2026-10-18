@@ -198,3 +198,8 @@
 
 - ADR 0133 records named block parameters, with names affecting identity but no mass addition; anonymous block parameters remain unsupported.
 - Pinned Flay 2.14.4 and Fleek match the named similar group at mass/score 6. Anonymous forms are verified as incomplete in Fleek while Flay finds an identical score-12 group. Focused mutations protect support, identity, and rejection.
+
+## Ticket 22 yield receipt
+
+- ADR 0134 records yield-node support through the existing recursive candidate collector.
+- Pinned Flay 2.14.4 and Fleek match bare-yield mass/score 6/12 and yield-with-local-argument mass/score 8/16. A focused mutation protects candidate support.
