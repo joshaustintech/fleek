@@ -216,15 +216,25 @@ class DuplicationProcess
   end
 
   def self.read_reference_cache(path)
-    [Integer(File.read("#{path}.status"), 10), File.read("#{path}.out"), File.read("#{path}.err"), File.read("#{path}.key")]
+    status_path = "#{path}.status"
+    output_path = "#{path}.out"
+    error_path = "#{path}.err"
+    key_path = "#{path}.key"
+    [Integer(File.read(status_path), 10), File.read(output_path), File.read(error_path), File.read(key_path)]
   end
 
+  # :reek:TooManyStatements
   def self.write_reference_cache(path, result)
-    File.delete("#{path}.status") if File.file?("#{path}.status")
-    File.write("#{path}.out", result[1])
-    File.write("#{path}.err", result[2])
-    File.write("#{path}.key", result[3])
-    File.write("#{path}.status", result[0].to_s)
+    status_path = "#{path}.status"
+    output_path = "#{path}.out"
+    error_path = "#{path}.err"
+    key_path = "#{path}.key"
+    status = result[0].to_s
+    File.delete(status_path) if File.file?(status_path)
+    File.write(output_path, result[1])
+    File.write(error_path, result[2])
+    File.write(key_path, result[3])
+    File.write(status_path, status)
   end
 
   def self.run_fleek_pair_with_missing(first, second, missing)
