@@ -3,7 +3,7 @@
 **What to fix:** Mutation shards compile the same public contract binaries independently, repeating deterministic compiler work without changing the tested source or harness.
 
 **Status:** resolved
-**Type:** bug
+**Type:** task
 **Category:** bug
 **Triage:** ready-for-agent
 
