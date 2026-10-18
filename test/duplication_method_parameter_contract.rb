@@ -15,3 +15,4 @@ FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_yield_stat
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_yield_arguments.rb", "yield-arguments", 8, 1, 5)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_super.rb", "super", 6, 1, 5)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_super_arguments.rb", "super-arguments", 8, 1, 5)
+FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_next.rb", "next", 24, 1, 8)

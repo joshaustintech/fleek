@@ -272,7 +272,7 @@ class DuplicationProcess
     score = expectation.score
     mass = expectation.mass
     line = expectation.second_line
-    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "direct methods or one direct class under a sole nested-module chain", "positional parameters with supported literal defaults", "bounded case/when/if/else/unless branches", "boolean AND/OR expressions", "yield, return, and super expressions with supported values", "local-variable assignments", "Total duplication score: #{score}"], expectation.message)
+    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "direct methods or one direct class under a sole nested-module chain", "positional parameters with supported literal defaults", "bounded case/when/if/else/unless branches", "boolean AND/OR expressions", "yield, return, super, and next expressions with supported values", "local-variable assignments", "Total duplication score: #{score}"], expectation.message)
   end
 
   def self.class_method_reference_expectation(path, expectation)

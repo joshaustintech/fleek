@@ -36,3 +36,5 @@ Top-level methods with named block parameters now match Flay's similar group (ma
 Top-level methods containing bare `yield` and `yield(value)` now match Flay's identical groups at mass/score 6/12 and 8/16 respectively, with complete coverage. The recursive candidate collector preserves yield argument structure and mass; a focused mutation protects yield-node support. See ADR 0134.
 
 Top-level methods containing bare `super` and `super(value)` now match Flay's similar groups at mass/score 6 and 8, with complete coverage. The recursive candidate collector preserves each super node form and argument structure; focused mutations protect both node kinds. See ADR 0135.
+
+Top-level methods containing `next value if value` inside a block now match Flay's similar group at mass/score 24, with complete coverage. The recursive collector preserves next-node and value structure; focused mutations protect node support and its one-point mass. See ADR 0136.

@@ -208,3 +208,8 @@
 
 - ADR 0135 records support for bare and argument-bearing super expressions through the recursive candidate collector.
 - Pinned Flay 2.14.4 and Fleek match bare-super mass/score 6 and `super(value)` mass/score 8. Separate focused mutations protect each Prism node kind.
+
+## Ticket 22 next receipt
+
+- ADR 0136 records `PM_NEXT_NODE` support in recursive method candidates.
+- Pinned Flay 2.14.4 and Fleek match a `next value if value` block fixture at mass/score 24, protected by focused node-support and mass mutations.

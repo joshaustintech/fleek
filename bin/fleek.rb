@@ -2506,7 +2506,7 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE) ||
         PM_NODE_TYPE_P(node, PM_SELF_NODE) || PM_NODE_TYPE_P(node, PM_SPLAT_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE) ||
         PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE) || PM_NODE_TYPE_P(node, PM_REQUIRED_PARAMETER_NODE) ||
-        PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_YIELD_NODE) || PM_NODE_TYPE_P(node, PM_FORWARDING_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE);
+        PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_YIELD_NODE) || PM_NODE_TYPE_P(node, PM_FORWARDING_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_NEXT_NODE) || PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE);
     }
     static void fleek_duplication_collect_class_node(const pm_node_t *node, fleek_duplication_ast_t *ast) {
       if (PM_NODE_TYPE_P(node, PM_ARGUMENTS_NODE)) {
@@ -2527,7 +2527,8 @@ class Fleek
           !fleek_duplication_reserve_candidate_tree(ast->method, tree_required)) { ast->overflow = true; return; }
       size_t index = ast->method->shape_count++;
       ast->method->data.ast.nodes[index] = node;
-      ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_EMBEDDED_VARIABLE_NODE) ? -1 :
+      ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_NEXT_NODE) ? 1 :
+        PM_NODE_TYPE_P(node, PM_EMBEDDED_VARIABLE_NODE) ? -1 :
         PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ? -2 :
         PM_NODE_TYPE_P(node, PM_RANGE_NODE) ? -2 :
         PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) ||
@@ -4381,7 +4382,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level methods, bounded methods in simple classes or one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal defaults, required keyword parameters, and named rest, keyword-rest, and block parameters, bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, and super expressions with supported values, local-variable assignments, and splat arguments, using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level methods, bounded methods in simple classes or one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal defaults, required keyword parameters, and named rest, keyword-rest, and block parameters, bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, and next expressions with supported values, local-variable assignments, and splat arguments, using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -4464,7 +4465,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: top-level methods, class methods in simple classes and one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal defaults, required keyword parameters, and named rest, keyword-rest, and block parameters, bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, and super expressions with supported values, local-variable assignments, and splat arguments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: top-level methods, class methods in simple classes and one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal defaults, required keyword parameters, and named rest, keyword-rest, and block parameters, bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, and next expressions with supported values, local-variable assignments, and splat arguments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter
