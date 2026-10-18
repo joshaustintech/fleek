@@ -20,3 +20,7 @@ FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_break.rb",
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_redo.rb", "redo", 18, 1, 7)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_rescue_retry.rb", "rescue-retry", 16, 1, 9)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_ensure.rb", "ensure", 10, 1, 9)
+FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_regexp.rb", "regexp", 10, 1, 5)
+FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_regexp_content.rb", "regexp-content", 10, 1, 5)
+FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_regexp_flags.rb", "regexp-flags", 10, 1, 5)
+FlayMethodCandidateContract.verify_unsupported("test/fixtures/duplication_methods_interpolated_regexp.rb", "interpolated-regexp", 32)

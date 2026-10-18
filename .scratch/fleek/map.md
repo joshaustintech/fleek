@@ -228,3 +228,8 @@
 
 - ADR 0139 records Prism `PM_ENSURE_NODE` support in recursive method candidates.
 - Pinned Flay 2.14.4 and Fleek match begin/ensure methods at mass/score 10, protected by candidate-support and mass mutations.
+
+## Ticket 22 regular-expression receipt
+
+- ADR 0140 records static Prism regular-expression support and pattern/flag equality in method candidates.
+- Pinned Flay 2.14.4 and Fleek match same-pattern, changed-pattern, and changed-flag method pairs at mass 10. Four focused mutations protect support, both identity dimensions, and rejection of interpolated regex.
