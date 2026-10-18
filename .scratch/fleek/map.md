@@ -213,3 +213,8 @@
 
 - ADR 0136 records `PM_NEXT_NODE` support in recursive method candidates.
 - Pinned Flay 2.14.4 and Fleek match a `next value if value` block fixture at mass/score 24, protected by focused node-support and mass mutations.
+
+## Ticket 22 break and redo receipt
+
+- ADR 0137 records recursive candidate support for Prism `PM_BREAK_NODE` and `PM_REDO_NODE`.
+- Pinned Flay 2.14.4 and Fleek match block fixtures at mass/score 20 (`break value if value`) and 18 (`redo if value`), protected by separate candidate mutations.
