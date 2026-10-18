@@ -2525,10 +2525,13 @@ class Fleek
           if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) ||
               !PM_NODE_TYPE_P(nested_class->constant_path, PM_CONSTANT_READ_NODE) || nested_class->body == NULL ||
               !PM_NODE_TYPE_P(nested_class->body, PM_STATEMENTS_NODE)) { fleek_duplication_partial = 1; return true; }
-          if (class_depth >= FLEEK_DUPLICATION_NESTED_CLASS_DEPTH) { fleek_duplication_partial = 1; return true; }
+          if (class_depth >= FLEEK_DUPLICATION_NESTED_CLASS_DEPTH) {
+            fleek_duplication_partial = 1;
+            if (class_depth > FLEEK_DUPLICATION_NESTED_CLASS_DEPTH) return true;
+          }
           if (!fleek_duplication_collect_class_methods((const pm_node_t *) nested_class, class_depth + 1, source, set)) return false;
           for (size_t index = first_candidate; index < set->count; index++) {
-            if (set->candidates[index].scope_depth >= FLEEK_DUPLICATION_NESTED_CLASS_DEPTH) { fleek_duplication_partial = 1; continue; }
+            if (set->candidates[index].scope_depth > FLEEK_DUPLICATION_NESTED_CLASS_DEPTH) { fleek_duplication_partial = 1; continue; }
             for (size_t name = set->candidates[index].scope_depth; name > 0; name--) set->candidates[index].scope_names[name] = set->candidates[index].scope_names[name - 1];
             set->candidates[index].scope_names[0] = ((const pm_constant_read_node_t *) class_node->constant_path)->name;
             set->candidates[index].scope_depth++;

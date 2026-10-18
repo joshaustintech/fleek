@@ -14,8 +14,8 @@ Extend single nested-class chain traversal through nine classes. Keep ten-level 
 
 ## Consequences
 
-Nine-level class groups retain outer-scope location, full scope identity, and Flay mass. Ten-level chains remain partial. Direct-sibling and wrapper forms keep their existing limits.
+Nine-level class groups retain outer-scope location, full scope identity, and Flay mass. Ten-level chains retain the verified class candidate but remain partial; see [ADR 0090](0090-preserve-ten-level-nested-class-candidate.md). Direct-sibling and wrapper forms keep their existing limits.
 
 ## Evidence
 
-`test/fixtures/duplication_nine_level_nested_class_boundary.rb` matches Flay 2.14.4 at similar `:class` mass/score 66 and lines 1/26. `test/fixtures/duplication_ten_level_nested_class_boundary.rb` matches Flay at mass/score 68 and lines 1/28 while Fleek reports incomplete coverage. Public contracts compare both outputs; mutation checks detect reduced six- through nine-level support and accidental acceptance of ten levels.
+`test/fixtures/duplication_nine_level_nested_class_boundary.rb` matches Flay 2.14.4 at similar `:class` mass/score 66 and lines 1/26. `test/fixtures/duplication_ten_level_nested_class_boundary.rb` matches Flay at mass/score 68 and lines 1/28 while Fleek preserves the candidate and reports incomplete coverage. Public contracts compare both outputs; mutation checks detect reduced six- through nine-level support and accidental completion at ten levels.
