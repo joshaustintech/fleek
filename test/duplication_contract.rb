@@ -262,7 +262,7 @@ class DuplicationProcess
     score = expectation.score
     mass = expectation.mass
     line = expectation.second_line
-    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "direct methods or one direct class under a sole nested-module chain", "literal-default optional positional parameters", "bounded if/else/unless branches", "boolean OR expressions", "return statements with supported values", "local-variable assignments", "Total duplication score: #{score}"], expectation.message)
+    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "direct methods or one direct class under a sole nested-module chain", "literal-default optional positional parameters", "bounded case/when/if/else/unless branches", "boolean AND/OR expressions", "return statements with supported values", "local-variable assignments", "Total duplication score: #{score}"], expectation.message)
   end
 
   def self.class_method_reference_expectation(path, expectation)
@@ -419,6 +419,26 @@ DuplicationProcess.verify_output(and_reference, DuplicationProcess::OutputExpect
   "Flay AND-expression method reference changed"))
 DuplicationProcess.verify_output(and_methods, DuplicationProcess::OutputExpectation.new(2, and_fields,
   "top-level methods with AND expressions differed from Flay"))
+
+case_expression_path = "test/fixtures/duplication_methods_case_expression.rb"
+case_expression = DuplicationProcess.run(DuplicationProcess::Input.new(case_expression_path, "fleek", "--mass", 3))
+case_expression_reference = DuplicationProcess.run(DuplicationProcess::Input.new(case_expression_path, "flay", "--mass", 3))
+case_expression_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{case_expression_path}:1,#{case_expression_path}:12\" mass=34 score=34",
+  "Total duplication score: 34", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+case_expression_reference_fields = ["Similar code found in :defn (mass = 34)", "#{case_expression_path}:1", "#{case_expression_path}:12", "Total score (lower is better) = 34"]
+DuplicationProcess.verify_output(case_expression_reference, DuplicationProcess::OutputExpectation.new(0, case_expression_reference_fields,
+  "Flay case-expression method reference changed"))
+DuplicationProcess.verify_output(case_expression, DuplicationProcess::OutputExpectation.new(2, case_expression_fields,
+  "top-level methods with case expressions differed from Flay"))
+
+case_condition_lengths_path = "test/fixtures/duplication_methods_case_condition_lengths.rb"
+case_condition_lengths = DuplicationProcess.run(DuplicationProcess::Input.new(case_condition_lengths_path, "fleek", "--mass", 3))
+case_condition_lengths_reference = DuplicationProcess.run(DuplicationProcess::Input.new(case_condition_lengths_path, "flay", "--mass", 3))
+DuplicationProcess.verify_output(case_condition_lengths_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay differing case-condition lengths were grouped"))
+DuplicationProcess.verify_output(case_condition_lengths, DuplicationProcess::OutputExpectation.new(0,
+  ["Total duplication score: 0", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: complete"],
+  "differing case-condition lengths were grouped"))
 
 conditional_return_path = "test/fixtures/duplication_methods_conditional_return.rb"
 conditional_returns = DuplicationProcess.run(DuplicationProcess::Input.new(conditional_return_path, "fleek", "--mass", 3))

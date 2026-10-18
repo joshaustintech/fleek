@@ -241,7 +241,7 @@ class Fleek
 
     typedef struct {
       union {
-        struct { const pm_node_t *nodes[128]; uint16_t tree_starts[128]; uint16_t tree_ends[128]; uint8_t node_ends[128]; uint8_t massless_nodes[128]; int16_t tree[256]; size_t tree_count; } ast;
+        struct { const pm_node_t *nodes[128]; uint16_t tree_starts[128]; uint16_t tree_ends[128]; uint8_t node_ends[128]; int8_t mass_adjustments[128]; int16_t tree[256]; size_t tree_count; } ast;
       } data;
       size_t shape_count;
       size_t parameter_mass;
@@ -2403,7 +2403,8 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_INTEGER_NODE) ||
         PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_AND_NODE) || PM_NODE_TYPE_P(node, PM_OR_NODE) ||
         PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_HASH_NODE) ||
-        PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) ||
+        PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_CASE_NODE) || PM_NODE_TYPE_P(node, PM_WHEN_NODE) ||
+        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) ||
         PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE);
     }
     static void fleek_duplication_collect_class_node(const pm_node_t *node, fleek_duplication_ast_t *ast) {
@@ -2419,13 +2420,20 @@ class Fleek
         pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast);
         ast->parent = parent; return;
       }
-      if (ast->method->shape_count == 128 || ast->method->data.ast.tree_count + 2 > 256 || !fleek_duplication_class_node_supported(node)) { ast->overflow = true; return; }
+      bool when_node = PM_NODE_TYPE_P(node, PM_WHEN_NODE);
+      if (ast->method->shape_count == 128 || ast->method->data.ast.tree_count + 2 + (when_node ? 1 : 0) > 256 || !fleek_duplication_class_node_supported(node)) { ast->overflow = true; return; }
       size_t index = ast->method->shape_count++;
       ast->method->data.ast.nodes[index] = node;
-      ast->method->data.ast.massless_nodes[index] = PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) ||
-        (PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE));
+      ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) ||
+        (PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE)) ? -1 : 0;
       ast->method->data.ast.tree_starts[index] = (uint16_t) ast->method->data.ast.tree_count;
       ast->method->data.ast.tree[ast->method->data.ast.tree_count++] = (int16_t) node->type;
+      /* Flay's RubyParser translation wraps every when-condition list in an array node. */
+      if (when_node) {
+        /* Pinned Prism ends at PM_SCOPE_NODE (152); this cannot collide with node tags. */
+        ast->method->data.ast.tree[ast->method->data.ast.tree_count++] = INT16_MIN;
+        ast->method->data.ast.mass_adjustments[index] = 1;
+      }
       const pm_node_t *parent = ast->parent; ast->parent = node;
       pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast);
       ast->parent = parent;
@@ -2512,7 +2520,10 @@ class Fleek
     }
     static size_t fleek_duplication_class_subtree_mass(const fleek_duplication_method_t *method, size_t node) {
       size_t mass = method->data.ast.node_ends[node] - node;
-      for (size_t index = node; index < method->data.ast.node_ends[node]; index++) if (method->data.ast.massless_nodes[index]) mass--;
+      for (size_t index = node; index < method->data.ast.node_ends[node]; index++) {
+        if (method->data.ast.mass_adjustments[index] < 0) mass--;
+        else mass += method->data.ast.mass_adjustments[index];
+      }
       return mass;
     }
     static bool fleek_duplication_append_group(const char *node, bool identical, size_t node_mass, const int *lines, size_t count) {
@@ -3013,7 +3024,10 @@ class Fleek
 
     static size_t fleek_duplication_class_method_mass(const fleek_duplication_method_t *method) {
       size_t mass = 2 + method->shape_count + method->parameter_mass;
-      for (size_t index = 0; index < method->shape_count; index++) if (method->data.ast.massless_nodes[index]) mass--;
+      for (size_t index = 0; index < method->shape_count; index++) {
+        if (method->data.ast.mass_adjustments[index] < 0) mass--;
+        else mass += method->data.ast.mass_adjustments[index];
+      }
       return mass;
     }
     static bool fleek_duplication_candidate_shapes_equal(const fleek_duplication_class_candidates_t *set, size_t left, size_t right) {
@@ -4121,7 +4135,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level parameterless methods, bounded methods in simple classes or one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level methods, bounded methods in simple classes or one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; scopes allow at most 32 direct body entries and 24 supported candidates total; methods accept up to 8 required or literal-default optional positional parameters, bounded case/when/if/else/unless branches, boolean AND/OR expressions, return statements with supported values, and local-variable assignments (no rest, keyword, or block parameters), using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -4204,7 +4218,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: parameterless top-level methods, class methods in simple classes and one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept up to 8 required or literal-default optional positional parameters, bounded if/else/unless branches, boolean OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: top-level methods, class methods in simple classes and one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept up to 8 required or literal-default optional positional parameters, bounded case/when/if/else/unless branches, boolean AND/OR expressions, return statements with supported values, and local-variable assignments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter
