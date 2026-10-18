@@ -19,3 +19,5 @@ This host cannot provide a passing full Spinel `make check` result, so upstream 
 ## Evidence
 
 On 2026-10-14, the required pinned Spinel check completed with 3,574 pass, 22 fail, and 0 error. The socket-dependent output included `EPERM` and `ECONNREFUSED`; repeated runs also disagreed on a GC-root fixture. The standard Fleek project build and contracts, full mutation set, Flay, and Reek passed separately.
+
+Rerun on 2026-10-18 completed with 3,575 pass, 21 fail, and 0 error. The remaining failures are loopback socket/network cases with `EPERM` or `ECONNREFUSED`; the suite output contains `Abort trap: 6` for the socket backtrace fixture, followed by its expected `backtrace-test: pass`. This matches the documented managed-host restriction; no Spinel source was changed.

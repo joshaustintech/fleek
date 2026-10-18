@@ -6,7 +6,9 @@
 # :reek:FeatureEnvy
 # :reek:InstanceVariableAssumption
 # :reek:LongParameterList
+# :reek:RepeatedConditional
 # :reek:TooManyInstanceVariables
+# :reek:TooManyMethods
 # :reek:TooManyStatements
 # :reek:UtilityFunction
 class CheckRunner
@@ -43,14 +45,16 @@ class CheckRunner
   def run
     tasks.each do |task|
       wait_for_capacity
+      if task[0] == :mutation && !@mutation_contract_directory
+        prepare_mutation_contracts
+      end
       launch(task)
     end
-    until @workers.empty?
-      finish(@workers.first)
-    end
+    drain_workers
     report
   ensure
     @workers&.dup&.each { |worker| finish(worker) }
+    cleanup_mutation_contracts
   end
 
   private
@@ -92,19 +96,31 @@ class CheckRunner
     finish(@workers.first) while @workers && @workers.length >= @jobs
   end
 
+  def drain_workers
+    finish(@workers.first) until @workers.empty?
+  end
+
   def launch(task)
     @workers ||= []
     @serial += 1
     directory = "/tmp/fleek-check-#{Process.pid}-#{@serial}"
+    temporary_root = "/tmp/fleek-worker-#{Process.pid}-#{@serial}"
+    worker = { id: nil, task: task, directory: directory, output: "/tmp/fleek-check-#{Process.pid}-#{@serial}.out",
+      error: "/tmp/fleek-check-#{Process.pid}-#{@serial}.err", temporary_root: temporary_root }
+    @workers << worker
     copy_process = Process.spawn("cp", "-R", ".", directory, out: "/dev/null", err: "/dev/null")
     _, copy_status = Process.waitpid2(copy_process)
     raise "could not create isolated check copy" unless copy_status.success?
+    namespace_temporary_paths(directory, @serial) if task[0] == :spinel
     configure_mutation_shard(directory, task) if task[0] == :mutation
-    namespace_temporary_paths(directory, @serial)
-    output = "/tmp/fleek-check-#{Process.pid}-#{@serial}.out"
-    error = "/tmp/fleek-check-#{Process.pid}-#{@serial}.err"
-    process_id = spawn_task(task, directory, output, error)
-    @workers << { id: process_id, task: task, directory: directory, output: output, error: error }
+    temporary_process = Process.spawn("mkdir", "-p", temporary_root, out: "/dev/null", err: "/dev/null")
+    _, temporary_status = Process.waitpid2(temporary_process)
+    raise "could not create isolated check temp directory" unless temporary_status.success?
+    worker[:id] = spawn_task(task, directory, worker[:output], worker[:error], temporary_root)
+  rescue StandardError
+    cleanup_worker(worker) if worker
+    @workers.delete(worker) if worker
+    raise
   end
 
   def configure_mutation_shard(directory, task)
@@ -122,14 +138,37 @@ class CheckRunner
     end
   end
 
-  def spawn_task(task, directory, output, error)
+  def prepare_mutation_contracts
+    @mutation_contract_directory = "/tmp/fleek-mutation-contracts-#{Process.pid}"
+    @mutation_precompile_root = "/tmp/fleek-mutation-precompile-#{Process.pid}"
+    mkdir_process = Process.spawn("mkdir", "-p", @mutation_precompile_root, out: "/dev/null", err: "/dev/null")
+    _, mkdir_status = Process.waitpid2(mkdir_process)
+    raise "could not create mutation precompile temp directory" unless mkdir_status.success?
+    output = "#{@mutation_precompile_root}/out"
+    error = "#{@mutation_precompile_root}/err"
+    process_id = Process.spawn("env",
+      "FLEEK_TEMP_ROOT=#{@mutation_precompile_root}",
+      "FLEEK_MUTATION_CONTRACT_DIRECTORY=#{@mutation_contract_directory}",
+      "FLEEK_PRECOMPILE_MUTATION_CONTRACTS=1", "SPINEL=#{@spinel}", "SPINEL_ROOT=#{@spinel_root}",
+      @spinel, "-E", "test/mutation_contract.rb", out: output, err: error)
+    _, status = Process.waitpid2(process_id)
+    print File.read(output) if File.exist?(output)
+    warn File.read(error) if File.exist?(error)
+    File.delete(output) if File.exist?(output)
+    File.delete(error) if File.exist?(error)
+    raise "could not precompile shared mutation contracts" unless status.success?
+  end
+
+  def spawn_task(task, directory, output, error, temporary_root)
     kind, value = task
     case kind
     when :spinel
-      Process.spawn("env", "SPINEL=#{@spinel}", "SPINEL_ROOT=#{@spinel_root}", @spinel, "-E", value,
+      Process.spawn("env", "FLEEK_TEMP_ROOT=#{temporary_root}", "SPINEL=#{@spinel}", "SPINEL_ROOT=#{@spinel_root}", @spinel, "-E", value,
         chdir: directory, out: output, err: error)
     when :mutation
-      Process.spawn("env", "SPINEL=#{@spinel}", "SPINEL_ROOT=#{@spinel_root}", @spinel, "-E", "test/mutation_contract.rb",
+      Process.spawn("env", "FLEEK_TEMP_ROOT=#{temporary_root}", "FLEEK_MUTATION_CONTRACT_DIRECTORY=#{@mutation_contract_directory}",
+        "FLEEK_EXPECTED_WORKING_DIRECTORY=#{directory}",
+        "SPINEL=#{@spinel}", "SPINEL_ROOT=#{@spinel_root}", @spinel, "-E", "test/mutation_contract.rb",
         chdir: directory, out: output, err: error)
     when :command then spawn_check(value, directory, output, error)
     end
@@ -152,11 +191,26 @@ class CheckRunner
     puts "Check #{task_name(worker[:task])}: #{result[1] ? 'pass' : 'FAIL'}"
     print result[2] unless result[2].empty?
     warn result[3] unless result[3].empty?
-    File.delete(worker[:output]) if File.exist?(worker[:output])
-    File.delete(worker[:error]) if File.exist?(worker[:error])
-    cleanup_process = Process.spawn("rm", "-rf", worker[:directory], out: "/dev/null", err: "/dev/null")
-    Process.waitpid2(cleanup_process)
+    cleanup_worker(worker)
     @workers.delete(worker)
+  end
+
+  def cleanup_worker(worker)
+    cleanup_paths([worker[:output], worker[:error], worker[:directory], worker[:temporary_root]], "check worker")
+  end
+
+  def cleanup_paths(paths, description)
+    paths.compact.each do |path|
+      process_id = Process.spawn("rm", "-rf", path, out: "/dev/null", err: "/dev/null")
+      _, status = Process.waitpid2(process_id)
+      raise "could not clean #{description} path: #{path}" unless status.success?
+    end
+  end
+
+  def cleanup_mutation_contracts
+    return unless @mutation_contract_directory || @mutation_precompile_root
+
+    cleanup_paths([@mutation_contract_directory, @mutation_precompile_root], "mutation contract")
   end
 
   def task_name(task)

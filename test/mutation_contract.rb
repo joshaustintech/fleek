@@ -4,6 +4,8 @@ MUTATION_SHARDS = nil
 
 # Runs one configured source mutation and requires its public contract to fail.
 class MutationCase
+  # :reek:DuplicateMethodCall
+  # :reek:TooManyStatements
   # Carries one behavior mutation and its expected contract failure.
   Configuration = Struct.new(:source, :target, :replacement, :label, :expected_failure)
   COMPILED_CONTRACTS = {}
@@ -225,27 +227,95 @@ class MutationCase
     raise "#{@configuration.label} mutant failed to compile" unless MutationProcess.build_mutant
   end
 
+  # :reek:TooManyStatements
   def verify_contract
     contract = CONTRACTS.fetch(@configuration.label)
     executable = compile_contract(contract)
+    if ENV["FLEEK_MUTATION_CONTRACT_DIRECTORY"]
+      expected_directory = File.realpath(ENV.fetch("FLEEK_MUTATION_CONTRACT_DIRECTORY"))
+      raise "mutation contract escaped shared binary directory" unless File.dirname(File.realpath(executable)) == expected_directory
+      expected_working_directory = File.realpath(ENV.fetch("FLEEK_EXPECTED_WORKING_DIRECTORY"))
+      raise "mutation contract worker directory was not isolated" unless Dir.pwd == expected_working_directory
+    end
     Dir.mkdir("build/mutation-reference-cache") unless Dir.exist?("build/mutation-reference-cache")
     status = MutationProcess.run_contract(executable)
     verify_failure(status)
   end
 
+  # :reek:TooManyStatements
   def compile_contract(contract)
     return COMPILED_CONTRACTS.fetch(contract) if COMPILED_CONTRACTS.key?(contract)
 
-    executable = File.expand_path("build/mutation-#{Process.pid}-#{File.basename(contract, ".rb")}")
-    File.delete(executable) if File.file?(executable)
-    compile_contract_binary(contract, executable)
+    directory = ENV["FLEEK_MUTATION_CONTRACT_DIRECTORY"]
+    contract_name = File.basename(contract, ".rb")
+    executable = if directory
+                   File.expand_path("#{directory}/#{contract_name}")
+                 else
+                   File.expand_path("build/mutation-#{Process.pid}-#{contract_name}")
+                 end
+    existing_binary = File.file?(executable)
+    if directory
+      raise "shared mutation contract missing: #{contract}" unless existing_binary
+    else
+      File.delete(executable) if existing_binary
+      self.class.compile_contract_binary(contract, executable)
+    end
 
     COMPILED_CONTRACTS[contract] = executable
   end
 
-  def compile_contract_binary(contract, executable)
+  # :reek:TooManyStatements
+  def self.prepare_contracts
+    directory = ENV.fetch("FLEEK_MUTATION_CONTRACT_DIRECTORY")
+    Dir.mkdir(directory)
+    source_directory = "#{directory}/test"
+    Dir.mkdir(source_directory)
+    Dir.glob("test/*.rb").each do |path|
+      source = File.read(path).gsub('"/tmp/', '"#{ENV["FLEEK_TEMP_ROOT"] || "/tmp"}/').gsub("__dir__", 'File.expand_path("test", Dir.pwd)')
+      File.write("#{source_directory}/#{File.basename(path)}", source)
+    end
+    contracts = CONTRACTS.values.uniq
+    contract_count = contracts.length
+    jobs = [Integer(ENV.fetch("JOBS", "1"), 10), contract_count].min
+    contracts.each_slice(jobs) { |batch| compile_contract_batch(batch, directory, source_directory) }
+    puts "Mutation contracts: #{contract_count} shared binaries compiled"
+  end
+
+  # :reek:TooManyStatements
+  def self.compile_contract_batch(contracts, directory, source_directory)
+    processes = contracts.map do |contract|
+      name = File.basename(contract, ".rb")
+      executable = File.expand_path("#{directory}/#{name}")
+      output = MutationProcess.temporary_path("fleek-mutation-contract-#{name}-out")
+      error = MutationProcess.temporary_path("fleek-mutation-contract-#{name}-err")
+      source = "#{source_directory}/#{File.basename(contract)}"
+      process_id = Process.spawn(ENV["SPINEL"] || "spinel", "-O", "1", source, "-o", executable,
+        out: output, err: error)
+      [contract, process_id, output, error]
+    end
+    processes.each do |contract, process_id, output, error|
+      _, status = MutationProcess.wait(process_id)
+      verify_contract_compilation(contract, status, error)
+    ensure
+      delete_file(output)
+      delete_file(error)
+    end
+  end
+
+  def self.verify_contract_compilation(contract, status, error)
+    return if status.exitstatus == 0
+
+    warn File.read(error) if File.file?(error)
+    raise "#{contract} contract failed to compile"
+  end
+
+  def self.delete_file(path)
+    File.delete(path) if File.file?(path)
+  end
+
+  def self.compile_contract_binary(contract, executable)
     process_id = Process.spawn(ENV["SPINEL"] || "spinel", "-O", "1", contract, "-o", executable,
-      out: "/tmp/fleek-mutation-contract-build-out", err: "/tmp/fleek-mutation-contract-build-err")
+      out: MutationProcess.temporary_path("fleek-mutation-contract-build-out"), err: MutationProcess.temporary_path("fleek-mutation-contract-build-err"))
     _, status = MutationProcess.wait(process_id)
     raise "#{contract} contract failed to compile" unless status.exitstatus == 0
   end
@@ -253,7 +323,7 @@ class MutationCase
   def verify_failure(status)
     label = @configuration.label
     raise "#{label} mutant survived" if status.success?
-    message = File.read("/tmp/fleek-mutation-err")
+    message = File.read(MutationProcess.temporary_path("fleek-mutation-err"))
     raise "unexpected #{label} failure" unless message.include?(@configuration.expected_failure)
     puts "Mutation contract: caught #{label}"
   end
@@ -261,16 +331,21 @@ end
 
 # Waits for isolated mutation build and contract subprocesses.
 class MutationProcess
+  def self.temporary_path(name)
+    "#{ENV["FLEEK_TEMP_ROOT"] || "/tmp"}/#{name}"
+  end
+
+  # :reek:TooManyStatements
   def self.run_contract(executable)
     process_id = Process.spawn("env", "FLEEK_REFERENCE_CACHE=build/mutation-reference-cache", executable,
-      out: "/tmp/fleek-mutation-out", err: "/tmp/fleek-mutation-err")
+      out: temporary_path("fleek-mutation-out"), err: temporary_path("fleek-mutation-err"))
     _, status = wait(process_id)
     status
   end
 
   def self.build_mutant
     process_id = Process.spawn("make", mutation_compiler_argument, mutation_root_argument, "build/fleek",
-      out: "/tmp/fleek-mutation-build-out", err: "/tmp/fleek-mutation-build-err")
+      out: temporary_path("fleek-mutation-build-out"), err: temporary_path("fleek-mutation-build-err"))
     _, status = wait(process_id)
     status.success?
   end
@@ -289,6 +364,11 @@ class MutationProcess
   def self.wait(process_id)
     Process.waitpid2(process_id)
   end
+end
+
+if ENV["FLEEK_PRECOMPILE_MUTATION_CONTRACTS"]
+  MutationCase.prepare_contracts
+  exit 0
 end
 
 source = File.read("bin/fleek.rb")
@@ -1114,6 +1194,6 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "missing UncommunicativeVariableName finding",
   "UncommunicativeModuleName findings differ from Reek")).run
 
-process_id = Process.spawn("make", "build/fleek", out: "/tmp/fleek-mutation-restore-out", err: "/tmp/fleek-mutation-restore-err")
+process_id = Process.spawn("make", "build/fleek", out: MutationProcess.temporary_path("fleek-mutation-restore-out"), err: MutationProcess.temporary_path("fleek-mutation-restore-err"))
 _, status = Process.waitpid2(process_id)
 raise "mutation restore failed" unless status.success?
