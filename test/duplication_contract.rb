@@ -333,6 +333,28 @@ DuplicationProcess.verify_output(conditionals_reference, DuplicationProcess::Out
 DuplicationProcess.verify_output(conditionals, DuplicationProcess::OutputExpectation.new(2, conditionals_fields,
   "top-level methods with conditionals differed from Flay"))
 
+local_writes_path = "test/fixtures/duplication_methods_local_writes.rb"
+local_writes = DuplicationProcess.run(DuplicationProcess::Input.new(local_writes_path, "fleek", "--mass", 3))
+local_writes_reference = DuplicationProcess.run(DuplicationProcess::Input.new(local_writes_path, "flay", "--mass", 3))
+local_writes_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{local_writes_path}:1,#{local_writes_path}:9\" mass=38 score=38",
+  "Total duplication score: 38", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+local_writes_reference_fields = ["Similar code found in :defn (mass = 38)", "#{local_writes_path}:1", "#{local_writes_path}:9", "Total score (lower is better) = 38"]
+DuplicationProcess.verify_output(local_writes_reference, DuplicationProcess::OutputExpectation.new(0, local_writes_reference_fields,
+  "Flay local-write method reference changed"))
+DuplicationProcess.verify_output(local_writes, DuplicationProcess::OutputExpectation.new(2, local_writes_fields,
+  "top-level methods with local writes differed from Flay"))
+
+local_write_names_path = "test/fixtures/duplication_methods_local_write_names.rb"
+local_write_names = DuplicationProcess.run(DuplicationProcess::Input.new(local_write_names_path, "fleek", "--mass", 3))
+local_write_names_reference = DuplicationProcess.run(DuplicationProcess::Input.new(local_write_names_path, "flay", "--mass", 3))
+local_write_names_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{local_write_names_path}:1,#{local_write_names_path}:6\" mass=16 score=16",
+  "Total duplication score: 16", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+local_write_names_reference_fields = ["Similar code found in :defn (mass = 16)", "#{local_write_names_path}:1", "#{local_write_names_path}:6", "Total score (lower is better) = 16"]
+DuplicationProcess.verify_output(local_write_names_reference, DuplicationProcess::OutputExpectation.new(0, local_write_names_reference_fields,
+  "Flay local-write identity reference changed"))
+DuplicationProcess.verify_output(local_write_names, DuplicationProcess::OutputExpectation.new(2, local_write_names_fields,
+  "top-level local-write identity differed from Flay"))
+
 identical_path = "test/fixtures/duplication_identical.rb"
 identical = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "fleek", ""))
 identical_reference = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "flay", ""))
