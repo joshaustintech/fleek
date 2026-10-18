@@ -355,6 +355,17 @@ DuplicationProcess.verify_output(local_write_names_reference, DuplicationProcess
 DuplicationProcess.verify_output(local_write_names, DuplicationProcess::OutputExpectation.new(2, local_write_names_fields,
   "top-level local-write identity differed from Flay"))
 
+or_path = "test/fixtures/duplication_methods_or.rb"
+or_methods = DuplicationProcess.run(DuplicationProcess::Input.new(or_path, "fleek", "--mass", 3))
+or_reference = DuplicationProcess.run(DuplicationProcess::Input.new(or_path, "flay", "--mass", 3))
+or_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{or_path}:1,#{or_path}:11\" mass=34 score=34",
+  "Total duplication score: 34", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+or_reference_fields = ["Similar code found in :defn (mass = 34)", "#{or_path}:1", "#{or_path}:11", "Total score (lower is better) = 34"]
+DuplicationProcess.verify_output(or_reference, DuplicationProcess::OutputExpectation.new(0, or_reference_fields,
+  "Flay OR-expression method reference changed"))
+DuplicationProcess.verify_output(or_methods, DuplicationProcess::OutputExpectation.new(2, or_fields,
+  "top-level methods with OR expressions differed from Flay"))
+
 identical_path = "test/fixtures/duplication_identical.rb"
 identical = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "fleek", ""))
 identical_reference = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "flay", ""))
