@@ -249,20 +249,26 @@ class MutationCase
     MUTATION_SHARD ? selected_shard_mutation? : true
   end
 
+  # :reek:TooManyStatements
   def self.selected_labels(selection)
     return nil unless selection && !selection.empty?
     labels = selection.split(",")
-    unknown_labels = labels - CONTRACTS.keys
+    registry = CONTRACTS.keys
+    unknown_labels = labels - registry
     raise "unknown mutation labels: #{unknown_labels.join(', ')}" unless unknown_labels.empty?
-    labels
+    registry.select { |label| labels.include?(label) }
   end
 
+  # :reek:TooManyStatements
   def selected_shard_mutation?
     shard = MUTATION_SHARD
     shard_count = MUTATION_SHARDS
     raise "invalid mutation shard" unless shard_count.positive? && shard >= 0 && shard < shard_count
 
-    index = CONTRACTS.keys.index(@configuration.label)
+    label = @configuration.label
+    selection = @selected_labels
+    labels = self.class.selected_labels(selection)
+    index = labels ? labels.index(label) : CONTRACTS.keys.index(label)
     index && index % shard_count == shard
   end
 

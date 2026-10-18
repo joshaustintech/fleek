@@ -19,6 +19,7 @@ class CheckRunner
     test/duplication_contract.rb
     test/duplication_method_capacity_contract.rb
     test/duplication_method_block_contract.rb
+    test/duplication_method_for_contract.rb
     test/duplication_method_self_contract.rb
     test/duplication_method_candidate_capacity_contract.rb
     test/duplication_only_node_contract.rb
@@ -46,6 +47,7 @@ class CheckRunner
     @spinel = ENV.fetch("SPINEL", "spinel")
     @spinel_root = ENV.fetch("SPINEL_ROOT", "")
     @jobs = worker_limit
+    @mutation_jobs = mutation_worker_limit
     @failures = []
     @serial = 0
   end
@@ -68,7 +70,7 @@ class CheckRunner
   private
 
   def tasks
-    mutations = Array.new(@jobs) { |shard| [:mutation, shard] }
+    mutations = Array.new(@mutation_jobs) { |shard| [:mutation, shard] }
     case @mode
     when "test" then TESTS.map { |path| [:spinel, path] }
     when "mutation" then mutations
@@ -87,6 +89,13 @@ class CheckRunner
     [value, logical_cpus].min
   rescue ArgumentError
     raise "JOBS must be a positive integer"
+  end
+
+  def mutation_worker_limit
+    selected = ENV["FLEEK_MUTATIONS"]
+    return @jobs unless selected && !selected.empty?
+
+    [@jobs, selected.split(",").uniq.length].min
   end
 
   def logical_cpus
@@ -136,7 +145,7 @@ class CheckRunner
     path = "#{directory}/test/mutation_contract.rb"
     source = File.read(path)
     source = source.gsub("MUTATION_SHARD = nil", "MUTATION_SHARD = #{task[1]}")
-    source = source.gsub("MUTATION_SHARDS = nil", "MUTATION_SHARDS = #{@jobs}")
+    source = source.gsub("MUTATION_SHARDS = nil", "MUTATION_SHARDS = #{@mutation_jobs}")
     File.write(path, source)
   end
 
@@ -234,7 +243,7 @@ class CheckRunner
 
   def report
     raise "#{@failures.length} check worker(s) failed" unless @failures.empty?
-    puts "Check runner: #{@serial} workers passed with JOBS=#{@jobs}"
+    puts "Check runner: #{@serial} workers passed with JOBS=#{@jobs}; mutation workers=#{@mutation_jobs}"
   end
 end
 
