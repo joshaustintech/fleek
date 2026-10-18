@@ -406,8 +406,8 @@ DuplicationProcess.verify_output(fourteen_level_module_class_reference, Duplicat
 fifteen_level_module_class_path = "test/fixtures/duplication_fifteen_level_nested_module_class_boundary.rb"
 fifteen_level_module_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(fifteen_level_module_class_path, "fleek", ""))
 fifteen_level_module_class_reference = DuplicationProcess.run(DuplicationProcess::Input.new(fifteen_level_module_class_path, "flay", ""))
-fifteen_level_module_class_fields = ["scope=partial", "node=\"module\" kind=\"similar\" locations=\"#{fifteen_level_module_class_path}:1,#{fifteen_level_module_class_path}:40\" mass=80 score=80", "Total duplication score: 80", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(fifteen_level_module_class_actual, DuplicationProcess::OutputExpectation.new(1, fifteen_level_module_class_fields, "fifteen-level nested-module class candidate was lost or treated as complete"))
+fifteen_level_module_class_fields = ["node=\"module\" kind=\"similar\" locations=\"#{fifteen_level_module_class_path}:1,#{fifteen_level_module_class_path}:40\" mass=80 score=80", "Total duplication score: 80", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(fifteen_level_module_class_actual, DuplicationProcess::OutputExpectation.new(2, fifteen_level_module_class_fields, "fifteen-level nested-module class candidates differed"))
 fifteen_level_module_class_reference_fields = ["Similar code found in :module (mass = 80)", "#{fifteen_level_module_class_path}:1", "#{fifteen_level_module_class_path}:40", "Total score (lower is better) = 80"]
 DuplicationProcess.verify_output(fifteen_level_module_class_reference, DuplicationProcess::OutputExpectation.new(0, fifteen_level_module_class_reference_fields, "fifteen-level nested-module class Flay group changed"))
 
