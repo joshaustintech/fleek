@@ -28,3 +28,5 @@ Top-level methods with required keyword parameters now match Flay's similar grou
 Top-level methods with supported literal-default optional keyword parameters now match Flay's similar group (mass/score 10) with complete coverage. Different optional keyword counts preserve Flay's no-group result. Nonliteral defaults remain incomplete (Flay finds a candidate, Fleek reports unsupported syntax). Focused mutations protect candidate acceptance, keyword name/default identity, mass, optional-count grouping, and rejection of unsupported defaults. See ADR 0130.
 
 Top-level methods with required post parameters now match Flay's similar groups at mass/score 10, including differing post names and counts. Post parameter names affect identical-versus-similar classification, while post parameters add no mass. Focused mutations protect candidate support, identity, and mass. See ADR 0131.
+
+Top-level methods with named keyword-rest parameters now match Flay's similar group (mass/score 6). Differing keyword-rest names remain similar, and keyword-rest parameters add no mass. Focused mutations protect candidate support and name identity. See ADR 0132.
