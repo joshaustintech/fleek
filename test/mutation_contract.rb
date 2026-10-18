@@ -231,15 +231,27 @@ class MutationCase
   def verify_contract
     contract = CONTRACTS.fetch(@configuration.label)
     executable = compile_contract(contract)
-    if ENV["FLEEK_MUTATION_CONTRACT_DIRECTORY"]
-      expected_directory = File.realpath(ENV.fetch("FLEEK_MUTATION_CONTRACT_DIRECTORY"))
-      raise "mutation contract escaped shared binary directory" unless File.dirname(File.realpath(executable)) == expected_directory
-      expected_working_directory = File.realpath(ENV.fetch("FLEEK_EXPECTED_WORKING_DIRECTORY"))
-      raise "mutation contract worker directory was not isolated" unless Dir.pwd == expected_working_directory
-    end
+    contract_directory = ENV["FLEEK_MUTATION_CONTRACT_DIRECTORY"]
+    verify_shared_contract(executable, contract, contract_directory) if contract_directory
     Dir.mkdir("build/mutation-reference-cache") unless Dir.exist?("build/mutation-reference-cache")
     status = MutationProcess.run_contract(executable)
+    verify_contract_temp_root if contract_directory
     verify_failure(status)
+  end
+
+  def verify_shared_contract(executable, contract, directory)
+    expected_directory = File.realpath(directory)
+    expected_executable = File.realpath("#{expected_directory}/#{File.basename(contract, ".rb")}")
+    raise "mutation contract did not reuse shared binary" unless File.realpath(executable) == expected_executable
+    expected_working_directory = File.realpath(ENV.fetch("FLEEK_EXPECTED_WORKING_DIRECTORY"))
+    raise "mutation contract worker directory was not isolated" unless Dir.pwd == expected_working_directory
+  end
+
+  def verify_contract_temp_root
+    expected_root = File.realpath(ENV.fetch("FLEEK_EXPECTED_TEMP_ROOT"))
+    actual_root = ENV.fetch("FLEEK_TEMP_ROOT")
+    raise "mutation contract worker temp root was not isolated" unless File.realpath(actual_root) == expected_root
+    raise "mutation contract did not use worker temp root" unless Dir.children(expected_root).any? { |name| !name.start_with?("fleek-mutation-") }
   end
 
   # :reek:TooManyStatements
@@ -270,11 +282,15 @@ class MutationCase
     Dir.mkdir(directory)
     source_directory = "#{directory}/test"
     Dir.mkdir(source_directory)
-    Dir.glob("test/*.rb").each do |path|
-      source = File.read(path).gsub('"/tmp/', '"#{ENV["FLEEK_TEMP_ROOT"] || "/tmp"}/').gsub("__dir__", 'File.expand_path("test", Dir.pwd)')
+    contracts = CONTRACTS.values.uniq
+    source_paths = (contracts + ["test/analysis_runner.rb"]).uniq
+    source_paths.each do |path|
+      source = File.read(path)
+      mapped_contract = contracts.include?(path)
+      source = source.gsub('"/tmp/', '"#{ENV["FLEEK_TEMP_ROOT"] || "/tmp"}/') if mapped_contract || path == "test/analysis_runner.rb"
+      source = source.gsub("__dir__", 'File.expand_path("test", Dir.pwd)') if mapped_contract
       File.write("#{source_directory}/#{File.basename(path)}", source)
     end
-    contracts = CONTRACTS.values.uniq
     contract_count = contracts.length
     jobs = [Integer(ENV.fetch("JOBS", "1"), 10), contract_count].min
     contracts.each_slice(jobs) { |batch| compile_contract_batch(batch, directory, source_directory) }

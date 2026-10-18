@@ -168,6 +168,7 @@ class CheckRunner
     when :mutation
       Process.spawn("env", "FLEEK_TEMP_ROOT=#{temporary_root}", "FLEEK_MUTATION_CONTRACT_DIRECTORY=#{@mutation_contract_directory}",
         "FLEEK_EXPECTED_WORKING_DIRECTORY=#{directory}",
+        "FLEEK_EXPECTED_TEMP_ROOT=#{temporary_root}",
         "SPINEL=#{@spinel}", "SPINEL_ROOT=#{@spinel_root}", @spinel, "-E", "test/mutation_contract.rb",
         chdir: directory, out: output, err: error)
     when :command then spawn_check(value, directory, output, error)

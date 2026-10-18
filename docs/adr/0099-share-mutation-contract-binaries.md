@@ -10,11 +10,11 @@ Each of eight isolated mutation shards compiles the same mapped public contracts
 
 ## Decision
 
-Compile each unique mapped contract once per mutation run and reuse its immutable executable from all shards. Keep each shard's Fleek build, source copy, working directory, reference cache, and harness logs isolated. Verify at the mutation seam that the contract executable resides in the shared directory and the worker runs in its assigned copy. Fail closed on missing binaries, failed compilation, or failed cleanup.
+Compile each unique mapped contract once per mutation run and reuse its immutable executable from all shards. Keep each shard's Fleek build, source copy, working directory, reference cache, and harness logs isolated. Copy only mapped contracts and their shared helper. Verify at the mutation seam that each shard uses the exact shared executable, runs in its assigned copy, and produces contract output under its assigned temp root. Fail closed on missing binaries, failed compilation, or failed cleanup.
 
 ## Consequences
 
-Mutation evidence retains every configured mutant and its full mapped public contract while removing repeated contract compilation. During precompile, test source copies rewrite `/tmp/` paths to use runtime `FLEEK_TEMP_ROOT`, and rewrite `__dir__` to the worker checkout. Each shard supplies its own temp root, so shared binaries can execute concurrently without fixed-path collisions or locks. Contract compilation runs in batches bounded by `JOBS`. Gate records elapsed time as evidence; ordinary contracts assert no timing threshold.
+Mutation evidence retains every configured mutant and its full mapped public contract while removing repeated contract compilation. During precompile, only mapped test sources are copied; their `/tmp/` paths rewrite to runtime `FLEEK_TEMP_ROOT`, and `__dir__` resolves to the worker checkout. Each shard supplies and asserts its own temp root, so shared binaries can execute concurrently without fixed-path collisions or locks. Contract compilation runs in batches bounded by `JOBS`. Gate records elapsed time as evidence; ordinary contracts assert no timing threshold.
 
 The first shared-binary attempt used `File#flock` to protect fixed paths. Pinned Spinel does not implement that method, and serializing contract execution increased full-gate time. Runtime path isolation preserves parallel execution and removes that platform-specific lock.
 

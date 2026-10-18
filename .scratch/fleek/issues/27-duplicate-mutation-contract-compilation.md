@@ -5,6 +5,7 @@
 **Status:** resolved
 **Type:** bug
 **Category:** bug
+**Triage:** ready-for-agent
 
 - [x] Compile each mutation-mapped public contract once per mutation run and reuse the immutable executable across isolated shards.
 - [x] Preserve shard-local Fleek mutants, fixture working directories, reference caches, and complete mapped public contract execution for every mutant.
@@ -16,7 +17,7 @@
 
 Pinned Spinel `2026.09.12`, source `112bae85c1a25fc5399009a849f805bfe691426b`; command `make check JOBS=8`; baseline complete mutation gate 300.10s (ADR 0094); one `test/duplication_contract.rb -O 1` compile 4.64s and 4.74s. Three ranked causes: (1) repeated unchanged contract compilation; prediction: compile unique mapped contracts once and total compiler invocations fall while every mutation remains caught; (2) Flay reference subprocesses; prediction: disabling shard-local cache materially increases gate time (already measured 418.44s vs 300.10s before cache); (3) per-mutant Spinel native rebuild and mapped contract run; prediction: timing one isolated mutant separates their share, but removing the rebuild or reducing its assertions risks mutation coverage.
 
-The repeated compile cause is fixed by compiling 13 unique mapped contract binaries once in bounded parallel batches. Precompile copies rewrite `/tmp/` paths to consult runtime `FLEEK_TEMP_ROOT` and resolve `__dir__` from the worker checkout. Each shard keeps its own mutant source, binary, reference cache, working directory, and temp root; full mapped contracts still run for every mutant. The harness verifies shared executable location and assigned working directory. An initial file-lock approach was rejected: pinned Spinel lacks `File#flock`, and serialized runs cost more. Runtime temp-root isolation removes that collision while preserving shard parallelism.
+The repeated compile cause is fixed by compiling 13 unique mapped contract binaries once in bounded parallel batches. Precompile copies only mapped contracts and their shared helper; mapped contract sources rewrite `/tmp/` paths to consult runtime `FLEEK_TEMP_ROOT` and resolve `__dir__` from the worker checkout. Each shard keeps its own mutant source, binary, reference cache, working directory, and temp root; full mapped contracts still run for every mutant. The harness verifies the exact shared executable path, assigned working directory, and contract output under the shard's expected temp root. An initial file-lock approach was rejected: pinned Spinel lacks `File#flock`, and serialized runs cost more. Runtime temp-root isolation removes that collision while preserving shard parallelism.
 
 ## Answer
 
