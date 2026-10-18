@@ -49,6 +49,11 @@ class AnalysisRunner
     [status.exitstatus, File.read(output_path), File.read(error_path)]
   end
 
+  def self.assert_report_contains(result, expectation)
+    status, fields, label = expectation
+    raise label unless result[0] == status && fields.all? { |field| result[1].index(field) != nil }
+  end
+
   def self.assert_reference(actual, reference, label)
     assert_status(actual, reference, label)
     assert_findings(actual, reference, label)

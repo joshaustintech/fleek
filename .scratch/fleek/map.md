@@ -22,6 +22,7 @@
 - Current pinned mutation benchmarks confirm 8 workers outperform 4 (171.04 s vs 240.94 s) on this 8-CPU host; a 16-worker request is capped at 8. See ADR 0103 and issue 27.
 - Ticket 21 added typed dynamic scope paths so mixed nested class/module candidates retain their structural identity; paired fixtures cover module scopes inside sibling classes and reject mixed-kind class groups. See ADR 0100.
 - Ticket 21 preserves verified class groups from supported sibling classes when an unsupported module, class body, or parent method is also present; output remains incomplete. Paired Flay contracts and focused mutations cover these boundaries. See [ADR 0102](../../docs/adr/0102-preserve-class-groups-beside-unsupported-siblings.md).
+- Ticket 22 adds array literals to bounded class-method candidates; compiled CLI and Flay 2.14.4 match mass/score 40 at lines 1/7. The isolated contract and mutation prevent unrelated failures from masking this boundary. See [ADR 0104](../../docs/adr/0104-support-array-expression-method-candidates.md).
 - Native combined Flay/Reek replacement; pinned Spinel compiler; Ruby 4.0 and pinned Spinel source input; standalone macOS arm64 release.
 - Primary test seam: compiled CLI process. Parser feasibility uses a temporary real native probe.
 - Ticket sequence and dependencies in issue bodies; summary: 01 compiler/reference harness → 02 parser → 03–08 smell/input/config/text → 09–12 duplication/combined report → 13–14 language/Rails parity → 18–19 Rails coverage → 15–17 runtime/release.

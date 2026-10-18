@@ -14,3 +14,7 @@
 - [ ] Match cross-file candidate collection and preserve original input paths and lines.
 - [ ] Compare clean, finding, and boundary cases through the compiled CLI against unchanged Flay 2.14.4.
 - [ ] Mutation checks detect omitted candidates and mismatches in tree shape, mass, grouping, score, locations, or order.
+
+## Answer
+
+Implementation is in progress. The first slice adds array literals to class-method candidate trees; the paired compiled CLI/Flay contract matches a similar class group at mass/score 40 and lines 1/7. A named mutation removes array-node support and is caught by its isolated public contract. ADR 0104 records the boundary.
