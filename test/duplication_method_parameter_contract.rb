@@ -9,3 +9,5 @@ FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_post_param
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_post_parameter_count.rb", "post-parameter-count", 10, 1, 5)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_keyword_rest_parameter.rb", "keyword-rest-parameter", 6, 1, 5)
 FlayMethodCandidateContract.verify_unsupported("test/fixtures/duplication_methods_keyword_rest_anonymous.rb", "keyword-rest-anonymous", 12)
+FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_block_parameter.rb", "block-parameter", 6, 1, 5)
+FlayMethodCandidateContract.verify_unsupported("test/fixtures/duplication_methods_block_parameter_anonymous.rb", "block-parameter-anonymous", 12)
