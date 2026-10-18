@@ -19,6 +19,7 @@ class CheckRunner
     test/duplication_contract.rb
     test/duplication_unsupported_sibling_contract.rb
     test/duplication_array_expression_contract.rb
+    test/duplication_hash_expression_contract.rb
     test/combined_contract.rb
     test/language_extensions_contract.rb
     test/native_parser_contract.rb

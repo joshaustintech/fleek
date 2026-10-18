@@ -17,4 +17,4 @@
 
 ## Answer
 
-Implementation is in progress. The first slice adds array literals to class-method candidate trees; the paired compiled CLI/Flay contract matches a similar class group at mass/score 40 and lines 1/7. A named mutation removes array-node support and is caught by its isolated public contract. ADR 0104 records the boundary.
+Implementation is in progress. Array and keyword-hash literals are now supported in class-method candidate trees. Paired compiled CLI/Flay contracts match similar class groups at mass/score 40 (lines 1/7) and 62 (lines 1/8). Focused mutations remove each expression-node support; separate association-mass mutation protects Flay's mass rule. ADRs 0104 and 0105 record these boundaries.

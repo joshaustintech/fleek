@@ -241,7 +241,7 @@ class Fleek
     typedef struct {
       union {
         int shapes[128];
-        struct { const pm_node_t *nodes[128]; uint16_t tree_starts[128]; uint16_t tree_ends[128]; uint8_t node_ends[128]; int16_t tree[256]; size_t tree_count; } ast;
+        struct { const pm_node_t *nodes[128]; uint16_t tree_starts[128]; uint16_t tree_ends[128]; uint8_t node_ends[128]; uint8_t massless_nodes[128]; int16_t tree[256]; size_t tree_count; } ast;
       } data;
       size_t shape_count;
       size_t parameter_mass;
@@ -2425,7 +2425,7 @@ class Fleek
       return true;
     }
 
-    typedef struct { fleek_duplication_method_t *method; bool overflow; } fleek_duplication_ast_t;
+    typedef struct { fleek_duplication_method_t *method; bool overflow; const pm_node_t *parent; } fleek_duplication_ast_t;
     static void fleek_duplication_collect_class_node(const pm_node_t *node, fleek_duplication_ast_t *ast);
     static bool fleek_duplication_collect_class_child(const pm_node_t *node, void *data) {
       fleek_duplication_collect_class_node(node, (fleek_duplication_ast_t *) data);
@@ -2436,24 +2436,33 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) ||
         PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_INTEGER_NODE) ||
         PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_AND_NODE) || PM_NODE_TYPE_P(node, PM_OR_NODE) ||
-        PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) ||
+        PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_HASH_NODE) ||
         PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) ||
         PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE);
     }
     static void fleek_duplication_collect_class_node(const pm_node_t *node, fleek_duplication_ast_t *ast) {
-      if (PM_NODE_TYPE_P(node, PM_ARGUMENTS_NODE)) { pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast); return; }
+      if (PM_NODE_TYPE_P(node, PM_ARGUMENTS_NODE)) {
+        const pm_node_t *parent = ast->parent; ast->parent = node;
+        pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast);
+        ast->parent = parent; return;
+      }
       if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {
         const pm_statements_node_t *statements = (const pm_statements_node_t *) node;
         if (statements->body.size > 128) { ast->overflow = true; return; }
+        const pm_node_t *parent = ast->parent; ast->parent = node;
         pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast);
-        return;
+        ast->parent = parent; return;
       }
       if (ast->method->shape_count == 128 || ast->method->data.ast.tree_count + 2 > 256 || !fleek_duplication_class_node_supported(node)) { ast->overflow = true; return; }
       size_t index = ast->method->shape_count++;
       ast->method->data.ast.nodes[index] = node;
+      ast->method->data.ast.massless_nodes[index] = PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) ||
+        (PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE));
       ast->method->data.ast.tree_starts[index] = (uint16_t) ast->method->data.ast.tree_count;
       ast->method->data.ast.tree[ast->method->data.ast.tree_count++] = (int16_t) node->type;
+      const pm_node_t *parent = ast->parent; ast->parent = node;
       pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast);
+      ast->parent = parent;
       ast->method->data.ast.tree[ast->method->data.ast.tree_count++] = (int16_t) (-(int) node->type - 1);
       ast->method->data.ast.tree_ends[index] = (uint16_t) ast->method->data.ast.tree_count;
       ast->method->data.ast.node_ends[index] = (uint8_t) ast->method->shape_count;
@@ -2483,7 +2492,7 @@ class Fleek
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       result->parameter_mass = 0;
       if (method->receiver != NULL || !fleek_duplication_class_parameters((const pm_node_t *) method->parameters, result) || method->body == NULL || method->equal_loc.start != NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
-      fleek_duplication_ast_t ast = { result, false };
+      fleek_duplication_ast_t ast = { result, false, NULL };
       fleek_duplication_collect_class_node(method->body, &ast);
       if (ast.overflow || result->shape_count == 0) return false;
       result->line = 1;
@@ -2528,9 +2537,6 @@ class Fleek
       for (size_t index = 0; index < left->data.ast.tree_count; index++) if (left->data.ast.tree[index] != right->data.ast.tree[index]) return false;
       return true;
     }
-    static bool fleek_duplication_class_node_massless(const pm_node_t *node) {
-      return PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE);
-    }
     static bool fleek_duplication_class_subtrees_equal(const fleek_duplication_method_t *left, size_t left_node, const fleek_duplication_method_t *right, size_t right_node) {
       size_t left_length = left->data.ast.tree_ends[left_node] - left->data.ast.tree_starts[left_node];
       size_t right_length = right->data.ast.tree_ends[right_node] - right->data.ast.tree_starts[right_node];
@@ -2540,7 +2546,7 @@ class Fleek
     }
     static size_t fleek_duplication_class_subtree_mass(const fleek_duplication_method_t *method, size_t node) {
       size_t mass = method->data.ast.node_ends[node] - node;
-      for (size_t index = node; index < method->data.ast.node_ends[node]; index++) if (fleek_duplication_class_node_massless(method->data.ast.nodes[index])) mass--;
+      for (size_t index = node; index < method->data.ast.node_ends[node]; index++) if (method->data.ast.massless_nodes[index]) mass--;
       return mass;
     }
     static bool fleek_duplication_append_group(const char *node, bool identical, size_t node_mass, const int *lines, size_t count) {
@@ -3008,7 +3014,7 @@ class Fleek
 
     static size_t fleek_duplication_class_method_mass(const fleek_duplication_method_t *method) {
       size_t mass = 2 + method->shape_count + method->parameter_mass;
-      for (size_t index = 0; index < method->shape_count; index++) if (fleek_duplication_class_node_massless(method->data.ast.nodes[index])) mass--;
+      for (size_t index = 0; index < method->shape_count; index++) if (method->data.ast.massless_nodes[index]) mass--;
       return mass;
     }
     static bool fleek_duplication_candidate_shapes_equal(const fleek_duplication_class_candidates_t *set, size_t left, size_t right) {
