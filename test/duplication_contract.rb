@@ -483,6 +483,28 @@ DuplicationProcess.verify_output(unless_expression_reference, DuplicationProcess
 DuplicationProcess.verify_output(unless_expression, DuplicationProcess::OutputExpectation.new(2, unless_expression_fields,
   "top-level methods with unless expressions differed from Flay"))
 
+range_expression_path = "test/fixtures/duplication_methods_range_expression.rb"
+range_expression = DuplicationProcess.run(DuplicationProcess::Input.new(range_expression_path, "fleek", "--mass", 3))
+range_expression_reference = DuplicationProcess.run(DuplicationProcess::Input.new(range_expression_path, "flay", "--mass", 3))
+range_expression_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{range_expression_path}:1,#{range_expression_path}:5\" mass=10 score=10",
+  "Total duplication score: 10", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+range_expression_reference_fields = ["Similar code found in :defn (mass = 10)", "#{range_expression_path}:1", "#{range_expression_path}:5", "Total score (lower is better) = 10"]
+DuplicationProcess.verify_output(range_expression_reference, DuplicationProcess::OutputExpectation.new(0, range_expression_reference_fields,
+  "Flay range-expression method reference changed"))
+DuplicationProcess.verify_output(range_expression, DuplicationProcess::OutputExpectation.new(2, range_expression_fields,
+  "top-level methods with range literals differed from Flay"))
+
+range_operator_path = "test/fixtures/duplication_methods_range_operator.rb"
+range_operator = DuplicationProcess.run(DuplicationProcess::Input.new(range_operator_path, "fleek", "--mass", 3))
+range_operator_reference = DuplicationProcess.run(DuplicationProcess::Input.new(range_operator_path, "flay", "--mass", 3))
+range_operator_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{range_operator_path}:1,#{range_operator_path}:5\" mass=10 score=10",
+  "Total duplication score: 10", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+range_operator_reference_fields = ["Similar code found in :defn (mass = 10)", "#{range_operator_path}:1", "#{range_operator_path}:5", "Total score (lower is better) = 10"]
+DuplicationProcess.verify_output(range_operator_reference, DuplicationProcess::OutputExpectation.new(0, range_operator_reference_fields,
+  "Flay range-operator method reference changed"))
+DuplicationProcess.verify_output(range_operator, DuplicationProcess::OutputExpectation.new(2, range_operator_fields,
+  "inclusive and exclusive range method candidates were treated as identical"))
+
 conditional_return_path = "test/fixtures/duplication_methods_conditional_return.rb"
 conditional_returns = DuplicationProcess.run(DuplicationProcess::Input.new(conditional_return_path, "fleek", "--mass", 3))
 conditional_return_reference = DuplicationProcess.run(DuplicationProcess::Input.new(conditional_return_path, "flay", "--mass", 3))
