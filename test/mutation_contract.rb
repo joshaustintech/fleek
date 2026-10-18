@@ -213,13 +213,17 @@ class MutationCase
 
   # :reek:TooManyStatements
   def selected_mutation?
-    return selected_shard_mutation? if MUTATION_SHARD
-    return true unless @selected_labels && !@selected_labels.empty?
+    labels = self.class.selected_labels(@selected_labels)
+    return false if labels && !labels.include?(@configuration.label)
+    MUTATION_SHARD ? selected_shard_mutation? : true
+  end
 
-    labels = @selected_labels.split(",")
+  def self.selected_labels(selection)
+    return nil unless selection && !selection.empty?
+    labels = selection.split(",")
     unknown_labels = labels - CONTRACTS.keys
     raise "unknown mutation labels: #{unknown_labels.join(', ')}" unless unknown_labels.empty?
-    labels.include?(@configuration.label)
+    labels
   end
 
   def selected_shard_mutation?
@@ -296,7 +300,8 @@ class MutationCase
     Dir.mkdir(directory)
     source_directory = "#{directory}/test"
     Dir.mkdir(source_directory)
-    contracts = CONTRACTS.values.uniq
+    selected_labels = self.selected_labels(ENV["FLEEK_MUTATIONS"])
+    contracts = selected_labels ? selected_labels.map { |label| CONTRACTS.fetch(label) }.uniq : CONTRACTS.values.uniq
     source_paths = (contracts + ["test/analysis_runner.rb"]).uniq
     source_paths.each do |path|
       source = File.read(path)
