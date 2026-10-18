@@ -386,6 +386,17 @@ DuplicationProcess.verify_output(conditionals_reference, DuplicationProcess::Out
 DuplicationProcess.verify_output(conditionals, DuplicationProcess::OutputExpectation.new(2, conditionals_fields,
   "top-level methods with conditionals differed from Flay"))
 
+while_control_path = "test/fixtures/duplication_methods_while_control.rb"
+while_control = DuplicationProcess.run(DuplicationProcess::Input.new(while_control_path, "fleek", "--mass", 3))
+while_control_reference = DuplicationProcess.run(DuplicationProcess::Input.new(while_control_path, "flay", "--mass", 3))
+while_control_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{while_control_path}:1,#{while_control_path}:7\" mass=10 score=10",
+  "Total duplication score: 10", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+while_control_reference_fields = ["Similar code found in :defn (mass = 10)", "#{while_control_path}:1", "#{while_control_path}:7", "Total score (lower is better) = 10"]
+DuplicationProcess.verify_output(while_control_reference, DuplicationProcess::OutputExpectation.new(0, while_control_reference_fields,
+  "Flay while-control method reference changed"))
+DuplicationProcess.verify_output(while_control, DuplicationProcess::OutputExpectation.new(2, while_control_fields,
+  "top-level methods with while-control loops differed from Flay"))
+
 local_writes_path = "test/fixtures/duplication_methods_local_writes.rb"
 local_writes = DuplicationProcess.run(DuplicationProcess::Input.new(local_writes_path, "fleek", "--mass", 3))
 local_writes_reference = DuplicationProcess.run(DuplicationProcess::Input.new(local_writes_path, "flay", "--mass", 3))
