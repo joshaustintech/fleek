@@ -96,9 +96,9 @@ class MutationCase
     "Flay top-level method argument calls" => "test/duplication_contract.rb",
     "Flay top-level required parameters" => "test/duplication_contract.rb",
     "Flay class method candidate collection" => "test/duplication_contract.rb",
-    "Flay class method array expression" => "test/duplication_array_expression_contract.rb",
-    "Flay class method hash expression" => "test/duplication_hash_expression_contract.rb",
-    "Flay class method hash association mass" => "test/duplication_hash_expression_contract.rb",
+    "Flay method array expression" => "test/duplication_contract.rb",
+    "Flay method hash expression" => "test/duplication_contract.rb",
+    "Flay method hash association mass" => "test/duplication_contract.rb",
     "Flay mass check applicability" => "test/cli_contract.rb",
     "Flay only node filtering" => "test/duplication_only_node_contract.rb",
     "Flay only total score preservation" => "test/duplication_only_node_contract.rb",
@@ -826,7 +826,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "(identical ? count : 1)",
   "(identical ? 1 : 1)",
   "Flay identical multiplier",
-  "identical group multiplier changed")).run
+  "top-level array-expression methods differed from Flay: missing node=\"defn\" kind=\"identical\" locations=\"test/fixtures/duplication_methods_array_expression.rb:1,test/fixtures/duplication_methods_array_expression.rb:5\" mass=38 score=76")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'puts "Total duplication score: #{score}"',
   'puts "Total duplication score: 0"',
@@ -1065,18 +1065,18 @@ MutationCase.new(MutationCase::Configuration.new(source,
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_ARRAY_NODE) ||",
   "PM_NODE_TYPE_P(node, PM_ASSOC_NODE) ||",
-  "Flay class method array expression",
-  "array expressions inside class methods were not analyzed")).run
+  "Flay method array expression",
+  "top-level array-expression methods differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_HASH_NODE) ||",
   "PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) ||",
-  "Flay class method hash expression",
-  "hash expressions inside class methods were not analyzed")).run
+  "Flay method hash expression",
+  "top-level hash-expression methods differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "(PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE))",
   "(PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && false)",
-  "Flay class method hash association mass",
-  "hash expressions inside class methods were not analyzed")).run
+  "Flay method hash association mass",
+  "top-level hash-expression methods differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_write_node_t *) first)->name, ((const pm_local_variable_write_node_t *) second)->name)) return false;",
   "if (false) return false;",

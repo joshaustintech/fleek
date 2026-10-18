@@ -377,6 +377,28 @@ DuplicationProcess.verify_output(conditional_return_reference, DuplicationProces
 DuplicationProcess.verify_output(conditional_returns, DuplicationProcess::OutputExpectation.new(2, conditional_return_fields,
   "top-level methods with conditional returns differed from Flay"))
 
+array_expression_path = "test/fixtures/duplication_methods_array_expression.rb"
+array_expression = DuplicationProcess.run(DuplicationProcess::Input.new(array_expression_path, "fleek", "--mass", 3))
+array_expression_reference = DuplicationProcess.run(DuplicationProcess::Input.new(array_expression_path, "flay", "--mass", 3))
+array_expression_fields = ["node=\"defn\" kind=\"identical\" locations=\"#{array_expression_path}:1,#{array_expression_path}:5\" mass=38 score=76",
+  "Total duplication score: 76", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+array_expression_reference_fields = ["IDENTICAL code found in :defn (mass*2 = 76)", "#{array_expression_path}:1", "#{array_expression_path}:5", "Total score (lower is better) = 76"]
+DuplicationProcess.verify_output(array_expression_reference, DuplicationProcess::OutputExpectation.new(0, array_expression_reference_fields,
+  "Flay top-level array-expression method reference changed"))
+DuplicationProcess.verify_output(array_expression, DuplicationProcess::OutputExpectation.new(2, array_expression_fields,
+  "top-level array-expression methods differed from Flay"))
+
+hash_expression_path = "test/fixtures/duplication_methods_hash_expression.rb"
+hash_expression = DuplicationProcess.run(DuplicationProcess::Input.new(hash_expression_path, "fleek", "--mass", 3))
+hash_expression_reference = DuplicationProcess.run(DuplicationProcess::Input.new(hash_expression_path, "flay", "--mass", 3))
+hash_expression_fields = ["node=\"defn\" kind=\"identical\" locations=\"#{hash_expression_path}:1,#{hash_expression_path}:6\" mass=60 score=120",
+  "Total duplication score: 120", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+hash_expression_reference_fields = ["IDENTICAL code found in :defn (mass*2 = 120)", "#{hash_expression_path}:1", "#{hash_expression_path}:6", "Total score (lower is better) = 120"]
+DuplicationProcess.verify_output(hash_expression_reference, DuplicationProcess::OutputExpectation.new(0, hash_expression_reference_fields,
+  "Flay top-level hash-expression method reference changed"))
+DuplicationProcess.verify_output(hash_expression, DuplicationProcess::OutputExpectation.new(2, hash_expression_fields,
+  "top-level hash-expression methods differed from Flay"))
+
 identical_path = "test/fixtures/duplication_identical.rb"
 identical = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "fleek", ""))
 identical_reference = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "flay", ""))
