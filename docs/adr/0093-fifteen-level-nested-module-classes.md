@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes [ADR 0088](0088-fourteen-level-nested-module-classes.md).
+Superseded by [ADR 0097](0097-dynamic-nested-scope-storage.md). Its fifteen-module evidence remains historical.
 
 ## Context
 

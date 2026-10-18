@@ -2,7 +2,7 @@
 
 ## Status
 
-Superseded by [ADR 0093](0093-fifteen-level-nested-module-classes.md). Historical record; the verified class boundary was extended by one level.
+Superseded by [ADR 0097](0097-dynamic-nested-scope-storage.md). Its fourteen-module evidence remains historical.
 
 ## Context
 

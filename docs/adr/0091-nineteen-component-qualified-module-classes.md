@@ -2,7 +2,7 @@
 
 ## Status
 
-Superseded by [ADR 0092](0092-twenty-component-qualified-module-classes.md). Historical record; its nineteen-component limit was extended.
+Superseded by [ADR 0097](0097-dynamic-nested-scope-storage.md). Its nineteen-component evidence remains historical.
 
 ## Context
 

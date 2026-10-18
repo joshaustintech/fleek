@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0097](0097-dynamic-nested-scope-storage.md). Its ten-level evidence remains historical.
 
 ## Context
 

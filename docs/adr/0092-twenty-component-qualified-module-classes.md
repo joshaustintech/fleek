@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes [ADR 0091](0091-nineteen-component-qualified-module-classes.md).
+Superseded by [ADR 0097](0097-dynamic-nested-scope-storage.md). Its twenty-component evidence remains historical.
 
 ## Context
 

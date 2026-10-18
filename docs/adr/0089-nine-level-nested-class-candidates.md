@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes [ADR 0084](0084-eight-level-nested-class-candidates.md).
+Superseded by [ADR 0097](0097-dynamic-nested-scope-storage.md). Its nine-level evidence remains historical.
 
 ## Context
 

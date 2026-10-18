@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes [ADR 0081](0081-thirteen-level-nested-module-methods.md).
+Superseded by [ADR 0097](0097-dynamic-nested-scope-storage.md). Its fourteen-module evidence remains historical.
 
 ## Context
 
