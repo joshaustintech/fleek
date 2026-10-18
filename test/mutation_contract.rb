@@ -95,7 +95,7 @@ class MutationCase
     "Flay cross-file method collection" => "test/duplication_contract.rb",
     "Flay top-level method argument calls" => "test/duplication_contract.rb",
     "Flay top-level required parameters" => "test/duplication_contract.rb",
-    "Flay class method candidate collection" => "test/duplication_contract.rb",
+    "Flay class method candidate collection" => "test/duplication_method_cross_file_contract.rb",
     "Flay method array expression" => "test/duplication_contract.rb",
     "Flay method hash expression" => "test/duplication_contract.rb",
     "Flay method hash association mass" => "test/duplication_contract.rb",
@@ -883,7 +883,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "if (PM_NODE_TYPE_P(statement, PM_CLASS_NODE)) {",
   "if (false) {",
   "Flay class method candidate collection",
-  "unsupported syntax implied complete analysis")).run
+  "class methods across files were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "method->receiver != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result)",
   "method->receiver != NULL || method->parameters != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result)",
