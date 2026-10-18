@@ -15,6 +15,11 @@ class CliProcess
     observe(process_id)
   end
 
+  def with_inapplicable_option(check, option_arguments)
+    process_id = Process.spawn("build/fleek", "--checks", check, option_arguments[0], option_arguments[1], option_arguments[2], out: @output_path, err: @error_path)
+    observe(process_id)
+  end
+
   def observe(process_id)
     finished_pid, process_status = Process.waitpid2(process_id)
     [process_status.exitstatus, File.read(@output_path), File.read(@error_path)]
@@ -46,6 +51,14 @@ raise "version report contract missing" unless version_result[1].include?("repor
 unsupported_result = cli_process.with_unknown_check
 raise "unsupported check status" unless unsupported_result[0] == 1
 raise "unsupported check diagnostic" unless unsupported_result[2].include?("unsupported")
+
+inapplicable_mass = cli_process.with_inapplicable_option("reek:ClassVariable", ["--mass", "16", "test/fixtures/class_variable.rb"])
+raise "inapplicable Flay mass status" unless inapplicable_mass[0] == 1
+raise "inapplicable Flay mass was not rejected before Reek analysis" unless inapplicable_mass[2].include?("--mass applies only to flay:StructuralDuplication") && inapplicable_mass[1].empty?
+
+inapplicable_reek_config = cli_process.with_inapplicable_option("flay:StructuralDuplication", ["--reek-config", "test/fixtures/reference.rb", "test/fixtures/reference.rb"])
+raise "inapplicable Reek config status" unless inapplicable_reek_config[0] == 1
+raise "inapplicable Reek config was not rejected before Flay analysis" unless inapplicable_reek_config[2].include?("--reek-config applies only to Reek checks") && inapplicable_reek_config[1].empty?
 
 
 puts "CLI contract: pass"

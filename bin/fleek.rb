@@ -5266,6 +5266,8 @@ class Fleek
   def self.run_selected_checks(arguments)
     inputs = arguments[2..]
     check = arguments[1]
+    option_error = selected_check_option_error(check, inputs)
+    return report_combined_input_error(option_error) unless option_error.empty?
     detector = check.delete_prefix("reek:")
     return run_unsupported_opt_in(inputs, "UnusedPrivateMethod") if check == "reek:UnusedPrivateMethod"
     return run_class_variable(inputs) if check == "reek:ClassVariable"
@@ -5284,6 +5286,12 @@ class Fleek
     return run_structural_duplication(inputs) if check == "flay:StructuralDuplication"
     return run_combined_checks(inputs) if check == "flay:StructuralDuplication,reek:ClassVariable" || check == "reek:ClassVariable,flay:StructuralDuplication"
     print_usage_error(input_error(arguments))
+  end
+
+  def self.selected_check_option_error(check, inputs)
+    return "--mass applies only to flay:StructuralDuplication." if check.start_with?("reek:") && !check.include?(",flay:") && inputs.include?("--mass")
+    return "--reek-config applies only to Reek checks." if check == "flay:StructuralDuplication" && inputs.include?("--reek-config")
+    ""
   end
 
   def self.run_unsupported_opt_in(inputs, detector)
