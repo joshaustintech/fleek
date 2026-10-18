@@ -20,6 +20,7 @@ class CheckRunner
     test/duplication_method_capacity_contract.rb
     test/duplication_method_block_contract.rb
     test/duplication_method_self_contract.rb
+    test/duplication_method_candidate_capacity_contract.rb
     test/duplication_only_node_contract.rb
     test/duplication_unsupported_sibling_contract.rb
     test/duplication_array_expression_contract.rb
