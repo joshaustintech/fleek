@@ -322,6 +322,17 @@ DuplicationProcess.verify_output(optional_defaults_reference, DuplicationProcess
 DuplicationProcess.verify_output(optional_defaults, DuplicationProcess::OutputExpectation.new(2, optional_defaults_fields,
   "top-level methods with different optional defaults differed from Flay"))
 
+conditionals_path = "test/fixtures/duplication_methods_conditionals.rb"
+conditionals = DuplicationProcess.run(DuplicationProcess::Input.new(conditionals_path, "fleek", "--mass", 3))
+conditionals_reference = DuplicationProcess.run(DuplicationProcess::Input.new(conditionals_path, "flay", "--mass", 3))
+conditionals_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{conditionals_path}:1,#{conditionals_path}:13\" mass=62 score=62",
+  "Total duplication score: 62", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+conditionals_reference_fields = ["Similar code found in :defn (mass = 62)", "#{conditionals_path}:1", "#{conditionals_path}:13", "Total score (lower is better) = 62"]
+DuplicationProcess.verify_output(conditionals_reference, DuplicationProcess::OutputExpectation.new(0, conditionals_reference_fields,
+  "Flay conditional method reference changed"))
+DuplicationProcess.verify_output(conditionals, DuplicationProcess::OutputExpectation.new(2, conditionals_fields,
+  "top-level methods with conditionals differed from Flay"))
+
 identical_path = "test/fixtures/duplication_identical.rb"
 identical = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "fleek", ""))
 identical_reference = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "flay", ""))

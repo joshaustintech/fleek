@@ -1036,7 +1036,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_IF_NODE) ||",
   "",
   "Flay class method conditional candidates",
-  "conditional class method parity differed")).run
+  "top-level methods with conditionals differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE);",
   "PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE);",
@@ -1086,7 +1086,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE)",
   "PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE)",
   "Flay class method conditional mass",
-  "conditional class method parity differed")).run
+  "top-level methods with conditionals differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (set->count == 24 || !fleek_duplication_class_method(child, source, &set->candidates[set->count]))",
   "if (set->count == 16 || !fleek_duplication_class_method(child, source, &set->candidates[set->count]))",
