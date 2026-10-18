@@ -223,3 +223,8 @@
 
 - ADR 0138 records recursive candidate support for Prism begin, rescue, and retry nodes.
 - Pinned Flay 2.14.4 and Fleek match the rescue/retry method pair at mass/score 16, protected by node-specific and retry-mass mutations.
+
+## Ticket 22 ensure receipt
+
+- ADR 0139 records Prism `PM_ENSURE_NODE` support in recursive method candidates.
+- Pinned Flay 2.14.4 and Fleek match begin/ensure methods at mass/score 10, protected by candidate-support and mass mutations.

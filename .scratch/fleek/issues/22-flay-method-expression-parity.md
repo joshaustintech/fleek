@@ -42,3 +42,5 @@ Top-level methods containing `next value if value` inside a block now match Flay
 Top-level methods containing `break value if value` and `redo if value` inside blocks now match Flay's similar groups at mass/score 20 and 18, with complete coverage. Focused mutations protect both node forms. See ADR 0137.
 
 Top-level methods containing `begin/rescue/retry` now match Flay's identical group at mass/score 16, with complete coverage. Separate mutations protect begin, rescue, and retry node support, plus retry's one-point mass. See ADR 0138.
+
+Top-level methods containing `begin/ensure` now match Flay's similar group at mass/score 10, with complete coverage. The recursive collector discounts each ensure node by one point to match Flay; focused mutations protect node support and mass. See ADR 0139.
