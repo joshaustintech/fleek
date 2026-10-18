@@ -263,7 +263,7 @@ class MutationCase
   end
 
   def compile_contract_binary(contract, executable)
-    process_id = Process.spawn(ENV["SPINEL"] || "spinel", contract, "-o", executable,
+    process_id = Process.spawn(ENV["SPINEL"] || "spinel", "-O", "1", contract, "-o", executable,
       out: "/tmp/fleek-mutation-contract-build-out", err: "/tmp/fleek-mutation-contract-build-err")
     _, status = MutationProcess.wait(process_id)
     raise "#{contract} contract failed to compile" unless status.exitstatus == 0
