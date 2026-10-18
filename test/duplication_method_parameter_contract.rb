@@ -13,3 +13,5 @@ FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_block_para
 FlayMethodCandidateContract.verify_unsupported("test/fixtures/duplication_methods_block_parameter_anonymous.rb", "block-parameter-anonymous", 12)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_yield_statement.rb", "yield-statement", 6, 1, 5)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_yield_arguments.rb", "yield-arguments", 8, 1, 5)
+FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_super.rb", "super", 6, 1, 5)
+FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_super_arguments.rb", "super-arguments", 8, 1, 5)

@@ -34,3 +34,5 @@ Top-level methods with named keyword-rest parameters now match Flay's similar gr
 Top-level methods with named block parameters now match Flay's similar group (mass/score 6). Differing names remain similar and add no mass. Anonymous block parameters remain incomplete (Flay finds an identical group, Fleek reports the unsupported syntax). Focused mutations protect candidate support, identity, and rejection. See ADR 0133.
 
 Top-level methods containing bare `yield` and `yield(value)` now match Flay's identical groups at mass/score 6/12 and 8/16 respectively, with complete coverage. The recursive candidate collector preserves yield argument structure and mass; a focused mutation protects yield-node support. See ADR 0134.
+
+Top-level methods containing bare `super` and `super(value)` now match Flay's similar groups at mass/score 6 and 8, with complete coverage. The recursive candidate collector preserves each super node form and argument structure; focused mutations protect both node kinds. See ADR 0135.

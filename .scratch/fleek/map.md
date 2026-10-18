@@ -203,3 +203,8 @@
 
 - ADR 0134 records yield-node support through the existing recursive candidate collector.
 - Pinned Flay 2.14.4 and Fleek match bare-yield mass/score 6/12 and yield-with-local-argument mass/score 8/16. A focused mutation protects candidate support.
+
+## Ticket 22 super receipt
+
+- ADR 0135 records support for bare and argument-bearing super expressions through the recursive candidate collector.
+- Pinned Flay 2.14.4 and Fleek match bare-super mass/score 6 and `super(value)` mass/score 8. Separate focused mutations protect each Prism node kind.
