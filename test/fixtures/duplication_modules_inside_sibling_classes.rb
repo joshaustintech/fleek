@@ -1,6 +1,6 @@
-module Current::Api::V1::Versioned::Feeds::V2::Read::V3::Internal::Adapter::Backend::Gateway::Relay::Dispatcher::Handler::Endpoint::Transport::Serializer::Catalog::Archive
-  class Feed
-    def current
+class CurrentFeed
+  module Renderer
+    def render_current
       @heading = "Current"
       @stream = Stream.open(params[:token])
       @entries = @stream.current.list(limit: params[:limit])
@@ -9,9 +9,9 @@ module Current::Api::V1::Versioned::Feeds::V2::Read::V3::Internal::Adapter::Back
   end
 end
 
-module Archived::Api::V1::Versioned::Feeds::V2::Read::V3::Internal::Adapter::Backend::Gateway::Relay::Dispatcher::Handler::Endpoint::Transport::Serializer::Catalog::Archive
-  class Feed
-    def archived
+class ArchivedFeed
+  module Renderer
+    def render_archived
       @heading = "Archived"
       @stream = Stream.open(params[:token])
       @entries = @stream.archived.list(limit: params[:limit])

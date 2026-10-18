@@ -336,6 +336,14 @@ DuplicationProcess.verify_output(cross_class_group_reference, DuplicationProcess
 cross_class_group_actual_fields = ["node=\"class\" kind=\"similar\" locations=\"#{cross_class_group_path}:1,#{cross_class_group_path}:10\" mass=50 score=50", "Total duplication score: 50", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
 DuplicationProcess.verify_output(cross_class_group_actual, DuplicationProcess::OutputExpectation.new(2, cross_class_group_actual_fields, "cross-class Flay group differed"))
 
+modules_inside_classes_path = "test/fixtures/duplication_modules_inside_sibling_classes.rb"
+modules_inside_classes_actual = DuplicationProcess.run(DuplicationProcess::Input.new(modules_inside_classes_path, "fleek", ""))
+modules_inside_classes_reference = DuplicationProcess.run(DuplicationProcess::Input.new(modules_inside_classes_path, "flay", ""))
+modules_inside_classes_fields = ["node=\"class\" kind=\"similar\" locations=\"#{modules_inside_classes_path}:1,#{modules_inside_classes_path}:12\" mass=52 score=52", "Total duplication score: 52", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+modules_inside_classes_reference_fields = ["Similar code found in :class (mass = 52)", "#{modules_inside_classes_path}:1", "#{modules_inside_classes_path}:12", "Total score (lower is better) = 52"]
+DuplicationProcess.verify_output(modules_inside_classes_actual, DuplicationProcess::OutputExpectation.new(2, modules_inside_classes_fields, "module scopes inside sibling classes differed"))
+DuplicationProcess.verify_output(modules_inside_classes_reference, DuplicationProcess::OutputExpectation.new(0, modules_inside_classes_reference_fields, "module scopes inside sibling classes changed in Flay"))
+
 nested_class_sibling_path = "test/fixtures/duplication_nested_class_sibling_wrappers.rb"
 nested_class_sibling_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_class_sibling_path, "fleek", ""))
 nested_class_sibling_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_class_sibling_path, "flay", ""))
@@ -409,7 +417,24 @@ ten_level_module_reference_fields = ["Similar code found in :module (mass = 50)"
 DuplicationProcess.verify_output(ten_level_module_reference, DuplicationProcess::OutputExpectation.new(0, ten_level_module_reference_fields, "ten-level Flay module group changed"))
 
 DuplicationProcess.verify_nested_scope_depth(DuplicationProcess::NestedScopeInput.new("module", 64, "Left", "alpha"))
-DuplicationProcess.verify_nested_scope_depth(DuplicationProcess::NestedScopeInput.new("class", 64, "Current", "current"))
+DuplicationProcess.verify_nested_scope_depth(DuplicationProcess::NestedScopeInput.new("class", 64, "Left", "alpha"))
+
+mixed_scope_kinds_path = "test/fixtures/duplication_mixed_scope_kinds.rb"
+mixed_scope_kinds_actual = DuplicationProcess.run(DuplicationProcess::Input.new(mixed_scope_kinds_path, "fleek", ""))
+mixed_scope_kinds_reference = DuplicationProcess.run(DuplicationProcess::Input.new(mixed_scope_kinds_path, "flay", ""))
+mixed_scope_kinds_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{mixed_scope_kinds_path}:3,#{mixed_scope_kinds_path}:14\" mass=48 score=48", "Total duplication score: 48", "Status: findings"]
+mixed_scope_kinds_reference_fields = ["Similar code found in :defn (mass = 48)", "#{mixed_scope_kinds_path}:3", "#{mixed_scope_kinds_path}:14", "Total score (lower is better) = 48"]
+DuplicationProcess.verify_output(mixed_scope_kinds_actual, DuplicationProcess::OutputExpectation.new(2, mixed_scope_kinds_fields, "mixed class and module scopes were grouped incorrectly"))
+DuplicationProcess.verify(!mixed_scope_kinds_actual[1].include?("node=\"class\""), "different class and module scope shapes formed a class group")
+DuplicationProcess.verify_output(mixed_scope_kinds_reference, DuplicationProcess::OutputExpectation.new(0, mixed_scope_kinds_reference_fields, "mixed scope Flay reference changed"))
+
+namespace_class_modules_path = "test/fixtures/duplication_namespace_classes_containing_modules.rb"
+namespace_class_modules_actual = DuplicationProcess.run(DuplicationProcess::Input.new(namespace_class_modules_path, "fleek", ""))
+namespace_class_modules_reference = DuplicationProcess.run(DuplicationProcess::Input.new(namespace_class_modules_path, "flay", ""))
+namespace_class_modules_fields = ["node=\"module\" kind=\"similar\" locations=\"#{namespace_class_modules_path}:1,#{namespace_class_modules_path}:14\" mass=54 score=54", "Total duplication score: 54", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+namespace_class_modules_reference_fields = ["Similar code found in :module (mass = 54)", "#{namespace_class_modules_path}:1", "#{namespace_class_modules_path}:14", "Total score (lower is better) = 54"]
+DuplicationProcess.verify_output(namespace_class_modules_actual, DuplicationProcess::OutputExpectation.new(2, namespace_class_modules_fields, "namespace class-with-module scope parity differed"))
+DuplicationProcess.verify_output(namespace_class_modules_reference, DuplicationProcess::OutputExpectation.new(0, namespace_class_modules_reference_fields, "namespace class-with-module Flay reference changed"))
 
 nested_namespace_class_path = "test/fixtures/duplication_nested_namespace_class_group.rb"
 nested_namespace_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_namespace_class_path, "fleek", ""))
@@ -618,118 +643,6 @@ qualified_namespace_depth_fields = {first_group: "Group: check=\"flay:Structural
 DuplicationProcess.verify_output(qualified_namespace_depth_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_depth_fields, "qualified-namespace depth boundary differed"))
 qualified_namespace_depth_reference_fields = "Similar code found in :module (mass = 68)|#{qualified_namespace_depth_path}:23|#{qualified_namespace_depth_path}:34|Similar code found in :module (mass = 66)|#{qualified_namespace_depth_path}:1|#{qualified_namespace_depth_path}:12|Total score (lower is better) = 134".split("|")
 DuplicationProcess.verify_output(qualified_namespace_depth_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_depth_reference_fields, "qualified-namespace depth Flay groups changed"))
-
-qualified_namespace_eight_path = "test/fixtures/duplication_qualified_namespace_eight_components.rb"
-qualified_namespace_eight_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_eight_path, "fleek", ""))
-qualified_namespace_eight_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_eight_path, "flay", ""))
-qualified_namespace_eight_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_eight_path}:1,#{qualified_namespace_eight_path}:12\" mass=68 score=68", "Total duplication score: 68", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_eight_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_eight_fields, "eight-component qualified module class group differed"))
-qualified_namespace_eight_reference_fields = ["Similar code found in :module (mass = 68)", "#{qualified_namespace_eight_path}:1", "#{qualified_namespace_eight_path}:12", "Total score (lower is better) = 68"]
-DuplicationProcess.verify_output(qualified_namespace_eight_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_eight_reference_fields, "eight-component qualified module Flay group changed"))
-
-qualified_namespace_nine_path = "test/fixtures/duplication_qualified_namespace_nine_components.rb"
-qualified_namespace_nine_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_nine_path, "fleek", ""))
-qualified_namespace_nine_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_nine_path, "flay", ""))
-qualified_namespace_nine_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_nine_path}:1,#{qualified_namespace_nine_path}:12\" mass=70 score=70", "Total duplication score: 70", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_nine_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_nine_fields, "nine-component qualified module class group differed"))
-qualified_namespace_nine_reference_fields = ["Similar code found in :module (mass = 70)", "#{qualified_namespace_nine_path}:1", "#{qualified_namespace_nine_path}:12", "Total score (lower is better) = 70"]
-DuplicationProcess.verify_output(qualified_namespace_nine_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_nine_reference_fields, "nine-component qualified module Flay group changed"))
-
-qualified_namespace_ten_path = "test/fixtures/duplication_qualified_namespace_ten_components.rb"
-qualified_namespace_ten_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_ten_path, "fleek", ""))
-qualified_namespace_ten_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_ten_path, "flay", ""))
-qualified_namespace_ten_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_ten_path}:1,#{qualified_namespace_ten_path}:12\" mass=72 score=72", "Total duplication score: 72", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_ten_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_ten_fields, "ten-component qualified module class group differed"))
-qualified_namespace_ten_reference_fields = ["Similar code found in :module (mass = 72)", "#{qualified_namespace_ten_path}:1", "#{qualified_namespace_ten_path}:12", "Total score (lower is better) = 72"]
-DuplicationProcess.verify_output(qualified_namespace_ten_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_ten_reference_fields, "ten-component qualified module Flay reference changed"))
-
-qualified_namespace_eleven_path = "test/fixtures/duplication_qualified_namespace_eleven_components.rb"
-qualified_namespace_eleven_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_eleven_path, "fleek", ""))
-qualified_namespace_eleven_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_eleven_path, "flay", ""))
-qualified_namespace_eleven_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_eleven_path}:1,#{qualified_namespace_eleven_path}:12\" mass=74 score=74", "Total duplication score: 74", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_eleven_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_eleven_fields, "eleven-component qualified module class group differed"))
-qualified_namespace_eleven_reference_fields = ["Similar code found in :module (mass = 74)", "#{qualified_namespace_eleven_path}:1", "#{qualified_namespace_eleven_path}:12", "Total score (lower is better) = 74"]
-DuplicationProcess.verify_output(qualified_namespace_eleven_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_eleven_reference_fields, "eleven-component qualified module Flay reference changed"))
-
-qualified_namespace_twelve_path = "test/fixtures/duplication_qualified_namespace_twelve_components.rb"
-qualified_namespace_twelve_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_twelve_path, "fleek", ""))
-qualified_namespace_twelve_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_twelve_path, "flay", ""))
-qualified_namespace_twelve_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_twelve_path}:1,#{qualified_namespace_twelve_path}:12\" mass=76 score=76", "Total duplication score: 76", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_twelve_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_twelve_fields, "twelve-component qualified module class group differed"))
-qualified_namespace_twelve_reference_fields = ["Similar code found in :module (mass = 76)", "#{qualified_namespace_twelve_path}:1", "#{qualified_namespace_twelve_path}:12", "Total score (lower is better) = 76"]
-DuplicationProcess.verify_output(qualified_namespace_twelve_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_twelve_reference_fields, "twelve-component qualified module Flay reference changed"))
-
-qualified_namespace_thirteen_path = "test/fixtures/duplication_qualified_namespace_thirteen_components.rb"
-qualified_namespace_thirteen_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_thirteen_path, "fleek", ""))
-qualified_namespace_thirteen_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_thirteen_path, "flay", ""))
-qualified_namespace_thirteen_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_thirteen_path}:1,#{qualified_namespace_thirteen_path}:12\" mass=78 score=78", "Total duplication score: 78", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_thirteen_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_thirteen_fields, "thirteen-component qualified module class group differed"))
-qualified_namespace_thirteen_reference_fields = ["Similar code found in :module (mass = 78)", "#{qualified_namespace_thirteen_path}:1", "#{qualified_namespace_thirteen_path}:12", "Total score (lower is better) = 78"]
-DuplicationProcess.verify_output(qualified_namespace_thirteen_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_thirteen_reference_fields, "thirteen-component qualified module Flay reference changed"))
-
-qualified_namespace_fourteen_path = "test/fixtures/duplication_qualified_namespace_fourteen_components.rb"
-qualified_namespace_fourteen_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_fourteen_path, "fleek", ""))
-qualified_namespace_fourteen_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_fourteen_path, "flay", ""))
-qualified_namespace_fourteen_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_fourteen_path}:1,#{qualified_namespace_fourteen_path}:12\" mass=80 score=80", "Total duplication score: 80", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_fourteen_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_fourteen_fields, "fourteen-component qualified module class group differed"))
-qualified_namespace_fourteen_reference_fields = ["Similar code found in :module (mass = 80)", "#{qualified_namespace_fourteen_path}:1", "#{qualified_namespace_fourteen_path}:12", "Total score (lower is better) = 80"]
-DuplicationProcess.verify_output(qualified_namespace_fourteen_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_fourteen_reference_fields, "fourteen-component qualified module Flay reference changed"))
-
-qualified_namespace_fifteen_path = "test/fixtures/duplication_qualified_namespace_fifteen_components.rb"
-qualified_namespace_fifteen_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_fifteen_path, "fleek", ""))
-qualified_namespace_fifteen_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_fifteen_path, "flay", ""))
-qualified_namespace_fifteen_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_fifteen_path}:1,#{qualified_namespace_fifteen_path}:12\" mass=82 score=82", "Total duplication score: 82", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_fifteen_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_fifteen_fields, "fifteen-component qualified module class group differed"))
-qualified_namespace_fifteen_reference_fields = ["Similar code found in :module (mass = 82)", "#{qualified_namespace_fifteen_path}:1", "#{qualified_namespace_fifteen_path}:12", "Total score (lower is better) = 82"]
-DuplicationProcess.verify_output(qualified_namespace_fifteen_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_fifteen_reference_fields, "fifteen-component qualified module Flay reference changed"))
-
-qualified_namespace_sixteen_path = "test/fixtures/duplication_qualified_namespace_sixteen_components.rb"
-qualified_namespace_sixteen_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_sixteen_path, "fleek", ""))
-qualified_namespace_sixteen_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_sixteen_path, "flay", ""))
-qualified_namespace_sixteen_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_sixteen_path}:1,#{qualified_namespace_sixteen_path}:12\" mass=84 score=84", "Total duplication score: 84", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_sixteen_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_sixteen_fields, "sixteen-component qualified module class group differed"))
-qualified_namespace_sixteen_reference_fields = ["Similar code found in :module (mass = 84)", "#{qualified_namespace_sixteen_path}:1", "#{qualified_namespace_sixteen_path}:12", "Total score (lower is better) = 84"]
-DuplicationProcess.verify_output(qualified_namespace_sixteen_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_sixteen_reference_fields, "sixteen-component qualified module Flay reference changed"))
-
-qualified_namespace_seventeen_path = "test/fixtures/duplication_qualified_namespace_seventeen_components.rb"
-qualified_namespace_seventeen_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_seventeen_path, "fleek", ""))
-qualified_namespace_seventeen_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_seventeen_path, "flay", ""))
-qualified_namespace_seventeen_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_seventeen_path}:1,#{qualified_namespace_seventeen_path}:12\" mass=86 score=86", "Total duplication score: 86", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_seventeen_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_seventeen_fields, "seventeen-component qualified module class group differed"))
-qualified_namespace_seventeen_reference_fields = ["Similar code found in :module (mass = 86)", "#{qualified_namespace_seventeen_path}:1", "#{qualified_namespace_seventeen_path}:12", "Total score (lower is better) = 86"]
-DuplicationProcess.verify_output(qualified_namespace_seventeen_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_seventeen_reference_fields, "seventeen-component qualified module Flay reference changed"))
-
-qualified_namespace_eighteen_path = "test/fixtures/duplication_qualified_namespace_eighteen_components.rb"
-qualified_namespace_eighteen_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_eighteen_path, "fleek", ""))
-qualified_namespace_eighteen_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_eighteen_path, "flay", ""))
-qualified_namespace_eighteen_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_eighteen_path}:1,#{qualified_namespace_eighteen_path}:12\" mass=88 score=88", "Total duplication score: 88", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_eighteen_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_eighteen_fields, "eighteen-component qualified module class group differed"))
-qualified_namespace_eighteen_reference_fields = ["Similar code found in :module (mass = 88)", "#{qualified_namespace_eighteen_path}:1", "#{qualified_namespace_eighteen_path}:12", "Total score (lower is better) = 88"]
-DuplicationProcess.verify_output(qualified_namespace_eighteen_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_eighteen_reference_fields, "eighteen-component qualified module Flay reference changed"))
-
-qualified_namespace_nineteen_path = "test/fixtures/duplication_qualified_namespace_nineteen_components.rb"
-qualified_namespace_nineteen_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_nineteen_path, "fleek", ""))
-qualified_namespace_nineteen_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_nineteen_path, "flay", ""))
-qualified_namespace_nineteen_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_nineteen_path}:1,#{qualified_namespace_nineteen_path}:12\" mass=90 score=90", "Total duplication score: 90", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_nineteen_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_nineteen_fields, "nineteen-component qualified module class group differed"))
-qualified_namespace_nineteen_reference_fields = ["Similar code found in :module (mass = 90)", "#{qualified_namespace_nineteen_path}:1", "#{qualified_namespace_nineteen_path}:12", "Total score (lower is better) = 90"]
-DuplicationProcess.verify_output(qualified_namespace_nineteen_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_nineteen_reference_fields, "nineteen-component qualified module Flay reference changed"))
-
-qualified_namespace_twenty_path = "test/fixtures/duplication_qualified_namespace_twenty_components.rb"
-qualified_namespace_twenty_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_twenty_path, "fleek", ""))
-qualified_namespace_twenty_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_twenty_path, "flay", ""))
-qualified_namespace_twenty_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_twenty_path}:1,#{qualified_namespace_twenty_path}:12\" mass=92 score=92", "Total duplication score: 92", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_twenty_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_twenty_fields, "twenty-component qualified module class group differed"))
-qualified_namespace_twenty_reference_fields = ["Similar code found in :module (mass = 92)", "#{qualified_namespace_twenty_path}:1", "#{qualified_namespace_twenty_path}:12", "Total score (lower is better) = 92"]
-DuplicationProcess.verify_output(qualified_namespace_twenty_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_twenty_reference_fields, "twenty-component qualified module Flay reference changed"))
-
-qualified_namespace_twenty_one_path = "test/fixtures/duplication_qualified_namespace_twenty_one_components.rb"
-qualified_namespace_twenty_one_actual = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_twenty_one_path, "fleek", ""))
-qualified_namespace_twenty_one_reference = DuplicationProcess.run(DuplicationProcess::Input.new(qualified_namespace_twenty_one_path, "flay", ""))
-qualified_namespace_twenty_one_fields = ["node=\"module\" kind=\"similar\" locations=\"#{qualified_namespace_twenty_one_path}:1,#{qualified_namespace_twenty_one_path}:12\" mass=94 score=94", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(qualified_namespace_twenty_one_actual, DuplicationProcess::OutputExpectation.new(2, qualified_namespace_twenty_one_fields, "twenty-one-component qualified module class group differed"))
-qualified_namespace_twenty_one_reference_fields = ["Similar code found in :module (mass = 94)", "#{qualified_namespace_twenty_one_path}:1", "#{qualified_namespace_twenty_one_path}:12", "Total score (lower is better) = 94"]
-DuplicationProcess.verify_output(qualified_namespace_twenty_one_reference, DuplicationProcess::OutputExpectation.new(0, qualified_namespace_twenty_one_reference_fields, "twenty-one-component qualified module Flay reference changed"))
 
 clean_scope_path = "test/fixtures/duplication_class_scopes_clean.rb"
 clean_scope_actual = DuplicationProcess.run(DuplicationProcess::Input.new(clean_scope_path, "fleek", ""))

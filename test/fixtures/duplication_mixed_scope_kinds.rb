@@ -1,6 +1,6 @@
-module Current::Api::V1::Versioned::Feeds::V2::Read::V3::Internal::Adapter::Backend::Gateway
-  class Feed
-    def current
+class CurrentFeed
+  module Renderer
+    def render_feed
       @heading = "Current"
       @stream = Stream.open(params[:token])
       @entries = @stream.current.list(limit: params[:limit])
@@ -9,9 +9,9 @@ module Current::Api::V1::Versioned::Feeds::V2::Read::V3::Internal::Adapter::Back
   end
 end
 
-module Archived::Api::V1::Versioned::Feeds::V2::Read::V3::Internal::Adapter::Backend::Gateway
-  class Feed
-    def archived
+class ArchivedFeed
+  class Renderer
+    def render_feed
       @heading = "Archived"
       @stream = Stream.open(params[:token])
       @entries = @stream.archived.list(limit: params[:limit])
