@@ -128,11 +128,17 @@ class CheckRunner
   end
 
   def configure_mutation_shard(directory, task)
+    clear_mutation_reference_cache(directory)
     path = "#{directory}/test/mutation_contract.rb"
     source = File.read(path)
     source = source.gsub("MUTATION_SHARD = nil", "MUTATION_SHARD = #{task[1]}")
     source = source.gsub("MUTATION_SHARDS = nil", "MUTATION_SHARDS = #{@jobs}")
     File.write(path, source)
+  end
+
+  def clear_mutation_reference_cache(directory)
+    path = "#{directory}/build/mutation-reference-cache"
+    cleanup_paths([path], "copied mutation reference cache") if Dir.exist?(path)
   end
 
   def namespace_temporary_paths(directory, serial)

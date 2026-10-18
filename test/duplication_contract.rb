@@ -2,8 +2,18 @@ require_relative "analysis_runner"
 
 # Compares the first structural grouping slice with locked Flay output.
 class DuplicationProcess
+  def self.temporary_path(name)
+    "#{ENV["FLEEK_TEMP_ROOT"] || "/tmp"}/#{name}"
+  end
+
+  def self.capture_paths(tool)
+    OutputPaths.new(temporary_path("#{tool}-duplication-out"), temporary_path("#{tool}-duplication-err"))
+  end
+
   # Describes one source invocation and its optional Fleek arguments.
   Input = Struct.new(:path, :tool, :option, :value)
+  # Carries stdout and stderr destinations for one subprocess.
+  OutputPaths = Struct.new(:output, :error)
   # Describes the expected output status and required fields.
   OutputExpectation = Struct.new(:status, :fields, :message)
   # Carries one generated CLI input shape and source identity.
@@ -77,7 +87,7 @@ class DuplicationProcess
   def self.verify_nested_scope_depth(input)
     kind = input.kind
     levels = input.levels
-    path = "/tmp/fleek-generated-#{kind}-depth-#{levels}-#{Process.pid}.rb"
+    path = temporary_path("fleek-generated-#{kind}-depth-#{levels}.rb")
     second = NestedScopeInput.new(kind, levels, "Right", "beta")
     File.write(path, nested_scope_source(input) + nested_scope_source(second))
     actual = run(Input.new(path, "fleek", ""))
@@ -91,73 +101,104 @@ class DuplicationProcess
     File.delete(path) if path && File.file?(path)
   end
 
+  # :reek:TooManyStatements
   def self.run_fleek(path, option, value)
+    paths = capture_paths("fleek")
+    output = paths.output
+    error = paths.error
     process_id = if option.empty?
-                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", path, out: "/tmp/fleek-duplication-out", err: "/tmp/fleek-duplication-err")
+                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", path, out: output, err: error)
                  elsif option == "--mass"
-                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", "--mass", value.to_s, path, out: "/tmp/fleek-duplication-out", err: "/tmp/fleek-duplication-err")
+                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", "--mass", value.to_s, path, out: output, err: error)
                  else
-                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", option, path, out: "/tmp/fleek-duplication-out", err: "/tmp/fleek-duplication-err")
+                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", option, path, out: output, err: error)
                  end
-    AnalysisRunner.observe(process_id, "/tmp/fleek-duplication-out", "/tmp/fleek-duplication-err")
+    AnalysisRunner.observe(process_id, output, error)
   end
 
   def self.run_flay(path)
-    bundle = ENV["BUNDLE"] || "bundle"
-    run_reference(reference_key("single", path)) do
-      process_id = Process.spawn(bundle, "exec", "flay", path, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
-      AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
-    end
+    run_flay_reference("single", [path])
   end
 
   def self.run_flay_with_mass(path, mass)
-    bundle = ENV["BUNDLE"] || "bundle"
-    run_reference(reference_key("mass-#{mass}", path)) do
-      process_id = Process.spawn(bundle, "exec", "flay", "--mass", mass.to_s, path, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
-      AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
-    end
+    run_flay_reference("mass-#{mass}", ["--mass", mass.to_s, path])
   end
 
   def self.run_flay_with_liberal(path)
-    bundle = ENV["BUNDLE"] || "bundle"
-    run_reference(reference_key("liberal", path)) do
-      process_id = Process.spawn(bundle, "exec", "flay", "--liberal", path, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
-      AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
-    end
+    run_flay_reference("liberal", ["--liberal", path])
   end
 
   def self.run_fleek_pair(first, second)
     run_fleek_sources(first, second, "")
   end
 
+  # :reek:TooManyStatements
   def self.run_fleek_sources(first, second, third)
+    paths = capture_paths("fleek")
+    output = paths.output
+    error = paths.error
     process_id = if third.empty?
-                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", first, second, out: "/tmp/fleek-duplication-out", err: "/tmp/fleek-duplication-err")
+                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", first, second, out: output, err: error)
                  else
-                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", first, second, third, out: "/tmp/fleek-duplication-out", err: "/tmp/fleek-duplication-err")
+                   Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", first, second, third, out: output, err: error)
                  end
-    AnalysisRunner.observe(process_id, "/tmp/fleek-duplication-out", "/tmp/fleek-duplication-err")
+    AnalysisRunner.observe(process_id, output, error)
   end
 
   def self.run_flay_pair(first, second)
-    bundle = ENV["BUNDLE"] || "bundle"
-    run_reference(reference_key("pair", first, second)) do
-      process_id = Process.spawn(bundle, "exec", "flay", first, second, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
-      AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
-    end
+    run_flay_reference("pair", [first, second])
   end
 
+  def self.run_flay_reference(kind, arguments)
+    verify_flay_source_paths(kind, *arguments)
+    bundle = ENV["BUNDLE"] || "bundle"
+    run_reference(flay_reference_key(kind, arguments)) { run_flay_process(bundle, arguments) }
+  end
+
+  def self.flay_reference_key(kind, arguments)
+    reference_key(kind, arguments.map { |argument| "#{argument.length}:#{argument}" }.join)
+  end
+
+  def self.run_flay_process(bundle, arguments)
+    paths = capture_paths("flay")
+    process_id = spawn_flay(bundle, arguments, paths)
+    AnalysisRunner.observe(process_id, paths.output, paths.error)
+  end
+
+  # :reek:TooManyStatements
+  def self.spawn_flay(bundle, arguments, paths)
+    count = arguments.length
+    first = arguments[0]
+    second = arguments[1]
+    third = arguments[2]
+    output = paths.output
+    error = paths.error
+    return Process.spawn(bundle, "exec", "flay", first, out: output, err: error) if count == 1
+    return Process.spawn(bundle, "exec", "flay", first, second, out: output, err: error) if count == 2
+
+    Process.spawn(bundle, "exec", "flay", first, second, third, out: output, err: error)
+  end
+
+  # :reek:TooManyStatements
   def self.run_reference(key)
     cache_path = reference_cache_path(key)
-    return read_reference_cache(cache_path) if cache_path && File.file?("#{cache_path}.status")
+    if cache_path && File.file?("#{cache_path}.status")
+      cached = read_reference_cache(cache_path)
+      return cached.first(3) if cached[3] == key
+    end
 
     result = yield
-    write_reference_cache(cache_path, result) if cache_path
+    write_reference_cache(cache_path, result + [key]) if cache_path
     result
   end
 
   def self.reference_key(kind, first, second = "")
     "#{kind}-#{first.length}:#{first}-#{second.length}:#{second}"
+  end
+
+  def self.verify_flay_source_paths(kind, *paths)
+    invalid = paths.select { |path| !path.is_a?(String) || path.empty? }
+    verify(invalid.empty?, "Flay #{kind} input path was empty: #{paths.inspect}; caller=#{caller(1, 3).join(' <- ')}")
   end
 
   def self.verify_reference_cache_key_boundaries
@@ -170,17 +211,19 @@ class DuplicationProcess
     directory = ENV["FLEEK_REFERENCE_CACHE"]
     return unless directory
 
-    "#{directory}/#{key.gsub("%", "%25").gsub("/", "%2F")}"
+    digest = key.each_byte.reduce(2_166_136_261) { |value, byte| ((value ^ byte) * 16_777_619) & 4_294_967_295 }
+    "#{directory}/#{digest}"
   end
 
   def self.read_reference_cache(path)
-    [Integer(File.read("#{path}.status"), 10), File.read("#{path}.out"), File.read("#{path}.err")]
+    [Integer(File.read("#{path}.status"), 10), File.read("#{path}.out"), File.read("#{path}.err"), File.read("#{path}.key")]
   end
 
   def self.write_reference_cache(path, result)
     File.delete("#{path}.status") if File.file?("#{path}.status")
     File.write("#{path}.out", result[1])
     File.write("#{path}.err", result[2])
+    File.write("#{path}.key", result[3])
     File.write("#{path}.status", result[0].to_s)
   end
 

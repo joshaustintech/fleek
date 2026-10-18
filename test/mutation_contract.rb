@@ -263,11 +263,29 @@ class MutationCase
   end
 
   def verify_shared_contract(executable, contract, directory)
+    verify_shared_binary(executable, contract, directory)
+    verify_worker_directory
+  end
+
+  def verify_shared_binary(executable, contract, directory)
     expected_directory = File.realpath(directory)
     expected_executable = File.realpath("#{expected_directory}/#{File.basename(contract, ".rb")}")
     raise "mutation contract did not reuse shared binary" unless File.realpath(executable) == expected_executable
+    verify_no_shared_duplication_output_paths(expected_directory) if contract == "test/duplication_contract.rb"
+  end
+
+  def verify_worker_directory
     expected_working_directory = File.realpath(ENV.fetch("FLEEK_EXPECTED_WORKING_DIRECTORY"))
     raise "mutation contract worker directory was not isolated" unless Dir.pwd == expected_working_directory
+  end
+
+  # :reek:FeatureEnvy
+  def verify_no_shared_duplication_output_paths(directory)
+    source = File.read("#{directory}/test/duplication_contract.rb")
+    root_helper = source.include?('def self.temporary_path(name)') && source.include?('ENV["FLEEK_TEMP_ROOT"] || "/tmp"')
+    capture_helper = source.include?('def self.capture_paths(tool)') && source.include?('temporary_path("#{tool}-duplication-out")')
+    capture_users = source.include?('capture_paths("fleek")') && source.include?('capture_paths("flay")')
+    raise "shared duplication contract does not isolate capture paths by worker" unless root_helper && capture_helper && capture_users
   end
 
   def verify_contract_temp_root
