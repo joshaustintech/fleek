@@ -94,6 +94,7 @@ class MutationCase
     "Flay total score" => "test/duplication_contract.rb",
     "Flay cross-file method collection" => "test/duplication_contract.rb",
     "Flay top-level method argument calls" => "test/duplication_contract.rb",
+    "Flay top-level required parameters" => "test/duplication_contract.rb",
     "Flay class method candidate collection" => "test/duplication_contract.rb",
     "Flay class method array expression" => "test/duplication_array_expression_contract.rb",
     "Flay class method hash expression" => "test/duplication_hash_expression_contract.rb",
@@ -812,7 +813,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "text report completion state",
   "finding result missing")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "bool same_shape = fleek_duplication_class_shapes_equal(&first_method, &second_method);",
+  "bool same_shape = fleek_duplication_class_shapes_equal(&first_method, &second_method) &&\n        fleek_duplication_optional_parameter_count(first) == fleek_duplication_optional_parameter_count(second);",
   "bool same_shape = false;",
   "Flay structural equality",
   "similar method group report differed")).run
@@ -842,10 +843,10 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method candidate collection",
   "unsupported syntax implied complete analysis")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "method->receiver != NULL || !fleek_duplication_class_parameters((const pm_node_t *) method->parameters, result)",
-  "method->receiver != NULL || method->parameters != NULL || !fleek_duplication_class_parameters((const pm_node_t *) method->parameters, result)",
+  "method->receiver != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result)",
+  "method->receiver != NULL || method->parameters != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result)",
   "Flay required parameter candidates",
-  "required-parameter class method parity differed")).run
+  "top-level required-parameter methods differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "return fleek_duplication_collect_namespace_methods(module_node, module_name_count, body, source, set);",
   "return true;",
@@ -995,7 +996,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "parameters->requireds.size + parameters->optionals.size > 8",
   "parameters->requireds.size + parameters->optionals.size > 1",
   "Flay required parameter arity",
-  "parameter-arity class method parity differed")).run
+  "top-level required-parameter methods differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (!PM_NODE_TYPE_P(optional, PM_OPTIONAL_PARAMETER_NODE) ||",
   "if (true ||",
@@ -1027,7 +1028,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay optional parameter count",
   "optional-parameter count mismatch was grouped")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "fleek_duplication_class_parameters_equal(parser, first, second) &&",
+  "fleek_duplication_method_parameters_equal(parser, first, second) &&",
   "true &&",
   "Flay required parameter identity",
   "parameter-name class method parity differed")).run
@@ -1226,6 +1227,11 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "if (false) {",
   "Flay top-level method argument calls",
   "top-level methods with argument calls differed from Flay")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (method->receiver != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result) ||",
+  "if (method->receiver != NULL || method->parameters != NULL ||",
+  "Flay top-level required parameters",
+  "top-level required-parameter methods differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   '["--mass", "--only", "--liberal"].include?(argument)',
   '["--only", "--liberal"].include?(argument)',

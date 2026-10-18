@@ -278,6 +278,28 @@ DuplicationProcess.verify_output(argument_calls_reference, DuplicationProcess::O
 DuplicationProcess.verify_output(argument_calls, DuplicationProcess::OutputExpectation.new(2, argument_calls_fields,
   "top-level methods with argument calls differed from Flay"))
 
+required_parameters_path = "test/fixtures/duplication_methods_required_parameters.rb"
+required_parameters = DuplicationProcess.run(DuplicationProcess::Input.new(required_parameters_path, "fleek", "--mass", 3))
+required_parameters_reference = DuplicationProcess.run(DuplicationProcess::Input.new(required_parameters_path, "flay", "--mass", 3))
+required_parameters_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{required_parameters_path}:1,#{required_parameters_path}:6\" mass=14 score=14",
+  "Total duplication score: 14", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+required_parameters_reference_fields = ["Similar code found in :defn (mass = 14)", "#{required_parameters_path}:1", "#{required_parameters_path}:6", "Total score (lower is better) = 14"]
+DuplicationProcess.verify_output(required_parameters_reference, DuplicationProcess::OutputExpectation.new(0, required_parameters_reference_fields,
+  "Flay required-parameter method reference changed"))
+DuplicationProcess.verify_output(required_parameters, DuplicationProcess::OutputExpectation.new(2, required_parameters_fields,
+  "top-level required-parameter methods differed from Flay"))
+
+required_arities_path = "test/fixtures/duplication_methods_required_parameter_arities.rb"
+required_arities = DuplicationProcess.run(DuplicationProcess::Input.new(required_arities_path, "fleek", "--mass", 3))
+required_arities_reference = DuplicationProcess.run(DuplicationProcess::Input.new(required_arities_path, "flay", "--mass", 3))
+required_arities_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{required_arities_path}:1,#{required_arities_path}:6\" mass=12 score=12",
+  "Total duplication score: 12", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+required_arities_reference_fields = ["Similar code found in :defn (mass = 12)", "#{required_arities_path}:1", "#{required_arities_path}:6", "Total score (lower is better) = 12"]
+DuplicationProcess.verify_output(required_arities_reference, DuplicationProcess::OutputExpectation.new(0, required_arities_reference_fields,
+  "Flay required-arity method reference changed"))
+DuplicationProcess.verify_output(required_arities, DuplicationProcess::OutputExpectation.new(2, required_arities_fields,
+  "top-level methods with different required arities differed from Flay"))
+
 identical_path = "test/fixtures/duplication_identical.rb"
 identical = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "fleek", ""))
 identical_reference = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "flay", ""))

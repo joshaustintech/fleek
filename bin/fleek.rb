@@ -2438,7 +2438,7 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_TRUE_NODE) ||
         PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE);
     }
-    static bool fleek_duplication_class_parameters(const pm_node_t *node, fleek_duplication_method_t *result) {
+    static bool fleek_duplication_method_parameters(const pm_node_t *node, fleek_duplication_method_t *result) {
       if (node == NULL) return true;
       if (!PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE)) return false;
       const pm_parameters_node_t *parameters = (const pm_parameters_node_t *) node;
@@ -2457,7 +2457,7 @@ class Fleek
       if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       result->parameter_mass = 0;
-      if (method->receiver != NULL || !fleek_duplication_class_parameters((const pm_node_t *) method->parameters, result) || method->body == NULL || method->equal_loc.start != NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
+      if (method->receiver != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result) || method->body == NULL || method->equal_loc.start != NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
       fleek_duplication_ast_t ast = { result, false, NULL };
       fleek_duplication_collect_class_node(method->body, &ast);
       if (ast.overflow || result->shape_count == 0) return false;
@@ -2546,7 +2546,7 @@ class Fleek
     static size_t fleek_duplication_optional_parameter_count(const pm_def_node_t *method) {
       return method->parameters == NULL ? 0 : ((const pm_parameters_node_t *) method->parameters)->optionals.size;
     }
-    static bool fleek_duplication_class_parameters_equal(pm_parser_t *parser, const pm_def_node_t *left, const pm_def_node_t *right) {
+    static bool fleek_duplication_method_parameters_equal(pm_parser_t *parser, const pm_def_node_t *left, const pm_def_node_t *right) {
       if (left->parameters == NULL || right->parameters == NULL) return left->parameters == right->parameters;
       const pm_parameters_node_t *left_parameters = (const pm_parameters_node_t *) left->parameters;
       const pm_parameters_node_t *right_parameters = (const pm_parameters_node_t *) right->parameters;
@@ -2585,7 +2585,9 @@ class Fleek
     static bool fleek_duplication_method(const pm_node_t *node, const uint8_t *source, fleek_duplication_method_t *result) {
       if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver != NULL || method->parameters != NULL || method->body == NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
+      result->parameter_mass = 0;
+      if (method->receiver != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result) ||
+          method->body == NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
       fleek_duplication_ast_t ast = { result, false, NULL };
       fleek_duplication_collect_class_node(method->body, &ast);
       if (ast.overflow || result->shape_count == 0) return false;
@@ -3084,7 +3086,7 @@ class Fleek
         }
       }
       return fleek_constants_equal(parser, first->name, second->name) &&
-        fleek_duplication_class_parameters_equal(parser, first, second) &&
+        fleek_duplication_method_parameters_equal(parser, first, second) &&
         fleek_duplication_class_values_equal(parser, &set->candidates[left], &set->candidates[right]);
     }
     static bool fleek_duplication_has_partial_subtree(const fleek_duplication_class_candidates_t *set, int mass_threshold) {
@@ -3198,6 +3200,7 @@ class Fleek
     static bool fleek_duplication_methods_identical(pm_parser_t *parser, const pm_def_node_t *left, const pm_def_node_t *right,
         const fleek_duplication_method_t *left_method, const fleek_duplication_method_t *right_method) {
       return fleek_constants_equal(parser, left->name, right->name) &&
+        fleek_duplication_method_parameters_equal(parser, left, right) &&
         fleek_duplication_class_values_equal(parser, left_method, right_method);
     }
 
@@ -3305,7 +3308,8 @@ class Fleek
       const pm_def_node_t *first = methods[0];
       const pm_def_node_t *second = methods[1];
       size_t mass = fleek_duplication_class_method_mass(&first_method);
-      bool same_shape = fleek_duplication_class_shapes_equal(&first_method, &second_method);
+      bool same_shape = fleek_duplication_class_shapes_equal(&first_method, &second_method) &&
+        fleek_duplication_optional_parameter_count(first) == fleek_duplication_optional_parameter_count(second);
       bool identical = same_shape && fleek_duplication_methods_identical(&parser, first, second, &first_method, &second_method);
       if (same_shape && mass >= (size_t) mass_threshold) {
         int lines[2] = { first_method.line, second_method.line };

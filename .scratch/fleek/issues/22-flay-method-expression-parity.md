@@ -17,4 +17,4 @@
 
 ## Answer
 
-Implementation is in progress. Array and keyword-hash literals are supported in class-method candidate trees. Top-level parameterless methods now use the same bounded normalized AST tree for grouping, mass, and identity, matching Flay on calls with arguments (mass/score 16) and Ruby 4 logical-and shapes. Pinned CLI contracts and mutations cover these paths. Other method forms remain in progress; see ADR 0110.
+Implementation is in progress. Array and keyword-hash literals are supported in class-method candidate trees. Top-level methods now use the same bounded AST tree and positional-parameter rules, matching Flay on calls with arguments (mass/score 16), required parameters (mass/score 14), and Ruby 4 logical-and shapes. Pinned CLI contracts and focused mutations cover these paths. Other method forms remain in progress; see ADR 0110.
