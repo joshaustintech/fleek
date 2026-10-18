@@ -95,12 +95,16 @@ unsupported_and_path = "/tmp/fleek-ruby4-unsupported-and.rb"
 unsupported_and_source = File.read(ruby4_duplication_path).gsub("42\n    &&", "call_13\n    &&").gsub("43\n    &&", "call_13\n    &&")
 File.write(unsupported_and_path, unsupported_and_source)
 unsupported_and = AnalysisRunner.fleek_with_check("flay:StructuralDuplication", unsupported_and_path)
-raise "unsupported Ruby 4 logical-and operands implied successful analysis" unless unsupported_and[0] == 1 && unsupported_and[1].include?("Status: incomplete")
+unsupported_and_reference = AnalysisRunner.flay(unsupported_and_path)
+LanguageExtensionContract.verify_duplication(unsupported_and, unsupported_and_reference,
+  LanguageExtensionContract::Duplication.new(unsupported_and_path, "similar", 36, 36, 1, 19))
 nonfinal_and_path = "/tmp/fleek-ruby4-nonfinal-and.rb"
 nonfinal_and_source = File.read(ruby4_duplication_path).gsub("    && true\nend", "    && true\n  call_14\nend")
 File.write(nonfinal_and_path, nonfinal_and_source)
 nonfinal_and = AnalysisRunner.fleek_with_check("flay:StructuralDuplication", nonfinal_and_path)
-raise "non-final Ruby 4 logical-and was not rejected as incomplete" unless nonfinal_and[0] == 1 && nonfinal_and[1].include?("Status: incomplete")
+nonfinal_and_reference = AnalysisRunner.flay(nonfinal_and_path)
+LanguageExtensionContract.verify_duplication(nonfinal_and, nonfinal_and_reference,
+  LanguageExtensionContract::Duplication.new(nonfinal_and_path, "similar", 38, 38, 1, 20))
 
 suppressed_path = "test/fixtures/ruby4_suppressed.rb"
 suppressed = AnalysisRunner.fleek(suppressed_path)

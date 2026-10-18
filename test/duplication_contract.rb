@@ -267,6 +267,17 @@ different_reports_clean = different[0] == 0 && different[1].include?("Total dupl
 different_reference_clean = different_reference[0] == 0 && different_reference[1].include?("Total score (lower is better) = 0")
 DuplicationProcess.verify(different_reports_clean && different_reference_clean, "different method shapes were grouped")
 
+argument_calls_path = "test/fixtures/duplication_methods_call_arguments.rb"
+argument_calls = DuplicationProcess.run(DuplicationProcess::Input.new(argument_calls_path, "fleek", "--mass", 3))
+argument_calls_reference = DuplicationProcess.run(DuplicationProcess::Input.new(argument_calls_path, "flay", "--mass", 3))
+argument_calls_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{argument_calls_path}:1,#{argument_calls_path}:7\" mass=16 score=16",
+  "Total duplication score: 16", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+argument_calls_reference_fields = ["Similar code found in :defn (mass = 16)", "#{argument_calls_path}:1", "#{argument_calls_path}:7", "Total score (lower is better) = 16"]
+DuplicationProcess.verify_output(argument_calls_reference, DuplicationProcess::OutputExpectation.new(0, argument_calls_reference_fields,
+  "Flay argument-call method reference changed"))
+DuplicationProcess.verify_output(argument_calls, DuplicationProcess::OutputExpectation.new(2, argument_calls_fields,
+  "top-level methods with argument calls differed from Flay"))
+
 identical_path = "test/fixtures/duplication_identical.rb"
 identical = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "fleek", ""))
 identical_reference = DuplicationProcess.run(DuplicationProcess::Input.new(identical_path, "flay", ""))

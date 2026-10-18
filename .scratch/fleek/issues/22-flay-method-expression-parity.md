@@ -17,4 +17,4 @@
 
 ## Answer
 
-Implementation is in progress. Array and keyword-hash literals are now supported in class-method candidate trees. Paired compiled CLI/Flay contracts match similar class groups at mass/score 40 (lines 1/7) and 62 (lines 1/8). Focused mutations remove each expression-node support; separate association-mass mutation protects Flay's mass rule. ADRs 0104 and 0105 record these boundaries.
+Implementation is in progress. Array and keyword-hash literals are supported in class-method candidate trees. Top-level parameterless methods now use the same bounded normalized AST tree for grouping, mass, and identity, matching Flay on calls with arguments (mass/score 16) and Ruby 4 logical-and shapes. Pinned CLI contracts and mutations cover these paths. Other method forms remain in progress; see ADR 0110.

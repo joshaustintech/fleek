@@ -241,7 +241,6 @@ class Fleek
 
     typedef struct {
       union {
-        int shapes[128];
         struct { const pm_node_t *nodes[128]; uint16_t tree_starts[128]; uint16_t tree_ends[128]; uint8_t node_ends[128]; uint8_t massless_nodes[128]; int16_t tree[256]; size_t tree_count; } ast;
       } data;
       size_t shape_count;
@@ -2392,40 +2391,6 @@ class Fleek
 
     const char *fleek_class_variable_finding(void) { return fleek_finding_buffer; }
 
-    enum { FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT = 0, FLEEK_DUPLICATION_CALL_STATEMENT = 1, FLEEK_DUPLICATION_INTEGER_STATEMENT = 2, FLEEK_DUPLICATION_RUBY4_AND_STATEMENT = 3 };
-
-    static int fleek_duplication_statement_tag(const pm_node_t *node) {
-      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
-        const pm_call_node_t *call = (const pm_call_node_t *) node;
-        if (call->receiver != NULL || call->block != NULL || (call->arguments != NULL && call->arguments->arguments.size != 0)) return FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT;
-        return FLEEK_DUPLICATION_CALL_STATEMENT;
-      }
-      if (PM_NODE_TYPE_P(node, PM_INTEGER_NODE)) return FLEEK_DUPLICATION_INTEGER_STATEMENT;
-      if (PM_NODE_TYPE_P(node, PM_AND_NODE)) {
-        const pm_and_node_t *logical_and = (const pm_and_node_t *) node;
-        if (PM_NODE_TYPE_P(logical_and->left, PM_INTEGER_NODE) && PM_NODE_TYPE_P(logical_and->right, PM_TRUE_NODE)) return FLEEK_DUPLICATION_RUBY4_AND_STATEMENT;
-      }
-      return FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT;
-    }
-
-    static bool fleek_duplication_method(const pm_node_t *node, const uint8_t *source, fleek_duplication_method_t *result) {
-      if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
-      const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver != NULL || method->parameters != NULL || method->body == NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
-      const pm_statements_node_t *body = (const pm_statements_node_t *) method->body;
-      if (body->body.size > 128) return false;
-      result->shape_count = body->body.size;
-      result->line = 1;
-      for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') result->line++;
-      for (size_t statement = 0; statement < body->body.size; statement++) {
-        int tag = fleek_duplication_statement_tag(body->body.nodes[statement]);
-        if (tag == FLEEK_DUPLICATION_UNSUPPORTED_STATEMENT) return false;
-        if (tag == FLEEK_DUPLICATION_RUBY4_AND_STATEMENT && statement + 1 != body->body.size) return false;
-        result->data.shapes[statement] = tag;
-      }
-      return true;
-    }
-
     typedef struct { fleek_duplication_method_t *method; bool overflow; const pm_node_t *parent; } fleek_duplication_ast_t;
     static void fleek_duplication_collect_class_node(const pm_node_t *node, fleek_duplication_ast_t *ast);
     static bool fleek_duplication_collect_class_child(const pm_node_t *node, void *data) {
@@ -2614,6 +2579,18 @@ class Fleek
         if ((PM_NODE_TYPE_P(first, PM_STRING_NODE) || PM_NODE_TYPE_P(first, PM_SYMBOL_NODE)) &&
             !fleek_duplication_optional_defaults_equal(first, second)) return false;
       }
+      return true;
+    }
+
+    static bool fleek_duplication_method(const pm_node_t *node, const uint8_t *source, fleek_duplication_method_t *result) {
+      if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      const pm_def_node_t *method = (const pm_def_node_t *) node;
+      if (method->receiver != NULL || method->parameters != NULL || method->body == NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
+      fleek_duplication_ast_t ast = { result, false, NULL };
+      fleek_duplication_collect_class_node(method->body, &ast);
+      if (ast.overflow || result->shape_count == 0) return false;
+      result->line = 1;
+      for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') result->line++;
       return true;
     }
 
@@ -3218,26 +3195,10 @@ class Fleek
       return left_constant->length == right_constant->length && memcmp(left_constant->start, right_constant->start, left_constant->length) == 0;
     }
 
-    static bool fleek_duplication_methods_identical(pm_parser_t *parser, const pm_def_node_t *left, const pm_def_node_t *right) {
-      if (!fleek_constants_equal(parser, left->name, right->name)) return false;
-      const pm_statements_node_t *left_body = (const pm_statements_node_t *) left->body;
-      const pm_statements_node_t *right_body = (const pm_statements_node_t *) right->body;
-      for (size_t index = 0; index < left_body->body.size; index++) {
-        const pm_node_t *left_statement = left_body->body.nodes[index];
-        const pm_node_t *right_statement = right_body->body.nodes[index];
-        if (PM_NODE_TYPE_P(left_statement, PM_CALL_NODE) && PM_NODE_TYPE_P(right_statement, PM_CALL_NODE)) {
-          if (!fleek_constants_equal(parser, ((const pm_call_node_t *) left_statement)->name, ((const pm_call_node_t *) right_statement)->name)) return false;
-        } else if (PM_NODE_TYPE_P(left_statement, PM_INTEGER_NODE) && PM_NODE_TYPE_P(right_statement, PM_INTEGER_NODE)) {
-          if (pm_integer_compare(&((const pm_integer_node_t *) left_statement)->value, &((const pm_integer_node_t *) right_statement)->value) != 0) return false;
-        } else if (PM_NODE_TYPE_P(left_statement, PM_AND_NODE) && PM_NODE_TYPE_P(right_statement, PM_AND_NODE)) {
-          const pm_and_node_t *left_and = (const pm_and_node_t *) left_statement;
-          const pm_and_node_t *right_and = (const pm_and_node_t *) right_statement;
-          if (pm_integer_compare(&((const pm_integer_node_t *) left_and->left)->value, &((const pm_integer_node_t *) right_and->left)->value) != 0) return false;
-        } else {
-          return false;
-        }
-      }
-      return true;
+    static bool fleek_duplication_methods_identical(pm_parser_t *parser, const pm_def_node_t *left, const pm_def_node_t *right,
+        const fleek_duplication_method_t *left_method, const fleek_duplication_method_t *right_method) {
+      return fleek_constants_equal(parser, left->name, right->name) &&
+        fleek_duplication_class_values_equal(parser, left_method, right_method);
     }
 
     int fleek_structural_duplication(const char *source, size_t length, int mass_threshold, int liberal) {
@@ -3343,13 +3304,9 @@ class Fleek
       }
       const pm_def_node_t *first = methods[0];
       const pm_def_node_t *second = methods[1];
-      size_t mass = 2 + first_method.shape_count + first_method.parameter_mass;
-      for (size_t index = 0; index < first_method.shape_count; index++) {
-        if (first_method.data.shapes[index] == FLEEK_DUPLICATION_RUBY4_AND_STATEMENT) mass += 2;
-      }
-      bool same_shape = first_method.shape_count == second_method.shape_count;
-      for (size_t index = 0; same_shape && index < first_method.shape_count; index++) same_shape = first_method.data.shapes[index] == second_method.data.shapes[index];
-      bool identical = same_shape && fleek_duplication_methods_identical(&parser, first, second);
+      size_t mass = fleek_duplication_class_method_mass(&first_method);
+      bool same_shape = fleek_duplication_class_shapes_equal(&first_method, &second_method);
+      bool identical = same_shape && fleek_duplication_methods_identical(&parser, first, second, &first_method, &second_method);
       if (same_shape && mass >= (size_t) mass_threshold) {
         int lines[2] = { first_method.line, second_method.line };
         if (!fleek_duplication_append_group("defn", identical, mass, lines, 2)) {
