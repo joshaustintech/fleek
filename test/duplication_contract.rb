@@ -344,6 +344,16 @@ modules_inside_classes_reference_fields = ["Similar code found in :class (mass =
 DuplicationProcess.verify_output(modules_inside_classes_actual, DuplicationProcess::OutputExpectation.new(2, modules_inside_classes_fields, "module scopes inside sibling classes differed"))
 DuplicationProcess.verify_output(modules_inside_classes_reference, DuplicationProcess::OutputExpectation.new(0, modules_inside_classes_reference_fields, "module scopes inside sibling classes changed in Flay"))
 
+mixed_sibling_scopes_path = "test/fixtures/duplication_class_mixed_sibling_scopes.rb"
+mixed_sibling_scopes_actual = DuplicationProcess.run(DuplicationProcess::Input.new(mixed_sibling_scopes_path, "fleek", ""))
+mixed_sibling_scopes_reference = DuplicationProcess.run(DuplicationProcess::Input.new(mixed_sibling_scopes_path, "flay", ""))
+mixed_sibling_scope_group = "node=\"class\" kind=\"similar\" locations=\"#{mixed_sibling_scopes_path}:2,#{mixed_sibling_scopes_path}:11\" mass=50 score=50"
+DuplicationProcess.verify(mixed_sibling_scopes_actual[0] == 1 && mixed_sibling_scopes_actual[1].include?(mixed_sibling_scope_group) &&
+  mixed_sibling_scopes_actual[1].include?("Total duplication score: 50") && mixed_sibling_scopes_actual[1].include?("Status: incomplete"),
+  "mixed sibling scopes hid the independent Flay class group")
+mixed_sibling_scopes_reference_fields = ["Similar code found in :class (mass = 50)", "#{mixed_sibling_scopes_path}:2", "#{mixed_sibling_scopes_path}:11", "Total score (lower is better) = 50"]
+DuplicationProcess.verify_output(mixed_sibling_scopes_reference, DuplicationProcess::OutputExpectation.new(0, mixed_sibling_scopes_reference_fields, "mixed sibling scope Flay reference changed"))
+
 nested_class_sibling_path = "test/fixtures/duplication_nested_class_sibling_wrappers.rb"
 nested_class_sibling_actual = DuplicationProcess.run(DuplicationProcess::Input.new(nested_class_sibling_path, "fleek", ""))
 nested_class_sibling_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_class_sibling_path, "flay", ""))
@@ -778,5 +788,11 @@ ambiguous_class_methods = DuplicationProcess.run(DuplicationProcess::Input.new("
 ambiguous_class_methods_path = "test/fixtures/duplication_class_methods_ambiguous.rb"
 ambiguous_class_methods_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{ambiguous_class_methods_path}:2,#{ambiguous_class_methods_path}:19,#{ambiguous_class_methods_path}:36\" mass=48 score=48", "Total duplication score: 48", "File duplication score: \"#{ambiguous_class_methods_path}\" score=48", "Status: findings"]
 DuplicationProcess.verify_output(ambiguous_class_methods, DuplicationProcess::OutputExpectation.new(2, ambiguous_class_methods_fields, "multiple Flay method candidates were not grouped"))
+
+direct_sibling_path = "test/fixtures/duplication_class_direct_and_sibling_methods.rb"
+direct_sibling_actual = DuplicationProcess.run(DuplicationProcess::Input.new(direct_sibling_path, "fleek", ""))
+DuplicationProcess.verify_output(direct_sibling_actual, DuplicationProcess::OutputExpectation.new(1,
+  ["Status: incomplete", "node=\"class\" kind=\"similar\" locations=\"#{direct_sibling_path}:13,#{direct_sibling_path}:22\" mass=50 score=50"],
+  "direct methods beside sibling classes were reported complete"))
 
 puts "Duplication contract: pass"

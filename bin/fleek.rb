@@ -2701,20 +2701,36 @@ class Fleek
         }
         if (body->body.size > 1) {
           bool only_classes = true;
-          for (size_t index = 0; index < body->body.size; index++) if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_CLASS_NODE)) only_classes = false;
-          if (only_classes) {
-            bool wrapped_siblings = true;
-            for (size_t index = 0; index < body->body.size; index++) {
-              const pm_statements_node_t *method_body = NULL;
-              size_t scope_depth = 0;
-              if (!fleek_duplication_scope_leaf_methods(body->body.nodes[index], &method_body, &scope_depth) || scope_depth < 2) wrapped_siblings = false;
+          size_t class_child_count = 0;
+          bool class_siblings_supported = true;
+          bool has_direct_methods = false;
+          for (size_t index = 0; index < body->body.size; index++) {
+            if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_CLASS_NODE)) {
+              only_classes = false;
+              if (PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE)) has_direct_methods = true;
+              if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE)) fleek_duplication_partial = 1;
+              continue;
             }
-            if (collect_nested_sibling_scopes && wrapped_siblings) {
+            class_child_count++;
+            const pm_statements_node_t *method_body = NULL;
+            size_t scope_depth = 0;
+            if (!fleek_duplication_scope_leaf_methods(body->body.nodes[index], &method_body, &scope_depth) || scope_depth == 0) {
+              class_siblings_supported = false;
+            }
+          }
+          if (class_child_count > 1) {
+            if (collect_nested_sibling_scopes) {
+              if (!class_siblings_supported) fleek_duplication_partial = 1;
+              if (has_direct_methods) fleek_duplication_partial = 1;
               for (size_t index = 0; index < body->body.size; index++) {
+                if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_CLASS_NODE)) continue;
                 const pm_class_node_t *nested_class = (const pm_class_node_t *) body->body.nodes[index];
                 const pm_statements_node_t *method_body = NULL;
                 size_t scope_depth = 0;
-                if (!fleek_duplication_scope_leaf_methods((const pm_node_t *) nested_class, &method_body, &scope_depth)) return false;
+                if (!fleek_duplication_scope_leaf_methods((const pm_node_t *) nested_class, &method_body, &scope_depth)) {
+                  fleek_duplication_partial = 1;
+                  continue;
+                }
                 size_t sibling_scope_index = set->scope_count++;
                 size_t first_sibling_candidate = set->count;
                 for (size_t method = 0; method < method_body->body.size; method++) {
@@ -2740,51 +2756,53 @@ class Fleek
               }
               return true;
             }
-            size_t sibling_first_candidate = set->count;
-            bool siblings_complete = true;
-            for (size_t index = 0; index < body->body.size; index++) {
-              const pm_class_node_t *nested_class = (const pm_class_node_t *) body->body.nodes[index];
-              if (!PM_NODE_TYPE_P(nested_class->constant_path, PM_CONSTANT_READ_NODE) || nested_class->body == NULL ||
-                  !PM_NODE_TYPE_P(nested_class->body, PM_STATEMENTS_NODE)) { fleek_duplication_partial = 1; siblings_complete = false; continue; }
-              const pm_statements_node_t *nested_body = (const pm_statements_node_t *) nested_class->body;
-              pm_constant_id_t inner_name = 0;
-              const pm_statements_node_t *method_body = nested_body;
-              bool direct_methods = nested_body->body.size > 0;
-              for (size_t method = 0; method < nested_body->body.size; method++) if (!PM_NODE_TYPE_P(nested_body->body.nodes[method], PM_DEF_NODE)) direct_methods = false;
-              if (!direct_methods && nested_body->body.size == 1 && PM_NODE_TYPE_P(nested_body->body.nodes[0], PM_CLASS_NODE)) {
-                const pm_class_node_t *inner_class = (const pm_class_node_t *) nested_body->body.nodes[0];
-                if (PM_NODE_TYPE_P(inner_class->constant_path, PM_CONSTANT_READ_NODE) && inner_class->body != NULL && PM_NODE_TYPE_P(inner_class->body, PM_STATEMENTS_NODE)) {
-                  method_body = (const pm_statements_node_t *) inner_class->body;
-                  inner_name = ((const pm_constant_read_node_t *) inner_class->constant_path)->name;
+            if (only_classes) {
+              size_t sibling_first_candidate = set->count;
+              bool siblings_complete = true;
+              for (size_t index = 0; index < body->body.size; index++) {
+                const pm_class_node_t *nested_class = (const pm_class_node_t *) body->body.nodes[index];
+                if (!PM_NODE_TYPE_P(nested_class->constant_path, PM_CONSTANT_READ_NODE) || nested_class->body == NULL ||
+                    !PM_NODE_TYPE_P(nested_class->body, PM_STATEMENTS_NODE)) { fleek_duplication_partial = 1; siblings_complete = false; continue; }
+                const pm_statements_node_t *nested_body = (const pm_statements_node_t *) nested_class->body;
+                pm_constant_id_t inner_name = 0;
+                const pm_statements_node_t *method_body = nested_body;
+                bool direct_methods = nested_body->body.size > 0;
+                for (size_t method = 0; method < nested_body->body.size; method++) if (!PM_NODE_TYPE_P(nested_body->body.nodes[method], PM_DEF_NODE)) direct_methods = false;
+                if (!direct_methods && nested_body->body.size == 1 && PM_NODE_TYPE_P(nested_body->body.nodes[0], PM_CLASS_NODE)) {
+                  const pm_class_node_t *inner_class = (const pm_class_node_t *) nested_body->body.nodes[0];
+                  if (PM_NODE_TYPE_P(inner_class->constant_path, PM_CONSTANT_READ_NODE) && inner_class->body != NULL && PM_NODE_TYPE_P(inner_class->body, PM_STATEMENTS_NODE)) {
+                    method_body = (const pm_statements_node_t *) inner_class->body;
+                    inner_name = ((const pm_constant_read_node_t *) inner_class->constant_path)->name;
+                  }
                 }
-              }
-              if (method_body == nested_body && !direct_methods) {
-                fleek_duplication_partial = 1; siblings_complete = false; continue;
-              }
-              if (method_body->body.size == 0) { fleek_duplication_partial = 1; siblings_complete = false; continue; }
-              for (size_t method = 0; method < method_body->body.size; method++) {
-                const pm_node_t *method_node = method_body->body.nodes[method];
-                if (!PM_NODE_TYPE_P(method_node, PM_DEF_NODE) || set->count == 24 || !fleek_duplication_class_method(method_node, source, &set->candidates[set->count])) {
+                if (method_body == nested_body && !direct_methods) {
                   fleek_duplication_partial = 1; siblings_complete = false; continue;
                 }
-                size_t candidate = set->count++;
-                set->methods[candidate] = (const pm_def_node_t *) method_node;
-                set->scope_indices[candidate] = scope_index;
-                set->candidates[candidate].scope_kind = 1;
-                pm_constant_id_t sibling_names[3] = { ((const pm_constant_read_node_t *) class_node->constant_path)->name,
-                  ((const pm_constant_read_node_t *) nested_class->constant_path)->name, inner_name };
-                if (!fleek_duplication_store_scope_names(&set->candidates[candidate], sibling_names, inner_name == 0 ? 2 : 3,
-                    FLEEK_DUPLICATION_CLASS_SCOPE)) return false;
-                set->candidates[candidate].scope_mass = inner_name == 0 ? 1 : 2;
+                if (method_body->body.size == 0) { fleek_duplication_partial = 1; siblings_complete = false; continue; }
+                for (size_t method = 0; method < method_body->body.size; method++) {
+                  const pm_node_t *method_node = method_body->body.nodes[method];
+                  if (!PM_NODE_TYPE_P(method_node, PM_DEF_NODE) || set->count == 24 || !fleek_duplication_class_method(method_node, source, &set->candidates[set->count])) {
+                    fleek_duplication_partial = 1; siblings_complete = false; continue;
+                  }
+                  size_t candidate = set->count++;
+                  set->methods[candidate] = (const pm_def_node_t *) method_node;
+                  set->scope_indices[candidate] = scope_index;
+                  set->candidates[candidate].scope_kind = 1;
+                  pm_constant_id_t sibling_names[3] = { ((const pm_constant_read_node_t *) class_node->constant_path)->name,
+                    ((const pm_constant_read_node_t *) nested_class->constant_path)->name, inner_name };
+                  if (!fleek_duplication_store_scope_names(&set->candidates[candidate], sibling_names, inner_name == 0 ? 2 : 3,
+                      FLEEK_DUPLICATION_CLASS_SCOPE)) return false;
+                  set->candidates[candidate].scope_mass = inner_name == 0 ? 1 : 2;
+                }
               }
+              for (size_t index = sibling_first_candidate; index < set->count; index++) {
+                set->candidates[index].scope_mass++;
+                set->scope_lines[index] = fleek_source_line(source, class_node->base.location.start);
+                set->scope_body_counts[index] = set->count - sibling_first_candidate + (siblings_complete ? 0 : 1);
+                set->scope_candidate_counts[index] = set->count - sibling_first_candidate;
+              }
+              return true;
             }
-            for (size_t index = sibling_first_candidate; index < set->count; index++) {
-              set->candidates[index].scope_mass++;
-              set->scope_lines[index] = fleek_source_line(source, class_node->base.location.start);
-              set->scope_body_counts[index] = set->count - sibling_first_candidate + (siblings_complete ? 0 : 1);
-              set->scope_candidate_counts[index] = set->count - sibling_first_candidate;
-            }
-            return true;
           }
         }
         for (size_t index = 0; index < body->body.size; index++) {

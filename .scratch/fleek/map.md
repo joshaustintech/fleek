@@ -20,6 +20,7 @@
 - Issue 28 removes 13 redundant qualified-path depth fixtures after timing a 42.20 s duplication contract; the retained 21-component boundary and generated 64-level chains passed in 29.41 s. See [ADR 0101](../../docs/adr/0101-prune-redundant-depth-contracts.md).
 - Mutation contract compilation is shared once per run using bounded parallel Spinel batches. Runtime temp roots preserve parallel isolated contract execution. Issue 27 and ADR 0099 record the measured 44.3% full-gate improvement and all 183 caught mutations.
 - Ticket 21 added typed dynamic scope paths so mixed nested class/module candidates retain their structural identity; paired fixtures cover module scopes inside sibling classes and reject mixed-kind class groups. See ADR 0100.
+- Ticket 21 preserves verified class groups from supported sibling classes when an unsupported module, class body, or parent method is also present; output remains incomplete. Paired Flay contracts and focused mutations cover these boundaries. See [ADR 0102](../../docs/adr/0102-preserve-class-groups-beside-unsupported-siblings.md).
 - Native combined Flay/Reek replacement; pinned Spinel compiler; Ruby 4.0 and pinned Spinel source input; standalone macOS arm64 release.
 - Primary test seam: compiled CLI process. Parser feasibility uses a temporary real native probe.
 - Ticket sequence and dependencies in issue bodies; summary: 01 compiler/reference harness → 02 parser → 03–08 smell/input/config/text → 09–12 duplication/combined report → 13–14 language/Rails parity → 18–19 Rails coverage → 15–17 runtime/release.
