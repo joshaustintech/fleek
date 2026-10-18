@@ -450,6 +450,17 @@ DuplicationProcess.verify_output(case_condition_lengths, DuplicationProcess::Out
   ["Total duplication score: 0", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: complete"],
   "differing case-condition lengths were grouped"))
 
+float_expression_path = "test/fixtures/duplication_methods_float_expression.rb"
+float_expression = DuplicationProcess.run(DuplicationProcess::Input.new(float_expression_path, "fleek", "--mass", 3))
+float_expression_reference = DuplicationProcess.run(DuplicationProcess::Input.new(float_expression_path, "flay", "--mass", 3))
+float_expression_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{float_expression_path}:1,#{float_expression_path}:5\" mass=12 score=12",
+  "Total duplication score: 12", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+float_expression_reference_fields = ["Similar code found in :defn (mass = 12)", "#{float_expression_path}:1", "#{float_expression_path}:5", "Total score (lower is better) = 12"]
+DuplicationProcess.verify_output(float_expression_reference, DuplicationProcess::OutputExpectation.new(0, float_expression_reference_fields,
+  "Flay float-expression method reference changed"))
+DuplicationProcess.verify_output(float_expression, DuplicationProcess::OutputExpectation.new(2, float_expression_fields,
+  "top-level methods with float literals differed from Flay"))
+
 conditional_return_path = "test/fixtures/duplication_methods_conditional_return.rb"
 conditional_returns = DuplicationProcess.run(DuplicationProcess::Input.new(conditional_return_path, "fleek", "--mass", 3))
 conditional_return_reference = DuplicationProcess.run(DuplicationProcess::Input.new(conditional_return_path, "flay", "--mass", 3))
