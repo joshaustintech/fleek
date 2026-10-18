@@ -111,6 +111,7 @@ class MutationCase
     "Flay seven-level nested class regression" => "test/duplication_contract.rb",
     "Flay eight-level nested class inclusion" => "test/duplication_contract.rb",
     "Flay nine-level nested class boundary" => "test/duplication_contract.rb",
+    "Flay ten-level nested class boundary" => "test/duplication_contract.rb",
     "Flay nested class sibling mass" => "test/duplication_contract.rb",
     "Flay nested wrapped class siblings" => "test/duplication_contract.rb",
     "Flay nested sibling multi-methods" => "test/duplication_contract.rb",
@@ -811,25 +812,30 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay nested class scope mass",
   "nested-class group was not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 8",
+  "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 9",
   "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 5",
   "Flay six-level nested class regression",
   "six-level nested-class candidates differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 8",
+  "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 9",
   "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 6",
   "Flay seven-level nested class regression",
   "seven-level nested-class candidates differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 8",
+  "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 9",
   "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 7",
   "Flay eight-level nested class inclusion",
   "eight-level nested-class candidates differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 8",
   "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 9",
+  "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 8",
   "Flay nine-level nested class boundary",
-  "nine-level nested-class boundary was treated as complete")).run
+  "nine-level nested-class candidates differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 9",
+  "FLEEK_DUPLICATION_NESTED_CLASS_DEPTH = 10",
+  "Flay ten-level nested class boundary",
+  "ten-level nested-class boundary was treated as complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "set->candidates[candidate].scope_mass = inner_name == 0 ? 1 : 2;",
   "set->candidates[candidate].scope_mass = 0;",

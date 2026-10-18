@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Supersedes [ADR 0079](0079-seven-level-nested-class-candidates.md).
+Superseded by [ADR 0089](0089-nine-level-nested-class-candidates.md). Historical record; its eight-class limit was extended.
 
 ## Context
 
