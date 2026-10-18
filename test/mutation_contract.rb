@@ -247,8 +247,8 @@ class MutationCase
   def verify_contract
     contract = CONTRACTS.fetch(@configuration.label)
     executable = compile_contract(contract)
-    process_id = Process.spawn(executable, out: "/tmp/fleek-mutation-out", err: "/tmp/fleek-mutation-err")
-    _, status = MutationProcess.wait(process_id)
+    Dir.mkdir("build/mutation-reference-cache") unless Dir.exist?("build/mutation-reference-cache")
+    status = MutationProcess.run_contract(executable)
     verify_failure(status)
   end
 
@@ -280,6 +280,13 @@ end
 
 # Waits for isolated mutation build and contract subprocesses.
 class MutationProcess
+  def self.run_contract(executable)
+    process_id = Process.spawn("env", "FLEEK_REFERENCE_CACHE=build/mutation-reference-cache", executable,
+      out: "/tmp/fleek-mutation-out", err: "/tmp/fleek-mutation-err")
+    _, status = wait(process_id)
+    status
+  end
+
   def self.build_mutant
     process_id = Process.spawn("make", mutation_compiler_argument, mutation_root_argument, "build/fleek",
       out: "/tmp/fleek-mutation-build-out", err: "/tmp/fleek-mutation-build-err")

@@ -47,14 +47,18 @@ class DuplicationProcess
 
   def self.run_flay(path)
     bundle = ENV["BUNDLE"] || "bundle"
-    process_id = Process.spawn(bundle, "exec", "flay", path, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
-    AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
+    run_reference(reference_key("single", path)) do
+      process_id = Process.spawn(bundle, "exec", "flay", path, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
+      AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
+    end
   end
 
   def self.run_flay_with_mass(path, mass)
     bundle = ENV["BUNDLE"] || "bundle"
-    process_id = Process.spawn(bundle, "exec", "flay", "--mass", mass.to_s, path, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
-    AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
+    run_reference(reference_key("mass-#{mass}", path)) do
+      process_id = Process.spawn(bundle, "exec", "flay", "--mass", mass.to_s, path, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
+      AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
+    end
   end
 
   def self.run_fleek_pair(first, second)
@@ -72,8 +76,47 @@ class DuplicationProcess
 
   def self.run_flay_pair(first, second)
     bundle = ENV["BUNDLE"] || "bundle"
-    process_id = Process.spawn(bundle, "exec", "flay", first, second, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
-    AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
+    run_reference(reference_key("pair", first, second)) do
+      process_id = Process.spawn(bundle, "exec", "flay", first, second, out: "/tmp/flay-duplication-out", err: "/tmp/flay-duplication-err")
+      AnalysisRunner.observe(process_id, "/tmp/flay-duplication-out", "/tmp/flay-duplication-err")
+    end
+  end
+
+  def self.run_reference(key)
+    cache_path = reference_cache_path(key)
+    return read_reference_cache(cache_path) if cache_path && File.file?("#{cache_path}.status")
+
+    result = yield
+    write_reference_cache(cache_path, result) if cache_path
+    result
+  end
+
+  def self.reference_key(kind, first, second = "")
+    "#{kind}-#{first.length}:#{first}-#{second.length}:#{second}"
+  end
+
+  def self.verify_reference_cache_key_boundaries
+    first = reference_key("pair", "a-b", "c")
+    second = reference_key("pair", "a", "b-c")
+    verify(first != second, "Flay reference cache keys ignored argument boundaries")
+  end
+
+  def self.reference_cache_path(key)
+    directory = ENV["FLEEK_REFERENCE_CACHE"]
+    return unless directory
+
+    "#{directory}/#{key.gsub("%", "%25").gsub("/", "%2F")}"
+  end
+
+  def self.read_reference_cache(path)
+    [Integer(File.read("#{path}.status"), 10), File.read("#{path}.out"), File.read("#{path}.err")]
+  end
+
+  def self.write_reference_cache(path, result)
+    File.delete("#{path}.status") if File.file?("#{path}.status")
+    File.write("#{path}.out", result[1])
+    File.write("#{path}.err", result[2])
+    File.write("#{path}.status", result[0].to_s)
   end
 
   def self.run_fleek_pair_with_missing(first, second, missing)
@@ -136,6 +179,8 @@ class DuplicationProcess
     verify_output(reference, OutputExpectation.new(0, ["Total score (lower is better) = 0"], "Flay grouped mismatched optional-parameter counts"))
   end
 end
+
+DuplicationProcess.verify_reference_cache_key_boundaries
 
 similar_path = "test/fixtures/duplication_methods.rb"
 similar = DuplicationProcess.run(DuplicationProcess::Input.new(similar_path, "fleek", ""))
