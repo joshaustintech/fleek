@@ -366,6 +366,17 @@ DuplicationProcess.verify_output(or_reference, DuplicationProcess::OutputExpecta
 DuplicationProcess.verify_output(or_methods, DuplicationProcess::OutputExpectation.new(2, or_fields,
   "top-level methods with OR expressions differed from Flay"))
 
+and_path = "test/fixtures/duplication_methods_and.rb"
+and_methods = DuplicationProcess.run(DuplicationProcess::Input.new(and_path, "fleek", "--mass", 3))
+and_reference = DuplicationProcess.run(DuplicationProcess::Input.new(and_path, "flay", "--mass", 3))
+and_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{and_path}:1,#{and_path}:11\" mass=34 score=34",
+  "Total duplication score: 34", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+and_reference_fields = ["Similar code found in :defn (mass = 34)", "#{and_path}:1", "#{and_path}:11", "Total score (lower is better) = 34"]
+DuplicationProcess.verify_output(and_reference, DuplicationProcess::OutputExpectation.new(0, and_reference_fields,
+  "Flay AND-expression method reference changed"))
+DuplicationProcess.verify_output(and_methods, DuplicationProcess::OutputExpectation.new(2, and_fields,
+  "top-level methods with AND expressions differed from Flay"))
+
 conditional_return_path = "test/fixtures/duplication_methods_conditional_return.rb"
 conditional_returns = DuplicationProcess.run(DuplicationProcess::Input.new(conditional_return_path, "fleek", "--mass", 3))
 conditional_return_reference = DuplicationProcess.run(DuplicationProcess::Input.new(conditional_return_path, "flay", "--mass", 3))
