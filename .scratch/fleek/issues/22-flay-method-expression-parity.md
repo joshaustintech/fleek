@@ -21,6 +21,7 @@ Implementation is in progress. Array and keyword-hash literals are supported in 
 
 - 2026-10-18: Added optional keyword parameters with constant-read defaults. Compiled CLI contracts match Flay's similar group at mass/score 10 and distinguish different default constant names; focused mutations protect acceptance and identity. See ADR 0153.
 - 2026-10-18: Added constant-read defaults for optional positional parameters. A dedicated compiled-CLI contract matches Flay's similar group at mass/score 10 and verifies different default constant names; focused mutations protect support and identity. ADR 0154 supersedes ADR 0035's literal-only default restriction.
+- 2026-10-18: Added bare receiverless call defaults with no arguments or block for optional positional parameters. The dedicated compiled-CLI contract matches Flay's similar group at mass/score 10; focused mutations protect acceptance, ordinary mass, and call-name identity. See ADR 0156.
 
 Top-level methods containing `for` loops now also match Flay's similar group (mass/score 14) with complete coverage. Their candidate tree accepts the `for` node and its local-variable target. The focused contract compares the compiled CLI report against pinned Flay, and its focused mutation confirms a missing `for` candidate is detected. See ADR 0127.
 

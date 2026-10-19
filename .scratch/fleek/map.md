@@ -247,4 +247,5 @@
 - ADR 0152 records plain class-variable writes with ordinary Flay mass and name-sensitive classification; focused mutations protect support, mass, and identity.
 - ADR 0153 records optional keyword constant defaults with Flay's existing two mass units and constant-name-sensitive identity; focused mutations protect acceptance and identity.
 - ADR 0154 extends Flay parity to constant defaults on optional positional parameters, preserving mass and comparing constant names; it supersedes ADR 0035's literal-only boundary.
+- ADR 0156 adds bare no-argument call defaults for positional optional parameters at unchanged mass, with call-name-sensitive identity and focused mutations.
 - Issue 34 and ADR 0155 isolate each parallel mutation-contract compiler's Spinel temp files; all 40 contracts precompile at `JOBS=8` in about 30 seconds, retaining parallel mutation workers.
