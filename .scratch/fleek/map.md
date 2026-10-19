@@ -18,6 +18,7 @@
 - Ticket 38 closes collection descriptors against Flay 2.14.4, with focused mutation checks. ADRs 0104, 0105, 0145, and 0166 record the node mappings and representation adjustments.
 - Issue 46 narrows collection mutation contracts: the same array mutant now runs in 12.65s instead of 29.57s. ADR 0166 records the focused mapping.
 - Ticket 39 verifies Flay control-flow parity through focused branch/case, loop, and exception-flow contracts. ADR 0167 records the native Prism descriptors and `when` wrapper boundary.
+- Ticket 40 verifies range endpoint flags, mass, and static/interpolated regexp semantics through focused contracts. ADR 0168 records their shared descriptors and the absence of wrapper adapters.
 
 - Approved default-check behavior effort: [spec](../fleek-default-checks/spec.md), [tickets](../fleek-default-checks/issues/), and [ADR 0039](../../docs/adr/0039-default-checks-and-implicit-source-scope.md).
 - Full native analyzer parity is now the implementation goal in [spec 04](specs/04-language-and-project-parity.md); issues 21–24 cover Flay candidate scopes, method/expression semantics, analysis controls, and the final shared-syntax gate. Existing default-check tickets remain the default-selection work; ADR 0037 remains historical first-release scope.

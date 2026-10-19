@@ -215,9 +215,9 @@ class MutationCase
     "Flay method float candidates" => "test/duplication_contract.rb",
     "Flay method nil candidates" => "test/duplication_contract.rb",
     "Flay method unless candidates" => "test/duplication_method_branch_contract.rb",
-    "Flay method range candidates" => "test/duplication_contract.rb",
-    "Flay method range mass" => "test/duplication_contract.rb",
-    "Flay method range identity" => "test/duplication_contract.rb",
+    "Flay method range candidates" => "test/duplication_method_range_contract.rb",
+    "Flay method range mass" => "test/duplication_method_range_contract.rb",
+    "Flay method range identity" => "test/duplication_method_range_contract.rb",
     "Flay method dynamic node capacity" => "test/duplication_method_capacity_contract.rb",
     "Flay method dynamic tree capacity" => "test/duplication_method_capacity_contract.rb",
     "Flay nested tree closing capacity" => "test/duplication_contract.rb",
@@ -1373,17 +1373,17 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_RANGE_NODE] = { 0, 0, -2, false, false, true },",
   "[PM_RANGE_NODE] = { 0, 0, -2, false, false, false },",
   "Flay method range candidates",
-  "top-level methods with range literals differed from Flay")).run
+  "range-expression methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_RANGE_NODE] = { 0, 0, -2, false, false, true },",
   "[PM_RANGE_NODE] = { 0, 0, 0, false, false, true },",
   "Flay method range mass",
-  "top-level methods with range literals differed from Flay")).run
+  "range-expression kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_FLAG_P(first, PM_RANGE_FLAGS_EXCLUDE_END) != PM_NODE_FLAG_P(second, PM_RANGE_FLAGS_EXCLUDE_END)",
   "false",
   "Flay method range identity",
-  "inclusive and exclusive range method candidates were treated as identical")).run
+  "range-operator kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "size_t next = method->data.ast.node_capacity == 0 ? 16 : method->data.ast.node_capacity;\n      while (next < required) {",
   "size_t next = method->data.ast.node_capacity == 0 ? 16 : method->data.ast.node_capacity;\n      if (next < required) return false;\n      while (next < required) {",

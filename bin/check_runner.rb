@@ -58,6 +58,8 @@ class CheckRunner
     test/duplication_method_branch_contract.rb
     test/duplication_method_loop_contract.rb
     test/duplication_method_exception_flow_contract.rb
+    test/duplication_method_range_contract.rb
+    test/duplication_method_range_regexp_boundary_contract.rb
     test/ticket_documents_contract.rb
   ].freeze
 
