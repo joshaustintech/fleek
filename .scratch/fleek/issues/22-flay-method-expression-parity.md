@@ -60,3 +60,5 @@ Method candidates now support local-variable operator writes such as `+=`. Each 
 Method candidates now support local-variable logical writes (`&&=` and `||=`). Each node adds two mass points; same-operator target-name changes classify as similar, while different logical operators produce no Flay group. Focused mutations protect support, mass, and target-name identity for both node types. See ADR 0148.
 
 Method candidates now support class-variable reads. Same-name reads match Flay at mass 12; changing only the class-variable name preserves a similar group. Focused mutations protect candidate support and name identity. See ADR 0149.
+
+Method candidates now support class-variable operator writes. Same-name `+=` writes match Flay at mass 24; changing the target name or using a different operator preserves a similar group. Focused mutations protect candidate support, mass, and target/operator identity. See ADR 0150.
