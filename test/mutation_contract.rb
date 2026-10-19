@@ -191,6 +191,8 @@ class MutationCase
     "Flay optional symbol default acceptance" => "test/duplication_contract.rb",
     "Flay optional parameter mass" => "test/duplication_contract.rb",
     "Flay optional default identity" => "test/duplication_contract.rb",
+    "Flay optional positional constant defaults" => "test/duplication_method_optional_positional_constant_contract.rb",
+    "Flay optional positional constant default identity" => "test/duplication_method_optional_positional_constant_contract.rb",
     "Flay optional parameter count" => "test/duplication_contract.rb",
     "Flay class method conditional candidates" => "test/duplication_contract.rb",
     "Flay method return candidates" => "test/duplication_contract.rb",
@@ -447,10 +449,14 @@ class MutationCase
     processes = contracts.map do |contract|
       name = File.basename(contract, ".rb")
       executable = File.expand_path("#{directory}/#{name}")
+      temporary_directory = "#{ENV.fetch("FLEEK_TEMP_ROOT", "/tmp")}/spinel-contract-#{name}"
+      mkdir_process = Process.spawn("mkdir", "-p", temporary_directory, out: "/dev/null", err: "/dev/null")
+      _, mkdir_status = Process.waitpid2(mkdir_process)
+      raise "could not create isolated Spinel contract temp directory" unless mkdir_status.success?
       output = MutationProcess.temporary_path("fleek-mutation-contract-#{name}-out")
       error = MutationProcess.temporary_path("fleek-mutation-contract-#{name}-err")
       source = "#{source_directory}/#{File.basename(contract)}"
-      process_id = Process.spawn(ENV["SPINEL"] || "spinel", "-O", "1", source, "-o", executable,
+      process_id = Process.spawn("env", "TMPDIR=#{temporary_directory}", ENV["SPINEL"] || "spinel", "-O", "1", source, "-o", executable,
         out: output, err: error)
       [contract, process_id, output, error]
     end
@@ -1255,6 +1261,11 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay optional symbol default acceptance",
   "optional literal default parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
+  "PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE);",
+  "PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE);",
+  "Flay optional positional constant defaults",
+  "optional-positional-constant-default-names methods were not analyzed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
   "result->parameter_mass += 2;",
   "result->parameter_mass += 0;",
   "Flay optional parameter mass",
@@ -1460,8 +1471,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay optional keyword parameter mass",
   "optional-keyword-parameter kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "return fleek_duplication_optional_default_supported(node) || PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE);",
-  "return fleek_duplication_optional_default_supported(node);",
+  "PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE);",
+  "PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE);",
   "Flay optional keyword constant defaults",
   "optional-keyword-nonliteral methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -1519,6 +1530,11 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "if (PM_NODE_TYPE_P(left, PM_CONSTANT_READ_NODE)) return true;",
   "Flay optional keyword constant default identity",
   "optional-keyword-constant-default-names kind, mass, or locations differed from Flay")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (PM_NODE_TYPE_P(left, PM_CONSTANT_READ_NODE)) return fleek_constants_equal(parser,\n        ((const pm_constant_read_node_t *) left)->name, ((const pm_constant_read_node_t *) right)->name);",
+  "if (PM_NODE_TYPE_P(left, PM_CONSTANT_READ_NODE)) return true;",
+  "Flay optional positional constant default identity",
+  "optional-positional-constant-default-names kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (PM_NODE_TYPE_P(parameters->keywords.nodes[index], PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) {\n          if (count == SIZE_MAX) return SIZE_MAX;\n          count++;",
   "if (PM_NODE_TYPE_P(parameters->keywords.nodes[index], PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) {\n          if (count == SIZE_MAX) return SIZE_MAX;\n          count += 0;",
