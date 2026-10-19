@@ -12,6 +12,8 @@
 
 ## Decisions-so-far
 
+- Retro follow-ups are tracked as [issue 44: validate local ticket documents](issues/44-validate-local-ticket-documents.md) and [issue 45: honor prior authorization in ticket breakdowns](issues/45-honor-autonomous-ticket-authorization.md). Both are ready-for-agent and unblocked.
+
 - Approved default-check behavior effort: [spec](../fleek-default-checks/spec.md), [tickets](../fleek-default-checks/issues/), and [ADR 0039](../../docs/adr/0039-default-checks-and-implicit-source-scope.md).
 - Full native analyzer parity is now the implementation goal in [spec 04](specs/04-language-and-project-parity.md); issues 21–24 cover Flay candidate scopes, method/expression semantics, analysis controls, and the final shared-syntax gate. Existing default-check tickets remain the default-selection work; ADR 0037 remains historical first-release scope.
 - Ticket 21 replaces arbitrary scope-depth/capacity limits with dynamically sized typed paths and iterative traversal of straight class/module chains. Public contracts match generated 64-level module/class chains, the former 21-component qualified namespace boundary, wrapped sibling-class scopes, and class/module compound scopes against Flay 2.14.4. Fixed fixtures remain for distinct semantics; more compound shapes remain under discovery. See [ADR 0097](../../docs/adr/0097-dynamic-nested-scope-storage.md), [ADR 0098](../../docs/adr/0098-nested-class-sibling-candidate-scopes.md), and [ADR 0100](../../docs/adr/0100-typed-flay-scope-paths.md); depth-specific ADRs are historical.
