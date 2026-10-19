@@ -197,6 +197,10 @@ class MutationCase
     "Flay optional positional bare-call default mass" => "test/duplication_method_optional_positional_call_contract.rb",
     "Flay optional positional bare-call default identity" => "test/duplication_method_optional_positional_call_contract.rb",
     "Flay optional keyword bare-call defaults" => "test/duplication_method_parameter_contract.rb",
+    "Flay variable-rule candidate support" => "test/duplication_method_variable_rule_contract.rb",
+    "Flay variable-rule mass adjustments" => "test/duplication_method_variable_rule_contract.rb",
+    "Flay variable-rule name identity" => "test/duplication_method_variable_rule_contract.rb",
+    "Flay variable-rule operator identity" => "test/duplication_method_variable_rule_contract.rb",
     "Flay optional parameter count" => "test/duplication_contract.rb",
     "Flay class method conditional candidates" => "test/duplication_contract.rb",
     "Flay method return candidates" => "test/duplication_contract.rb",
@@ -227,39 +231,13 @@ class MutationCase
     "Flay method constant path identity" => "test/duplication_method_constant_path_contract.rb",
     "Flay method splat candidates" => "test/duplication_method_splat_contract.rb",
     "Flay method interpolated string candidates" => "test/duplication_method_interpolated_string_contract.rb",
-    "Flay method local write candidates" => "test/duplication_contract.rb",
-    "Flay method local write identity" => "test/duplication_contract.rb",
-    "Flay multiple assignment candidates" => "test/duplication_method_multiple_assignment_contract.rb",
-    "Flay multiple assignment mass" => "test/duplication_method_multiple_assignment_contract.rb",
-    "Flay multiple assignment target identity" => "test/duplication_method_multiple_assignment_contract.rb",
+    "Flay method local write candidates" => "test/duplication_method_variable_rule_contract.rb",
+    "Flay method local write identity" => "test/duplication_method_variable_rule_contract.rb",
     "Flay block optional parameter candidates" => "test/duplication_method_block_optional_parameter_contract.rb",
     "Flay block optional parameter mass" => "test/duplication_method_block_optional_parameter_contract.rb",
     "Flay block optional parameter name identity" => "test/duplication_method_block_optional_parameter_contract.rb",
     "Flay block optional parameter default identity" => "test/duplication_method_block_optional_parameter_contract.rb",
     "Flay block optional parameter expression identity" => "test/duplication_method_block_optional_parameter_contract.rb",
-    "Flay local operator write candidates" => "test/duplication_method_local_operator_write_contract.rb",
-    "Flay local operator write mass" => "test/duplication_method_local_operator_write_contract.rb",
-    "Flay local operator write operator identity" => "test/duplication_method_local_operator_write_contract.rb",
-    "Flay local OR write candidates" => "test/duplication_method_local_logical_write_contract.rb",
-    "Flay local OR write mass" => "test/duplication_method_local_logical_write_contract.rb",
-    "Flay local OR write name identity" => "test/duplication_method_local_logical_write_contract.rb",
-    "Flay local AND write candidates" => "test/duplication_method_local_logical_write_contract.rb",
-    "Flay local AND write mass" => "test/duplication_method_local_logical_write_contract.rb",
-    "Flay local AND write name identity" => "test/duplication_method_local_logical_write_contract.rb",
-    "Flay class variable method candidates" => "test/duplication_method_class_variable_contract.rb",
-    "Flay class variable method identity" => "test/duplication_method_class_variable_contract.rb",
-    "Flay class variable operator write candidates" => "test/duplication_method_class_variable_operator_write_contract.rb",
-    "Flay class variable operator write mass" => "test/duplication_method_class_variable_operator_write_contract.rb",
-    "Flay class variable operator write identity" => "test/duplication_method_class_variable_operator_write_contract.rb",
-    "Flay class variable AND write candidates" => "test/duplication_method_class_variable_logical_write_contract.rb",
-    "Flay class variable OR write candidates" => "test/duplication_method_class_variable_logical_write_contract.rb",
-    "Flay class variable AND write mass" => "test/duplication_method_class_variable_logical_write_contract.rb",
-    "Flay class variable OR write mass" => "test/duplication_method_class_variable_logical_write_contract.rb",
-    "Flay class variable AND write identity" => "test/duplication_method_class_variable_logical_write_contract.rb",
-    "Flay class variable OR write identity" => "test/duplication_method_class_variable_logical_write_contract.rb",
-    "Flay class variable write candidates" => "test/duplication_method_class_variable_write_contract.rb",
-    "Flay class variable write mass" => "test/duplication_method_class_variable_write_contract.rb",
-    "Flay class variable write identity" => "test/duplication_method_class_variable_write_contract.rb",
     "Flay class method conditional mass" => "test/duplication_contract.rb",
     "Flay class method candidate capacity" => "test/duplication_contract.rb",
     "Flay multiple class declarations" => "test/duplication_contract.rb",
@@ -297,6 +275,18 @@ class MutationCase
     "unsupported opt-in incomplete status" => "test/default_invocation_contract.rb",
     "implicit current directory" => "test/default_invocation_contract.rb"
   }
+  CONTRACT_DEPENDENCIES = {
+    "test/duplication_method_variable_rule_contract.rb" => %w[
+      test/duplication_method_multiple_assignment_contract.rb
+      test/duplication_method_local_operator_write_contract.rb
+      test/duplication_method_local_logical_write_contract.rb
+      test/duplication_method_class_variable_contract.rb
+      test/duplication_method_class_variable_operator_write_contract.rb
+      test/duplication_method_class_variable_logical_write_contract.rb
+      test/duplication_method_class_variable_write_contract.rb
+      test/duplication_method_instance_variable_operator_write_contract.rb
+    ]
+  }.freeze
 
   def initialize(configuration)
     @configuration = configuration
@@ -305,6 +295,7 @@ class MutationCase
   end
 
   def run
+    return unless self.class::CONTRACTS.key?(@configuration.label)
     return unless selected_mutation?
 
     apply_mutation
@@ -434,10 +425,11 @@ class MutationCase
     Dir.mkdir(source_directory)
     selected_labels = self.selected_labels(ENV["FLEEK_MUTATIONS"])
     contracts = selected_labels ? selected_labels.map { |label| CONTRACTS.fetch(label) }.uniq : CONTRACTS.values.uniq
-    source_paths = (contracts + ["test/analysis_runner.rb"]).uniq
+    dependency_paths = contracts.flat_map { |path| CONTRACT_DEPENDENCIES.fetch(path, []) }
+    source_paths = (contracts + dependency_paths + ["test/analysis_runner.rb"]).uniq
     source_paths.each do |path|
       source = File.read(path)
-      mapped_contract = contracts.include?(path)
+      mapped_contract = contracts.include?(path) || dependency_paths.include?(path)
       source = source.gsub('"/tmp/', '"#{ENV["FLEEK_TEMP_ROOT"] || "/tmp"}/') if mapped_contract || path == "test/analysis_runner.rb"
       source = source.gsub("__dir__", 'File.expand_path("test", Dir.pwd)') if mapped_contract
       File.write("#{source_directory}/#{File.basename(path)}", source)
@@ -1420,10 +1412,10 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay method nil candidates",
   "top-level methods with nil literals differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) ||",
-  "false ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) ||",
+  "if (fleek_duplication_variable_rule(node->type) != NULL) return true;",
+  "if (false) return true;",
   "Flay method local write candidates",
-  "top-level methods with local writes differed from Flay")).run
+  "multiple-assignment methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_ARRAY_NODE) ||",
   "PM_NODE_TYPE_P(node, PM_ASSOC_NODE) ||",
@@ -1489,6 +1481,26 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "if (!PM_NODE_TYPE_P(optional->value, PM_INTEGER_NODE) || result->parameter_mass > SIZE_MAX - 2) return false;",
   "Flay optional keyword bare-call defaults",
   "optional-keyword-call-default methods were not analyzed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (fleek_duplication_variable_rule(node->type) != NULL) return true;",
+  "if (false) return true;",
+  "Flay variable-rule candidate support",
+  "multiple-assignment methods were not analyzed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "node_rule != NULL ? node_rule->mass_adjustment :",
+  "node_rule != NULL ? 0 :",
+  "Flay variable-rule mass adjustments",
+  "multiple-assignment kind, mass, or locations differed from Flay")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (rule->compares_name) {",
+  "if (false) {",
+  "Flay variable-rule name identity",
+  "multiple-assignment-names kind, mass, or locations differed from Flay")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (rule->compares_operator) {",
+  "if (false) {",
+  "Flay variable-rule operator identity",
+  "local-operator-write-operators kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE);",
   "PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE);",
@@ -1570,24 +1582,9 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay method hash association mass",
   "top-level hash-expression methods differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_write_node_t *) first)->name, ((const pm_local_variable_write_node_t *) second)->name)) return false;",
-  "if (false) return false;",
+  "if (rule->compares_name) {",
+  "if (false) {",
   "Flay method local write identity",
-  "top-level local-write identity differed from Flay: missing node=\"defn\" kind=\"similar\" locations=\"test/fixtures/duplication_methods_local_write_names.rb:1,test/fixtures/duplication_methods_local_write_names.rb:6\" mass=16 score=16")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE) || PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) ||",
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE) || false ||",
-  "Flay multiple assignment candidates",
-  "multiple-assignment methods were not analyzed")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "Flay multiple assignment mass",
-  "multiple-assignment kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_TARGET_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_target_node_t *) first)->name, ((const pm_local_variable_target_node_t *) second)->name)) return false;",
-  "if (false) return false;",
-  "Flay multiple assignment target identity",
   "multiple-assignment-names kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_REQUIRED_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_OPTIONAL_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) ||",
@@ -1614,121 +1611,6 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "if (false) return false;",
   "Flay block optional parameter expression identity",
   "block-optional-parameter-expression kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE)",
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE)",
-  "Flay local operator write candidates",
-  "local-operator-write methods were not analyzed")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "Flay local operator write mass",
-  "local-operator-write kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "memcmp(left_operator->binary_operator_loc.start, right_operator->binary_operator_loc.start, left_operator_length) != 0",
-  "false",
-  "Flay local operator write operator identity",
-  "local-operator-write-operators kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE)",
-  "false ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE)",
-  "Flay local AND write candidates",
-  "local-and-write methods were not analyzed")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE)",
-  "false || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE)",
-  "Flay local OR write candidates",
-  "local-or-write methods were not analyzed")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "Flay local AND write mass",
-  "local-and-write kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "Flay local OR write mass",
-  "local-or-write kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_AND_WRITE_NODE) &&\n            !fleek_constants_equal(parser, ((const pm_local_variable_and_write_node_t *) first)->name,\n              ((const pm_local_variable_and_write_node_t *) second)->name)) return false;",
-  "if (false) return false;",
-  "Flay local AND write name identity",
-  "local-and-write-names kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_OR_WRITE_NODE) &&\n            !fleek_constants_equal(parser, ((const pm_local_variable_or_write_node_t *) first)->name,\n              ((const pm_local_variable_or_write_node_t *) second)->name)) return false;",
-  "if (false) return false;",
-  "Flay local OR write name identity",
-  "local-or-write-names kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_MULTI_TARGET_NODE)",
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_MULTI_TARGET_NODE)",
-  "Flay class variable method candidates",
-  "class-variable-reads methods were not analyzed")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(first, PM_CLASS_VARIABLE_READ_NODE) &&\n            !fleek_constants_equal(parser, ((const pm_class_variable_read_node_t *) first)->name,\n              ((const pm_class_variable_read_node_t *) second)->name)) return false;",
-  "if (false) return false;",
-  "Flay class variable method identity",
-  "class-variable-read-names kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_WRITE_NODE)",
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_WRITE_NODE)",
-  "Flay class variable operator write candidates",
-  "class-variable-operator-writes methods were not analyzed")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "Flay class variable operator write mass",
-  "class-variable-operator-writes kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(first, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE)) {\n          const pm_class_variable_operator_write_node_t *left_operator = (const pm_class_variable_operator_write_node_t *) first;\n          const pm_class_variable_operator_write_node_t *right_operator = (const pm_class_variable_operator_write_node_t *) second;\n          size_t left_operator_length = (size_t) (left_operator->binary_operator_loc.end - left_operator->binary_operator_loc.start);\n          size_t right_operator_length = (size_t) (right_operator->binary_operator_loc.end - right_operator->binary_operator_loc.start);\n          if (!fleek_constants_equal(parser, left_operator->name, right_operator->name) || left_operator_length != right_operator_length ||\n              memcmp(left_operator->binary_operator_loc.start, right_operator->binary_operator_loc.start, left_operator_length) != 0) return false;\n        }",
-  "if (false) return false;",
-  "Flay class variable operator write identity",
-  "class-variable-operator-write-names kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE)",
-  "false || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE)",
-  "Flay class variable AND write candidates",
-  "class-variable-and-write methods were not analyzed")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_MULTI_TARGET_NODE)",
-  "false ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_MULTI_TARGET_NODE)",
-  "Flay class variable OR write candidates",
-  "class-variable-or-write methods were not analyzed")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "Flay class variable AND write mass",
-  "class-variable-and-write kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :",
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ? 2 :",
-  "Flay class variable OR write mass",
-  "class-variable-or-write kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(first, PM_CLASS_VARIABLE_AND_WRITE_NODE) &&\n            !fleek_constants_equal(parser, ((const pm_class_variable_and_write_node_t *) first)->name,\n              ((const pm_class_variable_and_write_node_t *) second)->name)) return false;",
-  "if (false) return false;",
-  "Flay class variable AND write identity",
-  "class-variable-and-write-names kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(first, PM_CLASS_VARIABLE_OR_WRITE_NODE) &&\n            !fleek_constants_equal(parser, ((const pm_class_variable_or_write_node_t *) first)->name,\n              ((const pm_class_variable_or_write_node_t *) second)->name)) return false;",
-  "if (false) return false;",
-  "Flay class variable OR write identity",
-  "class-variable-or-write-names kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ||\n        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_WRITE_NODE)",
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE)",
-  "Flay class variable write candidates",
-  "class-variable-writes methods were not analyzed")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "fleek_duplication_block_has_optional_parameters(node) ? 1 :",
-  "PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_WRITE_NODE) ? 2 : fleek_duplication_block_has_optional_parameters(node) ? 1 :",
-  "Flay class variable write mass",
-  "class-variable-writes kind, mass, or locations differed from Flay")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(first, PM_CLASS_VARIABLE_WRITE_NODE) &&\n            !fleek_constants_equal(parser, ((const pm_class_variable_write_node_t *) first)->name,\n              ((const pm_class_variable_write_node_t *) second)->name)) return false;",
-  "if (false) return false;",
-  "Flay class variable write identity",
-  "class-variable-write-names kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE)",
   "PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE)",

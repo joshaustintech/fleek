@@ -85,6 +85,7 @@ class Fleek
     FLAY_DEFAULT_MASS = 16
     ffi_source <<~C
     #include "prism.h"
+#include <stddef.h>
     #include <stdint.h>
     #include <stdio.h>
     #include <ctype.h>
@@ -2492,14 +2493,63 @@ class Fleek
       method->data.ast.tree = NULL;
     }
     typedef struct { fleek_duplication_method_t *method; bool overflow; const pm_node_t *parent; } fleek_duplication_ast_t;
+    typedef struct {
+      size_t name_offset;
+      size_t operator_offset;
+      int8_t mass_adjustment;
+      bool compares_name;
+      bool compares_operator;
+      bool supported;
+    } fleek_duplication_node_rule_t;
+    #define FLEEK_NAMED_NODE_RULE(type, node, mass) [type] = { offsetof(node, name), 0, mass, true, false, true }
+    #define FLEEK_OPERATOR_NODE_RULE(type, node, mass) [type] = { offsetof(node, name), offsetof(node, binary_operator), mass, true, true, true }
+    static const fleek_duplication_node_rule_t fleek_duplication_variable_rules[PM_SCOPE_NODE + 1] = {
+      [PM_MULTI_WRITE_NODE] = { 0, 0, 2, false, false, true },
+      FLEEK_NAMED_NODE_RULE(PM_LOCAL_VARIABLE_READ_NODE, pm_local_variable_read_node_t, 0),
+      FLEEK_NAMED_NODE_RULE(PM_LOCAL_VARIABLE_WRITE_NODE, pm_local_variable_write_node_t, 0),
+      FLEEK_OPERATOR_NODE_RULE(PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE, pm_local_variable_operator_write_node_t, 2),
+      FLEEK_NAMED_NODE_RULE(PM_LOCAL_VARIABLE_AND_WRITE_NODE, pm_local_variable_and_write_node_t, 2),
+      FLEEK_NAMED_NODE_RULE(PM_LOCAL_VARIABLE_OR_WRITE_NODE, pm_local_variable_or_write_node_t, 2),
+      FLEEK_NAMED_NODE_RULE(PM_LOCAL_VARIABLE_TARGET_NODE, pm_local_variable_target_node_t, 0),
+      FLEEK_NAMED_NODE_RULE(PM_INSTANCE_VARIABLE_READ_NODE, pm_instance_variable_read_node_t, 0),
+      FLEEK_NAMED_NODE_RULE(PM_INSTANCE_VARIABLE_WRITE_NODE, pm_instance_variable_write_node_t, 0),
+      FLEEK_OPERATOR_NODE_RULE(PM_INSTANCE_VARIABLE_OPERATOR_WRITE_NODE, pm_instance_variable_operator_write_node_t, 2),
+      FLEEK_NAMED_NODE_RULE(PM_CLASS_VARIABLE_READ_NODE, pm_class_variable_read_node_t, 0),
+      FLEEK_OPERATOR_NODE_RULE(PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE, pm_class_variable_operator_write_node_t, 2),
+      FLEEK_NAMED_NODE_RULE(PM_CLASS_VARIABLE_AND_WRITE_NODE, pm_class_variable_and_write_node_t, 2),
+      FLEEK_NAMED_NODE_RULE(PM_CLASS_VARIABLE_OR_WRITE_NODE, pm_class_variable_or_write_node_t, 2),
+      FLEEK_NAMED_NODE_RULE(PM_CLASS_VARIABLE_WRITE_NODE, pm_class_variable_write_node_t, 0),
+      [PM_MULTI_TARGET_NODE] = { 0, 0, 0, false, false, true }
+    };
+    #undef FLEEK_NAMED_NODE_RULE
+    #undef FLEEK_OPERATOR_NODE_RULE
+    static const fleek_duplication_node_rule_t *fleek_duplication_variable_rule(pm_node_type_t type) {
+      return type <= PM_SCOPE_NODE && fleek_duplication_variable_rules[type].supported ? &fleek_duplication_variable_rules[type] : NULL;
+    }
+    static bool fleek_duplication_variable_node_equal(pm_parser_t *parser, const pm_node_t *left, const pm_node_t *right) {
+      const fleek_duplication_node_rule_t *rule = fleek_duplication_variable_rule(left->type);
+      if (rule == NULL) return true;
+      if (rule->compares_name) {
+        const pm_constant_id_t left_name = *(const pm_constant_id_t *) ((const uint8_t *) left + rule->name_offset);
+        const pm_constant_id_t right_name = *(const pm_constant_id_t *) ((const uint8_t *) right + rule->name_offset);
+        if (!fleek_constants_equal(parser, left_name, right_name)) return false;
+      }
+      if (rule->compares_operator) {
+        const pm_constant_id_t left_operator = *(const pm_constant_id_t *) ((const uint8_t *) left + rule->operator_offset);
+        const pm_constant_id_t right_operator = *(const pm_constant_id_t *) ((const uint8_t *) right + rule->operator_offset);
+        if (!fleek_constants_equal(parser, left_operator, right_operator)) return false;
+      }
+      return true;
+    }
     static void fleek_duplication_collect_class_node(const pm_node_t *node, fleek_duplication_ast_t *ast);
     static bool fleek_duplication_collect_class_child(const pm_node_t *node, void *data) {
       fleek_duplication_collect_class_node(node, (fleek_duplication_ast_t *) data);
       return false;
     }
     static bool fleek_duplication_class_node_supported(const pm_node_t *node) {
-      return PM_NODE_TYPE_P(node, PM_CALL_NODE) || PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) || PM_NODE_TYPE_P(node, PM_INTERPOLATED_STRING_NODE) ||
+      if (fleek_duplication_variable_rule(node->type) != NULL) return true;
+      return PM_NODE_TYPE_P(node, PM_CALL_NODE) ||
+        PM_NODE_TYPE_P(node, PM_STRING_NODE) || PM_NODE_TYPE_P(node, PM_INTERPOLATED_STRING_NODE) ||
         PM_NODE_TYPE_P(node, PM_EMBEDDED_VARIABLE_NODE) || PM_NODE_TYPE_P(node, PM_EMBEDDED_STATEMENTS_NODE) || PM_NODE_TYPE_P(node, PM_FLOAT_NODE) ||
         PM_NODE_TYPE_P(node, PM_RANGE_NODE) ||
         PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_INTEGER_NODE) ||
@@ -2507,13 +2557,6 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_CONSTANT_PATH_NODE) ||
         PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_HASH_NODE) ||
         PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_CASE_NODE) || PM_NODE_TYPE_P(node, PM_WHEN_NODE) || PM_NODE_TYPE_P(node, PM_WHILE_NODE) || PM_NODE_TYPE_P(node, PM_UNTIL_NODE) || PM_NODE_TYPE_P(node, PM_FOR_NODE) ||
-        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE) || PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_MULTI_TARGET_NODE) ||
         PM_NODE_TYPE_P(node, PM_SELF_NODE) || PM_NODE_TYPE_P(node, PM_SPLAT_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE) ||
         PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE) || PM_NODE_TYPE_P(node, PM_REQUIRED_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_OPTIONAL_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) ||
         PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_YIELD_NODE) || PM_NODE_TYPE_P(node, PM_FORWARDING_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_BREAK_NODE) || PM_NODE_TYPE_P(node, PM_REDO_NODE) || PM_NODE_TYPE_P(node, PM_BEGIN_NODE) || PM_NODE_TYPE_P(node, PM_RESCUE_NODE) || PM_NODE_TYPE_P(node, PM_RETRY_NODE) || PM_NODE_TYPE_P(node, PM_ENSURE_NODE) || PM_NODE_TYPE_P(node, PM_NEXT_NODE) || PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) || PM_NODE_TYPE_P(node, PM_REGULAR_EXPRESSION_NODE);
@@ -2543,11 +2586,9 @@ class Fleek
       size_t index = ast->method->shape_count++;
       ast->method->data.ast.nodes[index] = node;
       ast->method->data.ast.interpolated_regexp_part_markers[index] = ast->parent != NULL && PM_NODE_TYPE_P(ast->parent, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE);
-      ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_ENSURE_NODE) ? -1 :
-        PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_AND_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OR_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_AND_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_CLASS_VARIABLE_OR_WRITE_NODE) ? 2 :
+      const fleek_duplication_node_rule_t *node_rule = fleek_duplication_variable_rule(node->type);
+      ast->method->data.ast.mass_adjustments[index] = node_rule != NULL ? node_rule->mass_adjustment :
+        PM_NODE_TYPE_P(node, PM_ENSURE_NODE) ? -1 :
         fleek_duplication_block_has_optional_parameters(node) ? 1 :
         PM_NODE_TYPE_P(node, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) ? -1 :
         PM_NODE_TYPE_P(node, PM_NEXT_NODE) || PM_NODE_TYPE_P(node, PM_RETRY_NODE) ? 1 :
@@ -2838,48 +2879,10 @@ class Fleek
         if (PM_NODE_TYPE_P(first, PM_CONSTANT_READ_NODE) && !fleek_constants_equal(parser, ((const pm_constant_read_node_t *) first)->name, ((const pm_constant_read_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_CONSTANT_PATH_NODE) && !fleek_constants_equal(parser,
             ((const pm_constant_path_node_t *) first)->name, ((const pm_constant_path_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_READ_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_read_node_t *) first)->name, ((const pm_local_variable_read_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_write_node_t *) first)->name, ((const pm_local_variable_write_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE)) {
-          const pm_local_variable_operator_write_node_t *left_operator = (const pm_local_variable_operator_write_node_t *) first;
-          const pm_local_variable_operator_write_node_t *right_operator = (const pm_local_variable_operator_write_node_t *) second;
-          size_t left_operator_length = (size_t) (left_operator->binary_operator_loc.end - left_operator->binary_operator_loc.start);
-          size_t right_operator_length = (size_t) (right_operator->binary_operator_loc.end - right_operator->binary_operator_loc.start);
-          if (!fleek_constants_equal(parser, left_operator->name, right_operator->name) || left_operator_length != right_operator_length ||
-              memcmp(left_operator->binary_operator_loc.start, right_operator->binary_operator_loc.start, left_operator_length) != 0) return false;
-        }
-        if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_AND_WRITE_NODE) &&
-            !fleek_constants_equal(parser, ((const pm_local_variable_and_write_node_t *) first)->name,
-              ((const pm_local_variable_and_write_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_OR_WRITE_NODE) &&
-            !fleek_constants_equal(parser, ((const pm_local_variable_or_write_node_t *) first)->name,
-              ((const pm_local_variable_or_write_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_CLASS_VARIABLE_READ_NODE) &&
-            !fleek_constants_equal(parser, ((const pm_class_variable_read_node_t *) first)->name,
-              ((const pm_class_variable_read_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_CLASS_VARIABLE_OPERATOR_WRITE_NODE)) {
-          const pm_class_variable_operator_write_node_t *left_operator = (const pm_class_variable_operator_write_node_t *) first;
-          const pm_class_variable_operator_write_node_t *right_operator = (const pm_class_variable_operator_write_node_t *) second;
-          size_t left_operator_length = (size_t) (left_operator->binary_operator_loc.end - left_operator->binary_operator_loc.start);
-          size_t right_operator_length = (size_t) (right_operator->binary_operator_loc.end - right_operator->binary_operator_loc.start);
-          if (!fleek_constants_equal(parser, left_operator->name, right_operator->name) || left_operator_length != right_operator_length ||
-              memcmp(left_operator->binary_operator_loc.start, right_operator->binary_operator_loc.start, left_operator_length) != 0) return false;
-        }
-        if (PM_NODE_TYPE_P(first, PM_CLASS_VARIABLE_AND_WRITE_NODE) &&
-            !fleek_constants_equal(parser, ((const pm_class_variable_and_write_node_t *) first)->name,
-              ((const pm_class_variable_and_write_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_CLASS_VARIABLE_OR_WRITE_NODE) &&
-            !fleek_constants_equal(parser, ((const pm_class_variable_or_write_node_t *) first)->name,
-              ((const pm_class_variable_or_write_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_CLASS_VARIABLE_WRITE_NODE) &&
-            !fleek_constants_equal(parser, ((const pm_class_variable_write_node_t *) first)->name,
-              ((const pm_class_variable_write_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_TARGET_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_target_node_t *) first)->name, ((const pm_local_variable_target_node_t *) second)->name)) return false;
+        if (!fleek_duplication_variable_node_equal(parser, first, second)) return false;
         if (PM_NODE_TYPE_P(first, PM_REQUIRED_PARAMETER_NODE) && !fleek_constants_equal(parser, ((const pm_required_parameter_node_t *) first)->name, ((const pm_required_parameter_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_OPTIONAL_PARAMETER_NODE) && !fleek_constants_equal(parser,
             ((const pm_optional_parameter_node_t *) first)->name, ((const pm_optional_parameter_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_INSTANCE_VARIABLE_READ_NODE) && !fleek_constants_equal(parser, ((const pm_instance_variable_read_node_t *) first)->name, ((const pm_instance_variable_read_node_t *) second)->name)) return false;
-        if (PM_NODE_TYPE_P(first, PM_INSTANCE_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_instance_variable_write_node_t *) first)->name, ((const pm_instance_variable_write_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_INTEGER_NODE) && pm_integer_compare(&((const pm_integer_node_t *) first)->value, &((const pm_integer_node_t *) second)->value) != 0) return false;
         if (PM_NODE_TYPE_P(first, PM_REGULAR_EXPRESSION_NODE) && !fleek_duplication_regular_expression_equal(first, second)) return false;
         if (PM_NODE_TYPE_P(first, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) && !fleek_duplication_interpolated_regular_expression_equal(parser, first, second)) return false;
@@ -4477,7 +4480,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level methods, bounded methods in simple classes or one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal, constant, or bare-call defaults, required post parameters, optional keyword parameters with supported literal or constant defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable reads and writes, local-variable operator and logical writes, class-variable reads, writes, operator writes, and logical writes, multiple assignments, and splat arguments, using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level methods, bounded methods in simple classes or one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal, constant, or bare-call defaults, required post parameters, optional keyword parameters with supported literal or constant defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable reads and writes, local-variable operator and logical writes, instance-variable reads, writes, and operator writes, class-variable reads, writes, operator writes, and logical writes, multiple assignments, and splat arguments, using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -4560,7 +4563,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: top-level methods, class methods in simple classes and one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal, constant, or bare-call defaults, required post parameters, optional keyword parameters with supported literal or constant defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable reads and writes, local-variable operator and logical writes, class-variable reads, writes, operator writes, and logical writes, multiple assignments, and splat arguments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: top-level methods, class methods in simple classes and one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal, constant, or bare-call defaults, required post parameters, optional keyword parameters with supported literal or constant defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable reads and writes, local-variable operator and logical writes, instance-variable reads, writes, and operator writes, class-variable reads, writes, operator writes, and logical writes, multiple assignments, and splat arguments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter
