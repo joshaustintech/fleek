@@ -1,9 +1,9 @@
 class Feed
   def current(resource, limit = 10, offset = 0)
-    resource.fetch(:limit, limit)
+    process
   end
 
   def current(resource, limit = 10)
-    resource.fetch(:limit, limit)
+    process
   end
 end

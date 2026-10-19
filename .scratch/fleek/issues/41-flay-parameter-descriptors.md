@@ -6,12 +6,16 @@
 
 **Blocked by:** 37 — Describe Flay method calls and argument trees.
 
-**Status:** open  
+**Status:** resolved
 **Type:** task  
 **Category:** enhancement  
 **Triage:** ready-for-agent
 
-- [ ] Express supported positional, optional, post, keyword, rest, keyword-rest, block, and block-optional parameter rules through shared descriptors.
-- [ ] Match parameter support, default identity, parameter mass, optional-count boundaries, and similar-versus-identical grouping against unchanged Flay 2.14.4.
-- [ ] Preserve method locations, group score, order, and complete coverage for accepted forms; reject unsupported defaults explicitly.
-- [ ] Focused mutations detect missing parameter rules and mismatched names, defaults, counts, or mass; record major decisions in ADRs.
+- [x] Express supported positional, optional, post, keyword, rest, keyword-rest, block, and block-optional parameter rules through shared descriptors.
+- [x] Match parameter support, default identity, parameter mass, optional-count boundaries, and similar-versus-identical grouping against unchanged Flay 2.14.4.
+- [x] Preserve method locations, group score, order, and complete coverage for accepted forms; reject unsupported defaults explicitly.
+- [x] Focused mutations detect missing parameter rules and mismatched names, defaults, counts, or mass; record major decisions in ADRs.
+
+## Answer
+
+Method and block parameter rules now share a Prism-indexed descriptor table. Focused compiled-CLI contracts verify Flay 2.14.4 mass, grouping, identity, optional counts, and unsupported array defaults. The method-body boundary test uses distinct bodies because shared qualifying subtrees remain explicitly incomplete under the existing partial-subtree policy. All 42 focused parameter mutants were caught with eight isolated workers. ADR 0169 records the descriptor rules and preserved positional/keyword default boundary.
