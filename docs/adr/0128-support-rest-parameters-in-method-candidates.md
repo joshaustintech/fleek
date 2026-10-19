@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted; superseded by ADR 0144 for anonymous rest parameters.
 
 ## Context
 

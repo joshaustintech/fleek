@@ -14,4 +14,4 @@ Accept anonymous block parameters. Compare the optional names by presence first:
 
 ## Consequences
 
-The anonymous `&` fixture matches Flay's identical group at mass 6, score 12, and lines 1 and 5. An `&` versus `&handler` fixture matches Flay's similar group with the same mass and score 6. A focused public contract protects both boundaries, and deterministic mutations protect absent-name equality and the absent-versus-present distinction. Other anonymous rest and keyword-rest forms remain separate syntax cases.
+The anonymous `&` fixture matches Flay's identical group at mass 6, score 12, and lines 1 and 5. An `&` versus `&handler` fixture matches Flay's similar group with the same mass and score 6. A focused public contract protects both boundaries, and deterministic mutations protect absent-name equality and the absent-versus-present distinction. ADR 0144 extends the same optional-name rule to anonymous rest and keyword-rest parameters.

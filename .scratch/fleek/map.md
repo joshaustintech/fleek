@@ -235,3 +235,5 @@
 - Pinned Flay 2.14.4 and Fleek match static regex method pairs at mass 10 and interpolated regex pairs at mass 16. Focused mutations protect support, mass, pattern parts, and option flags.
 - ADR 0143 records anonymous method block-parameter support and safe comparison of absent Prism parameter names, superseding ADR 0133's rejection boundary.
 - Pinned Flay 2.14.4 and Fleek match anonymous `&` methods at mass 6 and score 12, and `&` versus `&handler` methods as similar at mass/score 6. Focused mutations protect candidate support and both identity boundaries.
+- ADR 0144 extends the optional-name rule to anonymous `*` and `**` parameters, superseding the rejection boundaries in ADRs 0128 and 0132.
+- Pinned Flay 2.14.4 and Fleek match anonymous rest and keyword-rest methods at mass 6/score 12, with anonymous-versus-named methods similar at mass/score 6; focused mutations protect support and identity.
