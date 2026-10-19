@@ -42,7 +42,10 @@ class CheckRunner
     test/default_object_scope_contract.rb
     test/default_argument_api_contract.rb
   ].freeze
-  REGRESSION_TESTS = %w[test/duplication_method_regexp_contract.rb].freeze
+  REGRESSION_TESTS = %w[
+    test/duplication_method_regexp_contract.rb
+    test/duplication_method_block_parameter_contract.rb
+  ].freeze
 
   def initialize(mode)
     @mode = mode

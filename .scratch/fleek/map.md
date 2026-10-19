@@ -233,3 +233,5 @@
 
 - ADRs 0140 and 0141 record static and interpolated Prism regular-expression support and their identity rules in method candidates. ADR 0142 records the focused mutation-contract mapping that avoids repeated Flay work.
 - Pinned Flay 2.14.4 and Fleek match static regex method pairs at mass 10 and interpolated regex pairs at mass 16. Focused mutations protect support, mass, pattern parts, and option flags.
+- ADR 0143 records anonymous method block-parameter support and safe comparison of absent Prism parameter names, superseding ADR 0133's rejection boundary.
+- Pinned Flay 2.14.4 and Fleek match anonymous `&` methods at mass 6 and score 12, and `&` versus `&handler` methods as similar at mass/score 6. Focused mutations protect candidate support and both identity boundaries.

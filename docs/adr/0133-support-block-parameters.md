@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by ADR 0143 for anonymous block parameters.
 
 ## Context
 

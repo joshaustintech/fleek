@@ -2572,8 +2572,7 @@ class Fleek
       if ((parameters->rest != NULL && (!PM_NODE_TYPE_P(parameters->rest, PM_REST_PARAMETER_NODE) ||
           ((const pm_rest_parameter_node_t *) parameters->rest)->name == 0)) ||
           (parameters->keyword_rest != NULL && (!PM_NODE_TYPE_P(parameters->keyword_rest, PM_KEYWORD_REST_PARAMETER_NODE) ||
-          ((const pm_keyword_rest_parameter_node_t *) parameters->keyword_rest)->name == 0)) ||
-          (parameters->block != NULL && parameters->block->name == 0)) return false;
+          ((const pm_keyword_rest_parameter_node_t *) parameters->keyword_rest)->name == 0))) return false;
       for (size_t index = 0; index < parameters->requireds.size; index++) if (!PM_NODE_TYPE_P(parameters->requireds.nodes[index], PM_REQUIRED_PARAMETER_NODE)) return false;
       for (size_t index = 0; index < parameters->posts.size; index++) if (!PM_NODE_TYPE_P(parameters->posts.nodes[index], PM_REQUIRED_PARAMETER_NODE)) return false;
       for (size_t index = 0; index < parameters->keywords.size; index++) {
@@ -2741,9 +2740,11 @@ class Fleek
           ((const pm_keyword_rest_parameter_node_t *) left_parameters->keyword_rest)->name,
           ((const pm_keyword_rest_parameter_node_t *) right_parameters->keyword_rest)->name)) return false;
       if ((left_parameters->block == NULL) != (right_parameters->block == NULL)) return false;
-      if (left_parameters->block != NULL && !fleek_constants_equal(parser,
-          ((const pm_block_parameter_node_t *) left_parameters->block)->name,
-          ((const pm_block_parameter_node_t *) right_parameters->block)->name)) return false;
+      if (left_parameters->block != NULL) {
+        pm_constant_id_t left_name = ((const pm_block_parameter_node_t *) left_parameters->block)->name;
+        pm_constant_id_t right_name = ((const pm_block_parameter_node_t *) right_parameters->block)->name;
+        if ((left_name == 0) != (right_name == 0) || (left_name != 0 && !fleek_constants_equal(parser, left_name, right_name))) return false;
+      }
       if (left_parameters->requireds.size != right_parameters->requireds.size || left_parameters->posts.size != right_parameters->posts.size ||
           left_parameters->optionals.size != right_parameters->optionals.size) return false;
       if (left_parameters->keywords.size != right_parameters->keywords.size) return false;
