@@ -58,3 +58,5 @@ Method candidates now support nested blocks with optional parameters. Candidate 
 Method candidates now support local-variable operator writes such as `+=`. Each write adds two Flay mass points; contracts compare identical writes (mass 24), renamed-variable methods, and differing operators as similar groups. Focused mutations protect candidate support, mass, and operator identity. See ADR 0147.
 
 Method candidates now support local-variable logical writes (`&&=` and `||=`). Each node adds two mass points; same-operator target-name changes classify as similar, while different logical operators produce no Flay group. Focused mutations protect support, mass, and target-name identity for both node types. See ADR 0148.
+
+Method candidates now support class-variable reads. Same-name reads match Flay at mass 12; changing only the class-variable name preserves a similar group. Focused mutations protect candidate support and name identity. See ADR 0149.
