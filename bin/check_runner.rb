@@ -48,6 +48,7 @@ class CheckRunner
     test/duplication_method_anonymous_parameter_contract.rb
     test/duplication_method_multiple_assignment_contract.rb
     test/duplication_method_block_optional_parameter_contract.rb
+    test/duplication_method_local_operator_write_contract.rb
   ].freeze
 
   def initialize(mode)

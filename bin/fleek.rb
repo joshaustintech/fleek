@@ -2508,7 +2508,7 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_HASH_NODE) ||
         PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_CASE_NODE) || PM_NODE_TYPE_P(node, PM_WHEN_NODE) || PM_NODE_TYPE_P(node, PM_WHILE_NODE) || PM_NODE_TYPE_P(node, PM_UNTIL_NODE) || PM_NODE_TYPE_P(node, PM_FOR_NODE) ||
         PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE) || PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) ||
+        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE) || PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) ||
         PM_NODE_TYPE_P(node, PM_MULTI_TARGET_NODE) ||
         PM_NODE_TYPE_P(node, PM_SELF_NODE) || PM_NODE_TYPE_P(node, PM_SPLAT_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE) ||
         PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE) || PM_NODE_TYPE_P(node, PM_REQUIRED_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_OPTIONAL_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) ||
@@ -2540,7 +2540,7 @@ class Fleek
       ast->method->data.ast.nodes[index] = node;
       ast->method->data.ast.interpolated_regexp_part_markers[index] = ast->parent != NULL && PM_NODE_TYPE_P(ast->parent, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE);
       ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_ENSURE_NODE) ? -1 :
-        PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) ? 2 :
+        PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE) ? 2 :
         fleek_duplication_block_has_optional_parameters(node) ? 1 :
         PM_NODE_TYPE_P(node, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) ? -1 :
         PM_NODE_TYPE_P(node, PM_NEXT_NODE) || PM_NODE_TYPE_P(node, PM_RETRY_NODE) ? 1 :
@@ -2823,6 +2823,14 @@ class Fleek
             ((const pm_constant_path_node_t *) first)->name, ((const pm_constant_path_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_READ_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_read_node_t *) first)->name, ((const pm_local_variable_read_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_write_node_t *) first)->name, ((const pm_local_variable_write_node_t *) second)->name)) return false;
+        if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE)) {
+          const pm_local_variable_operator_write_node_t *left_operator = (const pm_local_variable_operator_write_node_t *) first;
+          const pm_local_variable_operator_write_node_t *right_operator = (const pm_local_variable_operator_write_node_t *) second;
+          size_t left_operator_length = (size_t) (left_operator->binary_operator_loc.end - left_operator->binary_operator_loc.start);
+          size_t right_operator_length = (size_t) (right_operator->binary_operator_loc.end - right_operator->binary_operator_loc.start);
+          if (!fleek_constants_equal(parser, left_operator->name, right_operator->name) || left_operator_length != right_operator_length ||
+              memcmp(left_operator->binary_operator_loc.start, right_operator->binary_operator_loc.start, left_operator_length) != 0) return false;
+        }
         if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_TARGET_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_target_node_t *) first)->name, ((const pm_local_variable_target_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_REQUIRED_PARAMETER_NODE) && !fleek_constants_equal(parser, ((const pm_required_parameter_node_t *) first)->name, ((const pm_required_parameter_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_OPTIONAL_PARAMETER_NODE) && !fleek_constants_equal(parser,
@@ -4426,7 +4434,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level methods, bounded methods in simple classes or one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable and multiple assignments, and splat arguments, using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level methods, bounded methods in simple classes or one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable reads and writes, local-variable operator writes, multiple assignments, and splat arguments, using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -4509,7 +4517,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: top-level methods, class methods in simple classes and one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable and multiple assignments, and splat arguments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: top-level methods, class methods in simple classes and one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable reads and writes, local-variable operator writes, multiple assignments, and splat arguments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter
