@@ -2646,10 +2646,13 @@ class Fleek
       ast->method->data.ast.tree_ends[index] = ast->method->data.ast.tree_count;
       ast->method->data.ast.node_ends[index] = ast->method->shape_count;
     }
-    static bool fleek_duplication_optional_default_supported(const pm_node_t *node) {
+    static bool fleek_duplication_optional_default_supported(const pm_node_t *node, bool allow_integer_call_argument) {
       if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
         const pm_call_node_t *call = (const pm_call_node_t *) node;
-        return call->receiver == NULL && (call->arguments == NULL || call->arguments->arguments.size == 0) && call->block == NULL;
+        if (call->receiver != NULL || call->block != NULL) return false;
+        if (call->arguments == NULL || call->arguments->arguments.size == 0) return true;
+        return allow_integer_call_argument && call->arguments->arguments.size == 1 &&
+          PM_NODE_TYPE_P(call->arguments->arguments.nodes[0], PM_INTEGER_NODE);
       }
       return PM_NODE_TYPE_P(node, PM_INTEGER_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) ||
         PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_TRUE_NODE) ||
@@ -2671,15 +2674,20 @@ class Fleek
           result->parameter_mass++;
         } else if (PM_NODE_TYPE_P(keyword, PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) {
           const pm_optional_keyword_parameter_node_t *optional = (const pm_optional_keyword_parameter_node_t *) keyword;
-          if (!fleek_duplication_optional_default_supported(optional->value) || result->parameter_mass > SIZE_MAX - 2) return false;
+          if (!fleek_duplication_optional_default_supported(optional->value, false) || result->parameter_mass > SIZE_MAX - 2) return false;
           result->parameter_mass += 2;
         } else return false;
       }
       for (size_t index = 0; index < parameters->optionals.size; index++) {
         const pm_node_t *optional = parameters->optionals.nodes[index];
         if (!PM_NODE_TYPE_P(optional, PM_OPTIONAL_PARAMETER_NODE) ||
-            !fleek_duplication_optional_default_supported(((const pm_optional_parameter_node_t *) optional)->value)) return false;
+            !fleek_duplication_optional_default_supported(((const pm_optional_parameter_node_t *) optional)->value, true)) return false;
         size_t optional_mass = 2;
+        const pm_node_t *default_value = ((const pm_optional_parameter_node_t *) optional)->value;
+        if (PM_NODE_TYPE_P(default_value, PM_CALL_NODE)) {
+          const pm_call_node_t *default_call = (const pm_call_node_t *) default_value;
+          if (default_call->arguments != NULL && default_call->arguments->arguments.size > 0) optional_mass++;
+        }
         if (result->parameter_mass > SIZE_MAX - optional_mass) return false;
         result->parameter_mass += optional_mass;
       }
@@ -2805,8 +2813,22 @@ class Fleek
       }
       if (PM_NODE_TYPE_P(left, PM_CONSTANT_READ_NODE)) return fleek_constants_equal(parser,
         ((const pm_constant_read_node_t *) left)->name, ((const pm_constant_read_node_t *) right)->name);
-      if (PM_NODE_TYPE_P(left, PM_CALL_NODE)) return fleek_constants_equal(parser,
-        ((const pm_call_node_t *) left)->name, ((const pm_call_node_t *) right)->name);
+      if (PM_NODE_TYPE_P(left, PM_CALL_NODE)) {
+        const pm_call_node_t *left_call = (const pm_call_node_t *) left;
+        const pm_call_node_t *right_call = (const pm_call_node_t *) right;
+        if (!fleek_constants_equal(parser, left_call->name, right_call->name)) return false;
+        size_t left_count = left_call->arguments == NULL ? 0 : left_call->arguments->arguments.size;
+        size_t right_count = right_call->arguments == NULL ? 0 : right_call->arguments->arguments.size;
+        if (left_count != right_count) return false;
+        for (size_t index = 0; index < left_count; index++) {
+          const pm_node_t *left_argument = left_call->arguments->arguments.nodes[index];
+          const pm_node_t *right_argument = right_call->arguments->arguments.nodes[index];
+          if (!PM_NODE_TYPE_P(left_argument, PM_INTEGER_NODE) || !PM_NODE_TYPE_P(right_argument, PM_INTEGER_NODE) ||
+              pm_integer_compare(&((const pm_integer_node_t *) left_argument)->value,
+                &((const pm_integer_node_t *) right_argument)->value) != 0) return false;
+        }
+        return true;
+      }
       return PM_NODE_TYPE_P(left, PM_TRUE_NODE) || PM_NODE_TYPE_P(left, PM_FALSE_NODE) || PM_NODE_TYPE_P(left, PM_NIL_NODE);
     }
     static size_t fleek_duplication_optional_parameter_count(const pm_def_node_t *method) {

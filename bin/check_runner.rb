@@ -44,6 +44,8 @@ class CheckRunner
   ].freeze
   REGRESSION_TESTS = %w[
     test/duplication_method_optional_positional_call_contract.rb
+    test/duplication_method_optional_positional_call_argument_contract.rb
+    test/duplication_method_optional_keyword_call_argument_contract.rb
     test/duplication_method_optional_positional_constant_contract.rb
     test/duplication_method_regexp_contract.rb
     test/duplication_method_block_parameter_contract.rb
