@@ -7,7 +7,7 @@ endif
 FLEEK = build/fleek
 RUNTIME_REPETITIONS ?= 20
 
-.PHONY: all setup-git test verify-spinel mutation reference flay reek check rails-controller-parity rails-manifest-parity runtime-evidence package-macos-arm64 verify-macos-arm64-archive
+.PHONY: all setup-git test verify-spinel mutation reference flay reek check ticket-check rails-controller-parity rails-manifest-parity runtime-evidence package-macos-arm64 verify-macos-arm64-archive
 
 all: verify-spinel $(FLEEK)
 
@@ -41,6 +41,9 @@ reek:
 
 check: verify-spinel $(FLEEK)
 	$(SPINEL) -E bin/check_runner.rb check
+
+ticket-check: verify-spinel
+	$(SPINEL) -E bin/ticket_check.rb .scratch
 
 rails-manifest-parity: all
 	FLEEK_REQUIRE_RAILS_CORPUS=1 $(SPINEL) -E test/duplication_contract.rb

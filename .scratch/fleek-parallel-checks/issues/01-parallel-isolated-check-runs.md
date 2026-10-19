@@ -1,21 +1,20 @@
-# Parallel isolated check runs
+# 01: Parallel isolated check runs
 
-Type: task  
-Status: resolved
-Triage: ready-for-agent
+**What to build:** Fleek tests, mutations, and analyzer checks run concurrently without shared-source, binary, or temporary-output races.
 
-## Goal
-
-Run Fleek tests, mutations, and independent analyzer checks concurrently without shared-source, binary, or temporary-output races.
+**Status:** resolved
+**Type:** task
+**Category:** enhancement
+**Triage:** ready-for-agent
 
 ## Acceptance criteria
 
-- [ ] `make test`, `make mutation`, and `make check` use a CPU-bounded worker pool by default; `JOBS` can lower the limit.
-- [ ] Each test and mutation worker has an isolated project copy and temporary-output namespace.
-- [ ] Mutation cases are partitioned exactly once across workers, and each mutant is caught.
-- [ ] `make check` shares one worker pool across tests, mutation shards, and read-only checks.
-- [ ] Concurrent runs leave source and generated root binary untouched by worker mutations.
-- [ ] Flay and Reek checks remain clean; Spinel pin/version gate remains enforced.
+- [x] `make test`, `make mutation`, and `make check` use a CPU-bounded worker pool by default; `JOBS` can lower the limit.
+- [x] Each test and mutation worker has an isolated project copy and temporary-output namespace.
+- [x] Mutation cases are partitioned exactly once across workers, and each mutant is caught.
+- [x] `make check` shares one worker pool across tests, mutation shards, and read-only checks.
+- [x] Concurrent runs leave source and generated root binary untouched by worker mutations.
+- [x] Flay and Reek checks remain clean; Spinel pin/version gate remains enforced.
 
 ## Comments
 
