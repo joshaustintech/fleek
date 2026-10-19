@@ -39,21 +39,13 @@ Give each ticket its **blocking edges**: the other tickets that must complete be
 
 **Wide refactors are the exception to vertical slicing.** A **wide refactor** is one mechanical change (rename a column, retype a shared symbol) whose **blast radius** fans across the whole codebase, so a single edit breaks thousands of call sites at once and no vertical slice can land green. Don't force it into a tracer bullet; sequence it as **expand–contract**. First expand: add the new form beside the old so nothing breaks. Then migrate the call sites over in batches sized by blast radius (per package, per directory), each batch its own ticket blocked by the expand, keeping CI green batch to batch because the old form still exists. Finally contract: delete the old form once no caller remains, in a ticket blocked by every migrate batch. When even the batches can't stay green alone, keep the sequence but let them share an integration branch that all block a final integrate-and-verify ticket; green is promised only there.
 
-### 4. Quiz the user
+### 4. Resolve publication authorization
 
-Present the proposed breakdown as a numbered list. For each ticket, show:
+Before publication, check the current request and prior user instructions for explicit authorization covering creation and publication of this ticket set and its tracker. A direct request to create, publish, or turn specified work into tickets authorizes that requested set. Standing authorization applies only within the scope the user stated. Preserve those limits.
 
-- **Title**: short descriptive name
-- **Blocked by**: which other tickets (if any) must complete first
-- **What it delivers**: the end-to-end behaviour this ticket makes work
+If authorization covers the set, make reasonable granularity and dependency decisions, publish without repeating approval questions, and report the result. If authorization is absent or does not cover publication, present the proposed breakdown for review and wait before publishing. A request for a draft or proposal alone authorizes drafting, not publication.
 
-Ask the user:
-
-- Does the granularity feel right? (too coarse / too fine)
-- Are the blocking edges correct: does each ticket only depend on tickets that genuinely gate it?
-- Should any tickets be merged or split further?
-
-Iterate until the user approves the breakdown.
+When authorization is absent or insufficient, list each draft ticket's title, blockers, and delivered behavior; ask whether granularity and dependencies are right and whether tickets should be merged or split. Iterate until approved.
 
 ### 5. Publish the tickets to the configured tracker
 
@@ -72,9 +64,12 @@ Do NOT close or modify any parent issue.
 
 **What to build:** the end-to-end behaviour this ticket makes work, from the user's perspective, not a layer-by-layer implementation list.
 
-**Blocked by:** the numbers/titles of the tickets that gate this one, or "None (can start immediately)".
+**Blocked by:** the numbers/titles of tickets that gate this one. Omit when no blocker exists.
 
-**Status:** ready-for-agent
+**Status:** open
+**Type:** task
+**Category:** enhancement
+**Triage:** ready-for-agent
 
 - [ ] Acceptance criterion 1
 - [ ] Acceptance criterion 2

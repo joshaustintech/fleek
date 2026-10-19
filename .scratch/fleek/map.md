@@ -12,8 +12,9 @@
 
 ## Decisions-so-far
 
-- Retro follow-ups are tracked as [issue 44: validate local ticket documents](issues/44-validate-local-ticket-documents.md) and [issue 45: honor prior authorization in ticket breakdowns](issues/45-honor-autonomous-ticket-authorization.md). Issue 44 is resolved; issue 45 is ready-for-agent and unblocked.
+- Retro follow-ups are tracked as [issue 44: validate local ticket documents](issues/44-validate-local-ticket-documents.md) and [issue 45: honor prior authorization in ticket breakdowns](issues/45-honor-autonomous-ticket-authorization.md). Both are resolved.
 - Issue 44 adds `make ticket-check` and runs its malformed-document contract in the main gate. All 54 local tickets pass. ADR 0164 records optional blocker and cross-feature reference rules.
+- Issue 45 makes ticket publication authorization-aware and aligns its local template with the canonical tracker contract. ADR 0165 records the policy.
 
 - Approved default-check behavior effort: [spec](../fleek-default-checks/spec.md), [tickets](../fleek-default-checks/issues/), and [ADR 0039](../../docs/adr/0039-default-checks-and-implicit-source-scope.md).
 - Full native analyzer parity is now the implementation goal in [spec 04](specs/04-language-and-project-parity.md); issues 21–24 cover Flay candidate scopes, method/expression semantics, analysis controls, and the final shared-syntax gate. Existing default-check tickets remain the default-selection work; ADR 0037 remains historical first-release scope.
