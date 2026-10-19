@@ -9,7 +9,6 @@ FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_optional_k
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_optional_keyword_parameter_names.rb", "optional-keyword-parameter-names", 10, 1, 5)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_optional_keyword_call_default.rb", "optional-keyword-call-default", 10, 1, 5)
 FlayMethodCandidateContract.verify_no_group("test/fixtures/duplication_class_methods_optional_parameter_counts.rb", "optional-parameter-count")
-FlayMethodCandidateContract.verify_no_group("test/fixtures/duplication_methods_optional_keyword_count.rb", "optional-keyword-count")
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_optional_keyword_nonliteral.rb", "optional-keyword-nonliteral", 10, 1, 5)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_optional_keyword_constant_default_names.rb", "optional-keyword-constant-default-names", 10, 1, 5)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_post_parameters.rb", "post-parameter", 10, 1, 5)

@@ -61,6 +61,8 @@ class CheckRunner
     test/duplication_method_exception_flow_contract.rb
     test/duplication_method_range_contract.rb
     test/duplication_method_range_regexp_boundary_contract.rb
+    test/duplication_generated_descriptor_contract.rb
+    test/duplication_method_optional_keyword_count_contract.rb
     test/ticket_documents_contract.rb
   ].freeze
 

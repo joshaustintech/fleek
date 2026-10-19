@@ -192,17 +192,25 @@ class FlayMethodCandidateContract
   end
 
   def self.run_fleek(path, output, error)
-    process_id = Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", "--mass", "3", path,
-      out: output, err: error)
+    process_id = spawn_fleek(path, output, error)
     _, status = Process.waitpid2(process_id)
     status.exitstatus
   end
 
-  def self.run_flay(path, output, error)
-    process_id = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "flay", "--mass", "3", path,
+  def self.spawn_fleek(path, output, error)
+    Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", "--mass", "3", path,
       out: output, err: error)
+  end
+
+  def self.run_flay(path, output, error)
+    process_id = spawn_flay(path, output, error)
     _, status = Process.waitpid2(process_id)
     status
+  end
+
+  def self.spawn_flay(path, output, error)
+    Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "flay", "--mass", "3", path,
+      out: output, err: error)
   end
 
   def self.reference_mass(group)
