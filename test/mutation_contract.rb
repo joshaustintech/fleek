@@ -99,8 +99,8 @@ class MutationCase
     "Flay method array expression" => "test/duplication_method_collection_contract.rb",
     "Flay method hash expression" => "test/duplication_method_collection_contract.rb",
     "Flay method hash-rocket expression" => "test/duplication_method_hash_rocket_contract.rb",
-    "Flay method while loop candidates" => "test/duplication_contract.rb",
-    "Flay method until loop candidates" => "test/duplication_contract.rb",
+    "Flay method while loop candidates" => "test/duplication_method_loop_contract.rb",
+    "Flay method until loop candidates" => "test/duplication_method_loop_contract.rb",
     "Flay method for loop candidates" => "test/duplication_method_for_contract.rb",
     "Flay method rest parameter identity" => "test/duplication_method_anonymous_parameter_contract.rb",
     "Flay required keyword parameter candidates" => "test/duplication_method_parameter_contract.rb",
@@ -122,19 +122,19 @@ class MutationCase
     "Flay method block parameter candidates" => "test/duplication_method_block_parameter_contract.rb",
     "Flay method block parameter identity" => "test/duplication_method_block_parameter_contract.rb",
     "Flay anonymous method block parameter identity" => "test/duplication_method_block_parameter_contract.rb",
-    "Flay yield expression candidates" => "test/duplication_method_parameter_contract.rb",
+    "Flay yield expression candidates" => "test/duplication_method_exception_flow_contract.rb",
     "Flay bare super candidates" => "test/duplication_method_parameter_contract.rb",
     "Flay explicit super candidates" => "test/duplication_method_parameter_contract.rb",
-    "Flay next expression candidates" => "test/duplication_method_parameter_contract.rb",
-    "Flay next expression mass" => "test/duplication_method_parameter_contract.rb",
-    "Flay break expression candidates" => "test/duplication_method_parameter_contract.rb",
-    "Flay redo expression candidates" => "test/duplication_method_parameter_contract.rb",
-    "Flay begin expression candidates" => "test/duplication_method_parameter_contract.rb",
-    "Flay rescue expression candidates" => "test/duplication_method_parameter_contract.rb",
-    "Flay retry expression candidates" => "test/duplication_method_parameter_contract.rb",
-    "Flay retry expression mass" => "test/duplication_method_parameter_contract.rb",
-    "Flay ensure expression candidates" => "test/duplication_method_parameter_contract.rb",
-    "Flay ensure expression mass" => "test/duplication_method_parameter_contract.rb",
+    "Flay next expression candidates" => "test/duplication_method_exception_flow_contract.rb",
+    "Flay next expression mass" => "test/duplication_method_exception_flow_contract.rb",
+    "Flay break expression candidates" => "test/duplication_method_exception_flow_contract.rb",
+    "Flay redo expression candidates" => "test/duplication_method_exception_flow_contract.rb",
+    "Flay begin expression candidates" => "test/duplication_method_exception_flow_contract.rb",
+    "Flay rescue expression candidates" => "test/duplication_method_exception_flow_contract.rb",
+    "Flay retry expression candidates" => "test/duplication_method_exception_flow_contract.rb",
+    "Flay retry expression mass" => "test/duplication_method_exception_flow_contract.rb",
+    "Flay ensure expression candidates" => "test/duplication_method_exception_flow_contract.rb",
+    "Flay ensure expression mass" => "test/duplication_method_exception_flow_contract.rb",
     "Flay regular expression candidates" => "test/duplication_method_regexp_contract.rb",
     "Flay regular expression content identity" => "test/duplication_method_regexp_contract.rb",
     "Flay regular expression flags identity" => "test/duplication_method_regexp_contract.rb",
@@ -205,16 +205,16 @@ class MutationCase
     "Flay variable-rule name identity" => "test/duplication_method_multiple_assignment_contract.rb",
     "Flay variable-rule operator identity" => "test/duplication_method_variable_rule_contract.rb",
     "Flay optional parameter count" => "test/duplication_contract.rb",
-    "Flay class method conditional candidates" => "test/duplication_contract.rb",
-    "Flay method return candidates" => "test/duplication_contract.rb",
-    "Flay method false literal candidates" => "test/duplication_contract.rb",
-    "Flay method OR candidates" => "test/duplication_contract.rb",
-    "Flay method AND candidates" => "test/duplication_contract.rb",
-    "Flay method CASE candidates" => "test/duplication_contract.rb",
-    "Flay method WHEN candidates" => "test/duplication_contract.rb",
+    "Flay class method conditional candidates" => "test/duplication_method_branch_contract.rb",
+    "Flay method return candidates" => "test/duplication_method_branch_contract.rb",
+    "Flay method false literal candidates" => "test/duplication_method_branch_contract.rb",
+    "Flay method OR candidates" => "test/duplication_method_branch_contract.rb",
+    "Flay method AND candidates" => "test/duplication_method_branch_contract.rb",
+    "Flay method CASE candidates" => "test/duplication_method_branch_contract.rb",
+    "Flay method WHEN candidates" => "test/duplication_method_branch_contract.rb",
     "Flay method float candidates" => "test/duplication_contract.rb",
     "Flay method nil candidates" => "test/duplication_contract.rb",
-    "Flay method unless candidates" => "test/duplication_contract.rb",
+    "Flay method unless candidates" => "test/duplication_method_branch_contract.rb",
     "Flay method range candidates" => "test/duplication_contract.rb",
     "Flay method range mass" => "test/duplication_contract.rb",
     "Flay method range identity" => "test/duplication_contract.rb",
@@ -257,7 +257,7 @@ class MutationCase
     "Flay additional class method rejection" => "test/duplication_contract.rb",
     "Flay class method tree topology" => "test/duplication_contract.rb",
     "Flay class method partial subtree" => "test/duplication_contract.rb",
-    "Flay method case condition mass" => "test/duplication_contract.rb",
+    "Flay method case condition mass" => "test/duplication_method_branch_contract.rb",
     "Flay outer scope mass" => "test/duplication_contract.rb",
     "Flay class method original locations" => "test/duplication_contract.rb",
     "Flay class method pair ordering" => "test/duplication_contract.rb",
@@ -1033,7 +1033,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_YIELD_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_YIELD_NODE] = { 0, 0, 0, false, false, false },",
   "Flay yield expression candidates",
-  "yield-statement methods were not analyzed")).run
+  "flow-yield methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_FORWARDING_SUPER_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_FORWARDING_SUPER_NODE] = { 0, 0, 0, false, false, false },",
@@ -1048,52 +1048,52 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_NEXT_NODE] = { 0, 0, 1, false, false, true },",
   "[PM_NEXT_NODE] = { 0, 0, 1, false, false, false },",
   "Flay next expression candidates",
-  "unsupported Flay candidate syntax")).run
+  "flow-next methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_NEXT_NODE] = { 0, 0, 1, false, false, true },",
   "[PM_NEXT_NODE] = { 0, 0, 0, false, false, true },",
   "Flay next expression mass",
-  "next kind, mass, or locations differed from Flay")).run
+  "flow-next kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_BREAK_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_BREAK_NODE] = { 0, 0, 0, false, false, false },",
   "Flay break expression candidates",
-  "break methods were not analyzed")).run
+  "flow-break methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_REDO_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_REDO_NODE] = { 0, 0, 0, false, false, false },",
   "Flay redo expression candidates",
-  "redo methods were not analyzed")).run
+  "flow-redo methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_BEGIN_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_BEGIN_NODE] = { 0, 0, 0, false, false, false },",
   "Flay begin expression candidates",
-  "rescue-retry methods were not analyzed")).run
+  "flow-rescue-retry methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_RESCUE_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_RESCUE_NODE] = { 0, 0, 0, false, false, false },",
   "Flay rescue expression candidates",
-  "rescue-retry methods were not analyzed")).run
+  "flow-rescue-retry methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_RETRY_NODE] = { 0, 0, 1, false, false, true },",
   "[PM_RETRY_NODE] = { 0, 0, 1, false, false, false },",
   "Flay retry expression candidates",
-  "unsupported Flay candidate syntax")).run
+  "flow-rescue-retry methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_RETRY_NODE] = { 0, 0, 1, false, false, true },",
   "[PM_RETRY_NODE] = { 0, 0, 0, false, false, true },",
   "Flay retry expression mass",
-  "rescue-retry kind, mass, or locations differed from Flay")).run
+  "flow-rescue-retry kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_ENSURE_NODE] = { 0, 0, -1, false, false, true },",
   "[PM_ENSURE_NODE] = { 0, 0, -1, false, false, false },",
   "Flay ensure expression candidates",
-  "ensure methods were not analyzed")).run
+  "flow-ensure methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_ENSURE_NODE] = { 0, 0, -1, false, false, true },",
   "[PM_ENSURE_NODE] = { 0, 0, 0, false, false, true },",
   "Flay ensure expression mass",
-  "ensure kind, mass, or locations differed from Flay")).run
+  "flow-ensure kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_REGULAR_EXPRESSION_NODE] = { 0, 0, 0, false, false, true }",
   "[PM_REGULAR_EXPRESSION_NODE] = { 0, 0, 0, false, false, false }",
@@ -1363,12 +1363,12 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_IF_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_IF_NODE] = { 0, 0, 0, false, false, false },",
   "Flay class method conditional candidates",
-  "top-level methods with conditionals differed from Flay")).run
+  "branch-if-else methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_UNLESS_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_UNLESS_NODE] = { 0, 0, 0, false, false, false },",
   "Flay method unless candidates",
-  "top-level methods with unless expressions differed from Flay")).run
+  "branch-unless methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_RANGE_NODE] = { 0, 0, -2, false, false, true },",
   "[PM_RANGE_NODE] = { 0, 0, -2, false, false, false },",
@@ -1443,32 +1443,32 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_RETURN_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_RETURN_NODE] = { 0, 0, 0, false, false, false },",
   "Flay method return candidates",
-  "top-level methods with conditional returns differed from Flay")).run
+  "branch-return methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_FALSE_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_FALSE_NODE] = { 0, 0, 0, false, false, false },",
   "Flay method false literal candidates",
-  "top-level methods with conditional returns differed from Flay")).run
+  "branch-return methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_OR_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_OR_NODE] = { 0, 0, 0, false, false, false },",
   "Flay method OR candidates",
-  "top-level methods with OR expressions differed from Flay")).run
+  "branch-or methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_AND_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_AND_NODE] = { 0, 0, 0, false, false, false },",
   "Flay method AND candidates",
-  "top-level methods with AND expressions differed from Flay")).run
+  "branch-and methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_CASE_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_CASE_NODE] = { 0, 0, 0, false, false, false },",
   "Flay method CASE candidates",
-  "top-level methods with case expressions differed from Flay")).run
+  "branch-case methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_WHEN_NODE] = { 0, 0, 1, false, false, true },",
   "[PM_WHEN_NODE] = { 0, 0, 1, false, false, false },",
   "Flay method WHEN candidates",
-  "top-level methods with case expressions differed from Flay")).run
+  "branch-case methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_FLOAT_NODE] = { 0, 0, 0, false, false, true, FLEEK_DUPLICATION_IDENTITY_FLOAT, offsetof(pm_float_node_t, value) },",
   "[PM_FLOAT_NODE] = { 0, 0, 0, false, false, false, FLEEK_DUPLICATION_IDENTITY_FLOAT, offsetof(pm_float_node_t, value) },",
@@ -1503,12 +1503,12 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_WHILE_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_WHILE_NODE] = { 0, 0, 0, false, false, false },",
   "Flay method while loop candidates",
-  "top-level methods with while-control loops differed from Flay")).run
+  "loop-while methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_UNTIL_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_UNTIL_NODE] = { 0, 0, 0, false, false, false },",
   "Flay method until loop candidates",
-  "top-level methods with until-control loops differed from Flay")).run
+  "loop-until methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_FOR_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_FOR_NODE] = { 0, 0, 0, false, false, false },",
@@ -1733,7 +1733,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "for (size_t index = 0; index < method->shape_count; index++) {\n        int8_t adjustment = method->data.ast.mass_adjustments[index];\n        if (adjustment < 0) mass -= (size_t) (-adjustment);\n        else mass += (size_t) adjustment;\n      }\n      return mass;",
   "for (size_t index = 0; index < method->shape_count; index++) {\n        int8_t adjustment = method->data.ast.mass_adjustments[index];\n        if (adjustment < 0) mass -= (size_t) (-adjustment);\n        else mass -= (size_t) adjustment;\n      }\n      return mass;",
   "Flay method case condition mass",
-  "top-level methods with case expressions differed from Flay")).run
+  "branch-case kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "fleek_duplication_scope_method_mass(set, first) + fleek_duplication_scope_mass(parser, set, first)",
   "fleek_duplication_scope_method_mass(set, first) + fleek_duplication_scope_mass(parser, set, first) - 1",
