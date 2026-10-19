@@ -2,6 +2,7 @@ require_relative "analysis_runner"
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_rest_parameter.rb", "rest-parameter", 6, 1, 5)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_keyword_parameters.rb", "keyword-parameter", 8, 1, 5)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_optional_keyword_parameters.rb", "optional-keyword-parameter", 10, 1, 5)
+FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_optional_keyword_call_default.rb", "optional-keyword-call-default", 10, 1, 5)
 FlayMethodCandidateContract.verify_no_group("test/fixtures/duplication_methods_optional_keyword_count.rb", "optional-keyword-count")
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_optional_keyword_nonliteral.rb", "optional-keyword-nonliteral", 10, 1, 5)
 FlayMethodCandidateContract.verify("test/fixtures/duplication_methods_optional_keyword_constant_default_names.rb", "optional-keyword-constant-default-names", 10, 1, 5)

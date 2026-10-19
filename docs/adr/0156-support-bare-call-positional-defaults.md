@@ -2,13 +2,13 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0158](0158-share-optional-default-policy.md)
 
 ## Context
 
 Pinned Flay 2.14.4 analyzes optional positional parameters defaulted to a bare, receiverless method call with no arguments or block. Different call names produce a similar method group at mass and score 10. Fleek previously rejected these otherwise shared-parseable methods.
 
-## Decision
+## Decision at adoption
 
 Accept only bare receiverless calls with no arguments and no block as positional optional defaults. Retain the existing two mass units and compare call names for identical-versus-similar classification. Keep optional keyword defaults on their separately verified literal/constant boundary.
 

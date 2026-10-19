@@ -2585,12 +2585,6 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE) ||
         PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE);
     }
-    static bool fleek_duplication_optional_keyword_default_supported(const pm_node_t *node) {
-      return PM_NODE_TYPE_P(node, PM_INTEGER_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) ||
-        PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_TRUE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE) ||
-        PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE);
-    }
     static bool fleek_duplication_method_parameters(const pm_node_t *node, fleek_duplication_method_t *result) {
       if (node == NULL) return true;
       if (!PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE)) return false;
@@ -2606,7 +2600,7 @@ class Fleek
           result->parameter_mass++;
         } else if (PM_NODE_TYPE_P(keyword, PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) {
           const pm_optional_keyword_parameter_node_t *optional = (const pm_optional_keyword_parameter_node_t *) keyword;
-          if (!fleek_duplication_optional_keyword_default_supported(optional->value) || result->parameter_mass > SIZE_MAX - 2) return false;
+          if (!fleek_duplication_optional_default_supported(optional->value) || result->parameter_mass > SIZE_MAX - 2) return false;
           result->parameter_mass += 2;
         } else return false;
       }
