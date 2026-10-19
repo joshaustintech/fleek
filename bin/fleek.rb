@@ -2580,6 +2580,9 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_TRUE_NODE) ||
         PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE);
     }
+    static bool fleek_duplication_optional_keyword_default_supported(const pm_node_t *node) {
+      return fleek_duplication_optional_default_supported(node) || PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE);
+    }
     static bool fleek_duplication_method_parameters(const pm_node_t *node, fleek_duplication_method_t *result) {
       if (node == NULL) return true;
       if (!PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE)) return false;
@@ -2595,7 +2598,7 @@ class Fleek
           result->parameter_mass++;
         } else if (PM_NODE_TYPE_P(keyword, PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) {
           const pm_optional_keyword_parameter_node_t *optional = (const pm_optional_keyword_parameter_node_t *) keyword;
-          if (!fleek_duplication_optional_default_supported(optional->value) || result->parameter_mass > SIZE_MAX - 2) return false;
+          if (!fleek_duplication_optional_keyword_default_supported(optional->value) || result->parameter_mass > SIZE_MAX - 2) return false;
           result->parameter_mass += 2;
         } else return false;
       }
@@ -2717,7 +2720,7 @@ class Fleek
       return true;
     }
     static bool fleek_constants_equal(pm_parser_t *parser, pm_constant_id_t left, pm_constant_id_t right);
-    static bool fleek_duplication_optional_defaults_equal(const pm_node_t *left, const pm_node_t *right) {
+    static bool fleek_duplication_optional_defaults_equal(pm_parser_t *parser, const pm_node_t *left, const pm_node_t *right) {
       if (left->type != right->type) return false;
       if (PM_NODE_TYPE_P(left, PM_INTEGER_NODE)) return pm_integer_compare(&((const pm_integer_node_t *) left)->value, &((const pm_integer_node_t *) right)->value) == 0;
       if (PM_NODE_TYPE_P(left, PM_STRING_NODE) || PM_NODE_TYPE_P(left, PM_SYMBOL_NODE)) {
@@ -2726,6 +2729,8 @@ class Fleek
         return pm_string_length(left_value) == pm_string_length(right_value) &&
           memcmp(pm_string_source(left_value), pm_string_source(right_value), pm_string_length(left_value)) == 0;
       }
+      if (PM_NODE_TYPE_P(left, PM_CONSTANT_READ_NODE)) return fleek_constants_equal(parser,
+        ((const pm_constant_read_node_t *) left)->name, ((const pm_constant_read_node_t *) right)->name);
       return PM_NODE_TYPE_P(left, PM_TRUE_NODE) || PM_NODE_TYPE_P(left, PM_FALSE_NODE) || PM_NODE_TYPE_P(left, PM_NIL_NODE);
     }
     static size_t fleek_duplication_optional_parameter_count(const pm_def_node_t *method) {
@@ -2778,7 +2783,7 @@ class Fleek
         const pm_optional_parameter_node_t *left_parameter = (const pm_optional_parameter_node_t *) left_parameters->optionals.nodes[index];
         const pm_optional_parameter_node_t *right_parameter = (const pm_optional_parameter_node_t *) right_parameters->optionals.nodes[index];
         if (!fleek_constants_equal(parser, left_parameter->name, right_parameter->name) ||
-            !fleek_duplication_optional_defaults_equal(left_parameter->value, right_parameter->value)) return false;
+            !fleek_duplication_optional_defaults_equal(parser, left_parameter->value, right_parameter->value)) return false;
       }
       for (size_t index = 0; index < left_parameters->keywords.size; index++) {
         const pm_node_t *left_keyword = left_parameters->keywords.nodes[index];
@@ -2791,7 +2796,7 @@ class Fleek
           const pm_optional_keyword_parameter_node_t *left_parameter = (const pm_optional_keyword_parameter_node_t *) left_keyword;
           const pm_optional_keyword_parameter_node_t *right_parameter = (const pm_optional_keyword_parameter_node_t *) right_keyword;
           if (!fleek_constants_equal(parser, left_parameter->name, right_parameter->name) ||
-              !fleek_duplication_optional_defaults_equal(left_parameter->value, right_parameter->value)) return false;
+              !fleek_duplication_optional_defaults_equal(parser, left_parameter->value, right_parameter->value)) return false;
         }
       }
       return true;
@@ -2804,7 +2809,7 @@ class Fleek
       return PM_NODE_FLAGS(left) == PM_NODE_FLAGS(right) && left_length == right_length &&
         (left_length == 0 || memcmp(pm_string_source(&left_regex->unescaped), pm_string_source(&right_regex->unescaped), left_length) == 0);
     }
-    static bool fleek_duplication_interpolated_regular_expression_equal(const pm_node_t *left, const pm_node_t *right) {
+    static bool fleek_duplication_interpolated_regular_expression_equal(pm_parser_t *parser, const pm_node_t *left, const pm_node_t *right) {
       const pm_interpolated_regular_expression_node_t *left_regex = (const pm_interpolated_regular_expression_node_t *) left;
       const pm_interpolated_regular_expression_node_t *right_regex = (const pm_interpolated_regular_expression_node_t *) right;
       if (PM_NODE_FLAGS(left) != PM_NODE_FLAGS(right) || left_regex->parts.size != right_regex->parts.size) return false;
@@ -2812,7 +2817,7 @@ class Fleek
         const pm_node_t *left_part = left_regex->parts.nodes[index];
         const pm_node_t *right_part = right_regex->parts.nodes[index];
         if (left_part->type != right_part->type) return false;
-        if (PM_NODE_TYPE_P(left_part, PM_STRING_NODE) && !fleek_duplication_optional_defaults_equal(left_part, right_part)) return false;
+        if (PM_NODE_TYPE_P(left_part, PM_STRING_NODE) && !fleek_duplication_optional_defaults_equal(parser, left_part, right_part)) return false;
       }
       return true;
     }
@@ -2872,9 +2877,9 @@ class Fleek
         if (PM_NODE_TYPE_P(first, PM_INSTANCE_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_instance_variable_write_node_t *) first)->name, ((const pm_instance_variable_write_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_INTEGER_NODE) && pm_integer_compare(&((const pm_integer_node_t *) first)->value, &((const pm_integer_node_t *) second)->value) != 0) return false;
         if (PM_NODE_TYPE_P(first, PM_REGULAR_EXPRESSION_NODE) && !fleek_duplication_regular_expression_equal(first, second)) return false;
-        if (PM_NODE_TYPE_P(first, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) && !fleek_duplication_interpolated_regular_expression_equal(first, second)) return false;
+        if (PM_NODE_TYPE_P(first, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) && !fleek_duplication_interpolated_regular_expression_equal(parser, first, second)) return false;
         if ((PM_NODE_TYPE_P(first, PM_STRING_NODE) || PM_NODE_TYPE_P(first, PM_SYMBOL_NODE)) && !left->data.ast.interpolated_regexp_part_markers[index] &&
-            !fleek_duplication_optional_defaults_equal(first, second)) return false;
+            !fleek_duplication_optional_defaults_equal(parser, first, second)) return false;
       }
       return true;
     }
@@ -4467,7 +4472,7 @@ class Fleek
 
   # :reek:BooleanParameter
   def self.report_unsupported_duplication_sources(report, combined_syntax = false)
-    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level methods, bounded methods in simple classes or one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable reads and writes, local-variable operator and logical writes, class-variable reads, writes, operator writes, and logical writes, multiple assignments, and splat arguments, using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
+    warn "ERROR: unsupported Flay candidate syntax; selected sources must use exactly two top-level methods, bounded methods in simple classes or one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal or constant defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable reads and writes, local-variable operator and logical writes, class-variable reads, writes, operator writes, and logical writes, multiple assignments, and splat arguments, using supported call, literal, local-variable-read, and keyword-hash AST forms; unsupported or partial subtree matches are incomplete."
     report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_syntax)
   end
@@ -4550,7 +4555,7 @@ class Fleek
     puts "References: Flay #{FLAY_REFERENCE}; Reek #{REEK_REFERENCE}; Spinel #{SPINEL_RELEASE}"
     puts "Checks selected: flay:StructuralDuplication"
     puts "Checks run: flay:StructuralDuplication"
-    puts "Scope limits: top-level methods, class methods in simple classes and one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable reads and writes, local-variable operator and logical writes, class-variable reads, writes, operator writes, and logical writes, multiple assignments, and splat arguments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
+    puts "Scope limits: top-level methods, class methods in simple classes and one-level namespaces, direct methods or one direct class under a sole nested-module chain, nested class chains through parser-supported depth with supported direct-sibling and wrapper forms, or direct classes with supported methods under relative qualified module paths; methods accept positional parameters with supported literal defaults, required post parameters, optional keyword parameters with supported literal or constant defaults, required keyword parameters, and named rest, keyword-rest, and block parameters; block parameter lists accept required and optional parameters with supported defaults; method bodies support bounded case/when/if/else/unless branches, while/until/for loops, boolean AND/OR expressions, yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values, static and interpolated regular expression literals, local-variable reads and writes, local-variable operator and logical writes, class-variable reads, writes, operator writes, and logical writes, multiple assignments, and splat arguments; partial results are marked incomplete; partial subtree groups fail; Flay mass #{mass_threshold}."
   end
 
   # :reek:BooleanParameter

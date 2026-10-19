@@ -245,3 +245,4 @@
 - ADR 0150 records class-variable operator writes in method candidates with Flay's two-point mass adjustment and target/operator-sensitive identical-versus-similar classification; focused mutations protect support, mass, and identity.
 - ADR 0151 records class-variable logical writes with Flay's two-point mass adjustment, name-sensitive classification, and separate AND/OR node identity; focused mutations protect support, mass, and identity.
 - ADR 0152 records plain class-variable writes with ordinary Flay mass and name-sensitive classification; focused mutations protect support, mass, and identity.
+- ADR 0153 records optional keyword constant defaults with Flay's existing two mass units and constant-name-sensitive identity; focused mutations protect acceptance and identity.
