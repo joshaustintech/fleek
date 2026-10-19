@@ -243,3 +243,4 @@
 - ADR 0148 records local-variable `&&=`/`||=` support, with two mass points per node and target-name identity. Flay contracts cover identical writes, renamed targets, and the no-group boundary between the two operators; focused mutations protect support, mass, and identity for both node types.
 - ADR 0149 records class-variable reads in method candidates with ordinary Flay mass and name-sensitive identical-versus-similar classification; focused mutations protect support and identity.
 - ADR 0150 records class-variable operator writes in method candidates with Flay's two-point mass adjustment and target/operator-sensitive identical-versus-similar classification; focused mutations protect support, mass, and identity.
+- ADR 0151 records class-variable logical writes with Flay's two-point mass adjustment, name-sensitive classification, and separate AND/OR node identity; focused mutations protect support, mass, and identity.
