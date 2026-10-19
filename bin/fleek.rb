@@ -2508,7 +2508,8 @@ class Fleek
         PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_HASH_NODE) ||
         PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_CASE_NODE) || PM_NODE_TYPE_P(node, PM_WHEN_NODE) || PM_NODE_TYPE_P(node, PM_WHILE_NODE) || PM_NODE_TYPE_P(node, PM_UNTIL_NODE) || PM_NODE_TYPE_P(node, PM_FOR_NODE) ||
         PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE) ||
+        PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_TARGET_NODE) || PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) ||
+        PM_NODE_TYPE_P(node, PM_MULTI_TARGET_NODE) ||
         PM_NODE_TYPE_P(node, PM_SELF_NODE) || PM_NODE_TYPE_P(node, PM_SPLAT_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE) ||
         PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE) || PM_NODE_TYPE_P(node, PM_REQUIRED_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) ||
         PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_YIELD_NODE) || PM_NODE_TYPE_P(node, PM_FORWARDING_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_BREAK_NODE) || PM_NODE_TYPE_P(node, PM_REDO_NODE) || PM_NODE_TYPE_P(node, PM_BEGIN_NODE) || PM_NODE_TYPE_P(node, PM_RESCUE_NODE) || PM_NODE_TYPE_P(node, PM_RETRY_NODE) || PM_NODE_TYPE_P(node, PM_ENSURE_NODE) || PM_NODE_TYPE_P(node, PM_NEXT_NODE) || PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) || PM_NODE_TYPE_P(node, PM_REGULAR_EXPRESSION_NODE);
@@ -2534,6 +2535,7 @@ class Fleek
       ast->method->data.ast.nodes[index] = node;
       ast->method->data.ast.interpolated_regexp_part_markers[index] = ast->parent != NULL && PM_NODE_TYPE_P(ast->parent, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE);
       ast->method->data.ast.mass_adjustments[index] = PM_NODE_TYPE_P(node, PM_ENSURE_NODE) ? -1 :
+        PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE) ? 2 :
         PM_NODE_TYPE_P(node, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) ? -1 :
         PM_NODE_TYPE_P(node, PM_NEXT_NODE) || PM_NODE_TYPE_P(node, PM_RETRY_NODE) ? 1 :
         PM_NODE_TYPE_P(node, PM_EMBEDDED_VARIABLE_NODE) ? -1 :
@@ -2815,6 +2817,7 @@ class Fleek
             ((const pm_constant_path_node_t *) first)->name, ((const pm_constant_path_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_READ_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_read_node_t *) first)->name, ((const pm_local_variable_read_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_write_node_t *) first)->name, ((const pm_local_variable_write_node_t *) second)->name)) return false;
+        if (PM_NODE_TYPE_P(first, PM_LOCAL_VARIABLE_TARGET_NODE) && !fleek_constants_equal(parser, ((const pm_local_variable_target_node_t *) first)->name, ((const pm_local_variable_target_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_REQUIRED_PARAMETER_NODE) && !fleek_constants_equal(parser, ((const pm_required_parameter_node_t *) first)->name, ((const pm_required_parameter_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_INSTANCE_VARIABLE_READ_NODE) && !fleek_constants_equal(parser, ((const pm_instance_variable_read_node_t *) first)->name, ((const pm_instance_variable_read_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_INSTANCE_VARIABLE_WRITE_NODE) && !fleek_constants_equal(parser, ((const pm_instance_variable_write_node_t *) first)->name, ((const pm_instance_variable_write_node_t *) second)->name)) return false;
