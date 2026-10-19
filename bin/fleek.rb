@@ -2526,7 +2526,7 @@ class Fleek
       FLEEK_NAMED_NODE_RULE(PM_CLASS_VARIABLE_OR_WRITE_NODE, pm_class_variable_or_write_node_t, 2),
       FLEEK_NAMED_NODE_RULE(PM_CLASS_VARIABLE_WRITE_NODE, pm_class_variable_write_node_t, 0),
       [PM_MULTI_TARGET_NODE] = { 0, 0, 0, false, false, true },
-      [PM_CALL_NODE] = { 0, 0, 0, false, false, true },
+      [PM_CALL_NODE] = { 0, 0, 0, false, false, true, FLEEK_DUPLICATION_IDENTITY_CONSTANT, offsetof(pm_call_node_t, name) },
       [PM_STRING_NODE] = { 0, 0, 0, false, false, true, FLEEK_DUPLICATION_IDENTITY_STRING, offsetof(pm_string_node_t, unescaped) },
       [PM_INTERPOLATED_STRING_NODE] = { 0, 0, 0, false, false, true },
       [PM_EMBEDDED_VARIABLE_NODE] = { 0, 0, -1, false, false, true },
@@ -2630,6 +2630,7 @@ class Fleek
       const fleek_duplication_node_rule_t *node_rule = fleek_duplication_node_rule(node->type);
       int8_t mass_adjustment = node_rule->mass_adjustment;
       if (fleek_duplication_block_has_optional_parameters(node)) mass_adjustment = 1;
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE) && ((const pm_block_node_t *) node)->parameters == NULL) mass_adjustment = 0;
       if (PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE)) mass_adjustment = -1;
       ast->method->data.ast.mass_adjustments[index] = mass_adjustment;
       ast->method->data.ast.tree_starts[index] = ast->method->data.ast.tree_count;
@@ -2809,13 +2810,10 @@ class Fleek
     static bool fleek_duplication_scalar_identity_equal(pm_parser_t *parser, const pm_node_t *left, const pm_node_t *right);
     static bool fleek_duplication_optional_defaults_equal(pm_parser_t *parser, const pm_node_t *left, const pm_node_t *right) {
       if (left->type != right->type) return false;
-      if (fleek_duplication_node_rule(left->type)->identity != FLEEK_DUPLICATION_IDENTITY_NONE) {
-        return fleek_duplication_scalar_identity_equal(parser, left, right);
-      }
       if (PM_NODE_TYPE_P(left, PM_CALL_NODE)) {
         const pm_call_node_t *left_call = (const pm_call_node_t *) left;
         const pm_call_node_t *right_call = (const pm_call_node_t *) right;
-        if (!fleek_constants_equal(parser, left_call->name, right_call->name)) return false;
+        if (!fleek_duplication_scalar_identity_equal(parser, left, right)) return false;
         size_t left_count = left_call->arguments == NULL ? 0 : left_call->arguments->arguments.size;
         size_t right_count = right_call->arguments == NULL ? 0 : right_call->arguments->arguments.size;
         if (left_count != right_count) return false;
@@ -2826,6 +2824,9 @@ class Fleek
               !fleek_duplication_scalar_identity_equal(parser, left_argument, right_argument)) return false;
         }
         return true;
+      }
+      if (fleek_duplication_node_rule(left->type)->identity != FLEEK_DUPLICATION_IDENTITY_NONE) {
+        return fleek_duplication_scalar_identity_equal(parser, left, right);
       }
       return PM_NODE_TYPE_P(left, PM_TRUE_NODE) || PM_NODE_TYPE_P(left, PM_FALSE_NODE) || PM_NODE_TYPE_P(left, PM_NIL_NODE);
     }
@@ -2939,7 +2940,6 @@ class Fleek
         if (first->type != second->type) return false;
         if (PM_NODE_TYPE_P(first, PM_RANGE_NODE) &&
             PM_NODE_FLAG_P(first, PM_RANGE_FLAGS_EXCLUDE_END) != PM_NODE_FLAG_P(second, PM_RANGE_FLAGS_EXCLUDE_END)) return false;
-        if (PM_NODE_TYPE_P(first, PM_CALL_NODE) && !fleek_constants_equal(parser, ((const pm_call_node_t *) first)->name, ((const pm_call_node_t *) second)->name)) return false;
         if (!fleek_duplication_variable_node_equal(parser, first, second)) return false;
         if (PM_NODE_TYPE_P(first, PM_REQUIRED_PARAMETER_NODE) && !fleek_constants_equal(parser, ((const pm_required_parameter_node_t *) first)->name, ((const pm_required_parameter_node_t *) second)->name)) return false;
         if (PM_NODE_TYPE_P(first, PM_OPTIONAL_PARAMETER_NODE) && !fleek_constants_equal(parser,

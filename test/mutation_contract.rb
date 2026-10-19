@@ -237,6 +237,10 @@ class MutationCase
     "Flay scalar string identity" => "test/duplication_method_scalar_value_contract.rb",
     "Flay scalar symbol identity" => "test/duplication_method_scalar_value_contract.rb",
     "Flay scalar constant identity" => "test/duplication_method_scalar_value_contract.rb",
+    "Flay method call candidates" => "test/duplication_method_call_contract.rb",
+    "Flay method call identity" => "test/duplication_method_call_contract.rb",
+    "Flay method call splat candidates" => "test/duplication_method_call_contract.rb",
+    "Flay method call block mass" => "test/duplication_method_call_contract.rb",
     "Flay method splat candidates" => "test/duplication_method_splat_contract.rb",
     "Flay method interpolated string candidates" => "test/duplication_method_interpolated_string_contract.rb",
     "Flay method local write candidates" => "test/duplication_contract.rb",
@@ -283,6 +287,8 @@ class MutationCase
     "implicit current directory" => "test/default_invocation_contract.rb"
   }
   CONTRACT_DEPENDENCIES = {
+    "test/duplication_method_scalar_value_contract.rb" => %w[test/duplication_method_pair_contract.rb],
+    "test/duplication_method_call_contract.rb" => %w[test/duplication_method_pair_contract.rb],
     "test/duplication_method_variable_rule_contract.rb" => %w[
       test/duplication_method_multiple_assignment_contract.rb
       test/duplication_method_local_operator_write_contract.rb
@@ -972,32 +978,52 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "FLEEK_DUPLICATION_IDENTITY_CONSTANT, offsetof(pm_constant_path_node_t, name)",
   "FLEEK_DUPLICATION_IDENTITY_NONE, offsetof(pm_constant_path_node_t, name)",
   "Flay method constant path identity",
-  "Fleek constant_path kind differed")).run
+  "Fleek scalar-constant_path kind differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "FLEEK_DUPLICATION_IDENTITY_INTEGER, offsetof(pm_integer_node_t, value)",
   "FLEEK_DUPLICATION_IDENTITY_NONE, offsetof(pm_integer_node_t, value)",
   "Flay scalar integer identity",
-  "Fleek integer kind differed")).run
+  "Fleek scalar-integer kind differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "FLEEK_DUPLICATION_IDENTITY_FLOAT, offsetof(pm_float_node_t, value)",
   "FLEEK_DUPLICATION_IDENTITY_NONE, offsetof(pm_float_node_t, value)",
   "Flay scalar float identity",
-  "Fleek float kind differed")).run
+  "Fleek scalar-float kind differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "FLEEK_DUPLICATION_IDENTITY_STRING, offsetof(pm_string_node_t, unescaped)",
   "FLEEK_DUPLICATION_IDENTITY_NONE, offsetof(pm_string_node_t, unescaped)",
   "Flay scalar string identity",
-  "Fleek string kind differed")).run
+  "Fleek scalar-string kind differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "FLEEK_DUPLICATION_IDENTITY_SYMBOL, offsetof(pm_symbol_node_t, unescaped)",
   "FLEEK_DUPLICATION_IDENTITY_NONE, offsetof(pm_symbol_node_t, unescaped)",
   "Flay scalar symbol identity",
-  "Fleek symbol kind differed")).run
+  "Fleek scalar-symbol kind differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "FLEEK_DUPLICATION_IDENTITY_CONSTANT, offsetof(pm_constant_read_node_t, name)",
   "FLEEK_DUPLICATION_IDENTITY_NONE, offsetof(pm_constant_read_node_t, name)",
   "Flay scalar constant identity",
-  "Fleek constant_read kind differed")).run
+  "Fleek scalar-constant_read kind differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "[PM_CALL_NODE] = { 0, 0, 0, false, false, true, FLEEK_DUPLICATION_IDENTITY_CONSTANT, offsetof(pm_call_node_t, name) },",
+  "[PM_CALL_NODE] = { 0, 0, 0, false, false, false, FLEEK_DUPLICATION_IDENTITY_CONSTANT, offsetof(pm_call_node_t, name) },",
+  "Flay method call candidates",
+  "Fleek call-same_call status or grouping differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "[PM_CALL_NODE] = { 0, 0, 0, false, false, true, FLEEK_DUPLICATION_IDENTITY_CONSTANT, offsetof(pm_call_node_t, name) },",
+  "[PM_CALL_NODE] = { 0, 0, 0, false, false, true, FLEEK_DUPLICATION_IDENTITY_NONE, offsetof(pm_call_node_t, name) },",
+  "Flay method call identity",
+  "Fleek call-differing_name kind differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "[PM_SPLAT_NODE] = { 0, 0, 0, false, false, true },",
+  "[PM_SPLAT_NODE] = { 0, 0, 0, false, false, false },",
+  "Flay method call splat candidates",
+  "Fleek call-same_splat status or grouping differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE) && ((const pm_block_node_t *) node)->parameters == NULL) mass_adjustment = 0;",
+  "if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE) && ((const pm_block_node_t *) node)->parameters == NULL) mass_adjustment = -2;",
+  "Flay method call block mass",
+  "Fleek call-same_block mass differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_SPLAT_NODE] = { 0, 0, 0, false, false, true },",
   "[PM_SPLAT_NODE] = { 0, 0, 0, false, false, false },",
@@ -1604,7 +1630,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay optional keyword constant default identity",
   "kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (!fleek_constants_equal(parser, left_call->name, right_call->name)) return false;",
+  "if (!fleek_duplication_scalar_identity_equal(parser, left, right)) return false;",
   "if (false) return false;",
   "Flay optional positional bare-call default identity",
   "optional-positional-call-default kind, mass, or locations differed from Flay")).run
@@ -1644,7 +1670,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay block optional parameter name identity",
   "block-optional-parameter-names kind, mass, or locations differed from Flay")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (PM_NODE_TYPE_P(first, PM_CALL_NODE) && !fleek_constants_equal(parser, ((const pm_call_node_t *) first)->name, ((const pm_call_node_t *) second)->name)) return false;",
+  "if (!fleek_duplication_scalar_identity_equal(parser, first, second)) return false;",
   "if (false) return false;",
   "Flay block optional parameter expression identity",
   "block-optional-parameter-expression kind, mass, or locations differed from Flay")).run
