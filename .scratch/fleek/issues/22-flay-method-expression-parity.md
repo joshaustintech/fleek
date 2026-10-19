@@ -64,3 +64,5 @@ Method candidates now support class-variable reads. Same-name reads match Flay a
 Method candidates now support class-variable operator writes. Same-name `+=` writes match Flay at mass 24; changing the target name or using a different operator preserves a similar group. Focused mutations protect candidate support, mass, and target/operator identity. See ADR 0150.
 
 Method candidates now support class-variable logical writes (`&&=` and `||=`). Identical writes match Flay at mass 12, renamed targets remain similar, and different logical operators produce no method group. Focused mutations protect candidate support, mass, and target identity. See ADR 0151.
+
+Method candidates now support plain class-variable assignments. Identical methods match Flay at mass 12; renamed targets preserve a similar group with no mass adjustment. Focused mutations protect candidate support, ordinary mass, and target identity. See ADR 0152.
