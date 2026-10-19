@@ -249,3 +249,4 @@
 - ADR 0154 extends Flay parity to constant defaults on optional positional parameters, preserving mass and comparing constant names; it supersedes ADR 0035's literal-only boundary.
 - ADR 0156 adds bare no-argument call defaults for positional optional parameters at unchanged mass, with call-name-sensitive identity and focused mutations.
 - Issue 34 and ADR 0155 isolate each parallel mutation-contract compiler's Spinel temp files; all 40 contracts precompile at `JOBS=8` in about 30 seconds, retaining parallel mutation workers.
+- Issue 35 and ADR 0157 exclude disposable build/mutation-* outputs from isolated worker copies. A measured 108 MB build copy fell to 3.4 MB and 0.393 s; the pinned full gate passed in 6:33.24 with 285 mutants caught, Flay 0, and Reek 0.

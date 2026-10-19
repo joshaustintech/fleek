@@ -145,9 +145,11 @@ class CheckRunner
     worker = { id: nil, task: task, directory: directory, output: "/tmp/fleek-check-#{Process.pid}-#{@serial}.out",
       error: "/tmp/fleek-check-#{Process.pid}-#{@serial}.err", temporary_root: temporary_root }
     @workers << worker
-    copy_process = Process.spawn("cp", "-R", ".", directory, out: "/dev/null", err: "/dev/null")
+    copy_process = Process.spawn("rsync", "-a", "--exclude=/build/mutation-*", "./", directory,
+      out: "/dev/null", err: "/dev/null")
     _, copy_status = Process.waitpid2(copy_process)
     raise "could not create isolated check copy" unless copy_status.success?
+    raise "check worker includes generated mutation artifacts" unless Dir.glob("#{directory}/build/mutation-*").empty?
     namespace_temporary_paths(directory, @serial) if task[0] == :spinel
     configure_mutation_shard(directory, task) if task[0] == :mutation
     temporary_process = Process.spawn("mkdir", "-p", temporary_root, out: "/dev/null", err: "/dev/null")
