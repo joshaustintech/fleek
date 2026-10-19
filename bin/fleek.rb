@@ -2503,7 +2503,8 @@ class Fleek
     } fleek_duplication_node_rule_t;
     #define FLEEK_NAMED_NODE_RULE(type, node, mass) [type] = { offsetof(node, name), 0, mass, true, false, true }
     #define FLEEK_OPERATOR_NODE_RULE(type, node, mass) [type] = { offsetof(node, name), offsetof(node, binary_operator), mass, true, true, true }
-    static const fleek_duplication_node_rule_t fleek_duplication_variable_rules[PM_SCOPE_NODE + 1] = {
+    // Indexed by Prism node type so support and unconditional Flay mass stay in one table.
+    static const fleek_duplication_node_rule_t fleek_duplication_node_rules[PM_SCOPE_NODE + 1] = {
       [PM_MULTI_WRITE_NODE] = { 0, 0, 2, false, false, true },
       FLEEK_NAMED_NODE_RULE(PM_LOCAL_VARIABLE_READ_NODE, pm_local_variable_read_node_t, 0),
       FLEEK_NAMED_NODE_RULE(PM_LOCAL_VARIABLE_WRITE_NODE, pm_local_variable_write_node_t, 0),
@@ -2519,15 +2520,63 @@ class Fleek
       FLEEK_NAMED_NODE_RULE(PM_CLASS_VARIABLE_AND_WRITE_NODE, pm_class_variable_and_write_node_t, 2),
       FLEEK_NAMED_NODE_RULE(PM_CLASS_VARIABLE_OR_WRITE_NODE, pm_class_variable_or_write_node_t, 2),
       FLEEK_NAMED_NODE_RULE(PM_CLASS_VARIABLE_WRITE_NODE, pm_class_variable_write_node_t, 0),
-      [PM_MULTI_TARGET_NODE] = { 0, 0, 0, false, false, true }
+      [PM_MULTI_TARGET_NODE] = { 0, 0, 0, false, false, true },
+      [PM_CALL_NODE] = { 0, 0, 0, false, false, true },
+      [PM_STRING_NODE] = { 0, 0, 0, false, false, true },
+      [PM_INTERPOLATED_STRING_NODE] = { 0, 0, 0, false, false, true },
+      [PM_EMBEDDED_VARIABLE_NODE] = { 0, 0, -1, false, false, true },
+      [PM_EMBEDDED_STATEMENTS_NODE] = { 0, 0, 0, false, false, true },
+      [PM_FLOAT_NODE] = { 0, 0, 0, false, false, true },
+      [PM_RANGE_NODE] = { 0, 0, -2, false, false, true },
+      [PM_SYMBOL_NODE] = { 0, 0, 0, false, false, true },
+      [PM_INTEGER_NODE] = { 0, 0, 0, false, false, true },
+      [PM_TRUE_NODE] = { 0, 0, 0, false, false, true },
+      [PM_FALSE_NODE] = { 0, 0, 0, false, false, true },
+      [PM_NIL_NODE] = { 0, 0, 0, false, false, true },
+      [PM_AND_NODE] = { 0, 0, 0, false, false, true },
+      [PM_OR_NODE] = { 0, 0, 0, false, false, true },
+      [PM_CONSTANT_READ_NODE] = { 0, 0, 0, false, false, true },
+      [PM_CONSTANT_PATH_NODE] = { 0, 0, 0, false, false, true },
+      [PM_KEYWORD_HASH_NODE] = { 0, 0, -1, false, false, true },
+      [PM_HASH_NODE] = { 0, 0, 0, false, false, true },
+      [PM_ASSOC_NODE] = { 0, 0, 0, false, false, true },
+      [PM_ARRAY_NODE] = { 0, 0, 0, false, false, true },
+      [PM_CASE_NODE] = { 0, 0, 0, false, false, true },
+      [PM_WHEN_NODE] = { 0, 0, 1, false, false, true },
+      [PM_WHILE_NODE] = { 0, 0, 0, false, false, true },
+      [PM_UNTIL_NODE] = { 0, 0, 0, false, false, true },
+      [PM_FOR_NODE] = { 0, 0, 0, false, false, true },
+      [PM_SELF_NODE] = { 0, 0, 0, false, false, true },
+      [PM_SPLAT_NODE] = { 0, 0, 0, false, false, true },
+      [PM_BLOCK_NODE] = { 0, 0, -2, false, false, true },
+      [PM_BLOCK_PARAMETERS_NODE] = { 0, 0, 0, false, false, true },
+      [PM_PARAMETERS_NODE] = { 0, 0, 0, false, false, true },
+      [PM_REQUIRED_PARAMETER_NODE] = { 0, 0, 0, false, false, true },
+      [PM_OPTIONAL_PARAMETER_NODE] = { 0, 0, 0, false, false, true },
+      [PM_INTERPOLATED_REGULAR_EXPRESSION_NODE] = { 0, 0, -1, false, false, true },
+      [PM_RETURN_NODE] = { 0, 0, 0, false, false, true },
+      [PM_YIELD_NODE] = { 0, 0, 0, false, false, true },
+      [PM_FORWARDING_SUPER_NODE] = { 0, 0, 0, false, false, true },
+      [PM_SUPER_NODE] = { 0, 0, 0, false, false, true },
+      [PM_BREAK_NODE] = { 0, 0, 0, false, false, true },
+      [PM_REDO_NODE] = { 0, 0, 0, false, false, true },
+      [PM_BEGIN_NODE] = { 0, 0, 0, false, false, true },
+      [PM_RESCUE_NODE] = { 0, 0, 0, false, false, true },
+      [PM_RETRY_NODE] = { 0, 0, 1, false, false, true },
+      [PM_ENSURE_NODE] = { 0, 0, -1, false, false, true },
+      [PM_NEXT_NODE] = { 0, 0, 1, false, false, true },
+      [PM_IF_NODE] = { 0, 0, 0, false, false, true },
+      [PM_UNLESS_NODE] = { 0, 0, 0, false, false, true },
+      [PM_ELSE_NODE] = { 0, 0, -1, false, false, true },
+      [PM_REGULAR_EXPRESSION_NODE] = { 0, 0, 0, false, false, true }
     };
     #undef FLEEK_NAMED_NODE_RULE
     #undef FLEEK_OPERATOR_NODE_RULE
-    static const fleek_duplication_node_rule_t *fleek_duplication_variable_rule(pm_node_type_t type) {
-      return type <= PM_SCOPE_NODE && fleek_duplication_variable_rules[type].supported ? &fleek_duplication_variable_rules[type] : NULL;
+    static const fleek_duplication_node_rule_t *fleek_duplication_node_rule(pm_node_type_t type) {
+      return type <= PM_SCOPE_NODE && fleek_duplication_node_rules[type].supported ? &fleek_duplication_node_rules[type] : NULL;
     }
     static bool fleek_duplication_variable_node_equal(pm_parser_t *parser, const pm_node_t *left, const pm_node_t *right) {
-      const fleek_duplication_node_rule_t *rule = fleek_duplication_variable_rule(left->type);
+      const fleek_duplication_node_rule_t *rule = fleek_duplication_node_rule(left->type);
       if (rule == NULL) return true;
       if (rule->compares_name) {
         const pm_constant_id_t left_name = *(const pm_constant_id_t *) ((const uint8_t *) left + rule->name_offset);
@@ -2547,19 +2596,7 @@ class Fleek
       return false;
     }
     static bool fleek_duplication_class_node_supported(const pm_node_t *node) {
-      if (fleek_duplication_variable_rule(node->type) != NULL) return true;
-      return PM_NODE_TYPE_P(node, PM_CALL_NODE) ||
-        PM_NODE_TYPE_P(node, PM_STRING_NODE) || PM_NODE_TYPE_P(node, PM_INTERPOLATED_STRING_NODE) ||
-        PM_NODE_TYPE_P(node, PM_EMBEDDED_VARIABLE_NODE) || PM_NODE_TYPE_P(node, PM_EMBEDDED_STATEMENTS_NODE) || PM_NODE_TYPE_P(node, PM_FLOAT_NODE) ||
-        PM_NODE_TYPE_P(node, PM_RANGE_NODE) ||
-        PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_INTEGER_NODE) ||
-        PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE) || PM_NODE_TYPE_P(node, PM_AND_NODE) || PM_NODE_TYPE_P(node, PM_OR_NODE) ||
-        PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_CONSTANT_PATH_NODE) ||
-        PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_HASH_NODE) ||
-        PM_NODE_TYPE_P(node, PM_ASSOC_NODE) || PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_CASE_NODE) || PM_NODE_TYPE_P(node, PM_WHEN_NODE) || PM_NODE_TYPE_P(node, PM_WHILE_NODE) || PM_NODE_TYPE_P(node, PM_UNTIL_NODE) || PM_NODE_TYPE_P(node, PM_FOR_NODE) ||
-        PM_NODE_TYPE_P(node, PM_SELF_NODE) || PM_NODE_TYPE_P(node, PM_SPLAT_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE) ||
-        PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE) || PM_NODE_TYPE_P(node, PM_REQUIRED_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_OPTIONAL_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) ||
-        PM_NODE_TYPE_P(node, PM_RETURN_NODE) || PM_NODE_TYPE_P(node, PM_YIELD_NODE) || PM_NODE_TYPE_P(node, PM_FORWARDING_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_SUPER_NODE) || PM_NODE_TYPE_P(node, PM_BREAK_NODE) || PM_NODE_TYPE_P(node, PM_REDO_NODE) || PM_NODE_TYPE_P(node, PM_BEGIN_NODE) || PM_NODE_TYPE_P(node, PM_RESCUE_NODE) || PM_NODE_TYPE_P(node, PM_RETRY_NODE) || PM_NODE_TYPE_P(node, PM_ENSURE_NODE) || PM_NODE_TYPE_P(node, PM_NEXT_NODE) || PM_NODE_TYPE_P(node, PM_IF_NODE) || PM_NODE_TYPE_P(node, PM_UNLESS_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) || PM_NODE_TYPE_P(node, PM_REGULAR_EXPRESSION_NODE);
+      return fleek_duplication_node_rule(node->type) != NULL;
     }
     static bool fleek_duplication_block_has_optional_parameters(const pm_node_t *node) {
       if (!PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE)) return false;
@@ -2586,24 +2623,17 @@ class Fleek
       size_t index = ast->method->shape_count++;
       ast->method->data.ast.nodes[index] = node;
       ast->method->data.ast.interpolated_regexp_part_markers[index] = ast->parent != NULL && PM_NODE_TYPE_P(ast->parent, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE);
-      const fleek_duplication_node_rule_t *node_rule = fleek_duplication_variable_rule(node->type);
-      ast->method->data.ast.mass_adjustments[index] = node_rule != NULL ? node_rule->mass_adjustment :
-        PM_NODE_TYPE_P(node, PM_ENSURE_NODE) ? -1 :
-        fleek_duplication_block_has_optional_parameters(node) ? 1 :
-        PM_NODE_TYPE_P(node, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) ? -1 :
-        PM_NODE_TYPE_P(node, PM_NEXT_NODE) || PM_NODE_TYPE_P(node, PM_RETRY_NODE) ? 1 :
-        PM_NODE_TYPE_P(node, PM_EMBEDDED_VARIABLE_NODE) ? -1 :
-        PM_NODE_TYPE_P(node, PM_BLOCK_NODE) ? -2 :
-        PM_NODE_TYPE_P(node, PM_RANGE_NODE) ? -2 :
-        PM_NODE_TYPE_P(node, PM_KEYWORD_HASH_NODE) || PM_NODE_TYPE_P(node, PM_ELSE_NODE) ||
-        (PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE)) ? -1 : 0;
+      const fleek_duplication_node_rule_t *node_rule = fleek_duplication_node_rule(node->type);
+      int8_t mass_adjustment = node_rule->mass_adjustment;
+      if (fleek_duplication_block_has_optional_parameters(node)) mass_adjustment = 1;
+      if (PM_NODE_TYPE_P(node, PM_ASSOC_NODE) && PM_NODE_TYPE_P(ast->parent, PM_HASH_NODE)) mass_adjustment = -1;
+      ast->method->data.ast.mass_adjustments[index] = mass_adjustment;
       ast->method->data.ast.tree_starts[index] = ast->method->data.ast.tree_count;
       ast->method->data.ast.tree[ast->method->data.ast.tree_count++] = (int16_t) node->type;
       /* Flay's RubyParser translation wraps every when-condition list in an array node. */
       if (when_node) {
         /* Pinned Prism ends at PM_SCOPE_NODE (152); this cannot collide with node tags. */
         ast->method->data.ast.tree[ast->method->data.ast.tree_count++] = INT16_MIN;
-        ast->method->data.ast.mass_adjustments[index] = 1;
       }
       const pm_node_t *parent = ast->parent; ast->parent = node;
       pm_visit_child_nodes(node, fleek_duplication_collect_class_child, ast);
