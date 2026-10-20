@@ -4,16 +4,16 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** claimed  
+**Status:** resolved
 **Type:** task  
 **Category:** enhancement  
 **Triage:** ready-for-agent
 
-- [ ] Use one data-driven Prism-to-Flay candidate translator for method parameters, statements, control flow, and expressions. Node coverage and per-node mass/value rules must come from one rule table or descriptor, not repeated type allowlists and special-case branches.
-- [ ] Match Flay's structural equality, mass, subtree pruning, similar-versus-identical classification, score, source locations, and ordering for every shared-parseable method subtree the translator accepts.
+- [x] Use one data-driven Prism-to-Flay candidate translator for method parameters, statements, control flow, and expressions. Node coverage and per-node mass/value rules must come from one rule table or descriptor, not repeated type allowlists and special-case branches.
+- [x] Match Flay's structural equality, mass, subtree pruning, similar-versus-identical classification, score, source locations, and ordering for every shared-parseable method subtree the translator accepts.
 - [x] Match supported cross-file candidate collection and preserve original input paths and lines for top-level and class methods.
-- [ ] Compare generated node-family, clean, finding, and boundary cases through the compiled CLI against unchanged Flay 2.14.4; retain fixed regressions for discovered mappings.
-- [ ] Mutation checks detect missing translator rules and mismatches in tree shape, mass, grouping, score, locations, or order.
+- [x] Compare generated node-family, clean, finding, and boundary cases through the compiled CLI against unchanged Flay 2.14.4; retain fixed regressions for discovered mappings.
+- [x] Mutation checks detect missing translator rules and mismatches in tree shape, mass, grouping, score, locations, or order.
 
 Completion means the candidate-collection path contains no hand-maintained supported-node allowlist and equality/mass branches for the same node families. A shared descriptor translates Prism node type, children, identity fields, and Flay mass adjustment; family-specific adapters are allowed only where Prism and RubyParser represent different structures. Unsupported grammar stays explicitly incomplete. The translator must pass a generated contract over all supported Prism node descriptors, pinned Flay differential cases, project mutations, and the full repository gate. Syntax added to Ruby after pinned Prism's grammar is outside this issue.
 
@@ -64,6 +64,8 @@ Top-level methods containing `begin/ensure` now match Flay's similar group at ma
 Top-level methods containing static regular-expression literals now match Flay at mass/score 10. Pattern and option differences preserve similar-versus-identical classification. Interpolated regular-expression literals now match Flay at mass/score 16 after a one-point adjustment per Prism node; pattern-part and option differences preserve similar-versus-identical classification. Dedicated compiled CLI contracts compare both forms with pinned Flay, and separate mutations protect candidate support, mass, pattern identity, and option identity. See ADRs 0140 and 0141.
 
 The dedicated regex contract keeps mutation checks narrow: regex mutations run only these six comparisons instead of repeating them for unrelated parameter and expression mutations. See ADR 0142.
+
+Ticket 22 is resolved. Descriptor ownership and generated inventory are complete under tickets 42, 52, and 119; composed top-level/class method behavior is covered by tickets 43 and 118. The generated public contracts compare supported node families, clean/finding/boundary cases, complete report semantics, and original locations with unchanged Flay 2.14.4. Focused mutations cover descriptor support and report behavior. The cold pinned full gate and both review axes passed on ticket 119 after the final child changes. Unsupported grammar remains explicitly incomplete as specified. See [ADR 0190](../../docs/adr/0190-describe-range-and-regexp-identity.md).
 
 Top-level methods containing multiple assignments now match Flay. Candidate trees preserve target arity and names, and each `MultiWriteNode` contributes two mass points to account for Flay's RubyParser representation. Contracts compare identical two-target methods (mass 22), similar methods differing only in target names (mass 20), identical three-target methods (mass 26), and Flay's clean result when target counts differ; focused mutations protect support, mass, and target identity. See ADR 0145.
 

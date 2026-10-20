@@ -14,4 +14,4 @@ Track Range and regexp descriptor completion as a bounded child ticket. Move the
 
 ## Consequences
 
-Ticket 119 now proves descriptor parity with unchanged public behavior. Ticket 22 remains open for its other acceptance criteria. Existing public contracts remain the baseline for the implementation.
+Ticket 119 proves descriptor parity with unchanged public behavior. Together with generated/composed contracts in tickets 42, 43, 52, and 118, it satisfies Ticket 22's remaining acceptance criteria. Its pinned cold full gate and both review axes passed after the final child changes; Ticket 22 is resolved. Existing public contracts remain the baseline for the implementation.
