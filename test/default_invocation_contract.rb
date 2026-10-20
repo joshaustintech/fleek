@@ -14,7 +14,7 @@ class DefaultInvocationContract
     verify_supported_clean_profile
     verify_supported_findings_status
     verify_explicit_default_subset
-    verify_unsupported_opt_in_status
+    verify_configured_opt_in_runs
     verify_empty_default_scan
     puts "Default invocation contract: pass"
   ensure
@@ -63,11 +63,13 @@ class DefaultInvocationContract
   end
 
   def self.verify_configured_coverage(selected, output)
-    opt_in_present = output.include?("reek:UnusedPrivateMethod")
-    verify(!selected.include?("reek:Attribute"), "disabled default detector remained selected")
-    verify(opt_in_present, "configured opt-in detector was not selected")
-    verify(output.include?("Checks disabled: reek:Attribute"), "configured disabled detector was not identified")
-    verify(output.include?("Checks unsupported:") && opt_in_present, "configured unsupported opt-in detector was hidden")
+    verify(configured_opt_in_profile?(selected, output.lines, output), "configured opt-in detector profile differed")
+  end
+
+  def self.configured_opt_in_profile?(selected, lines, output)
+    check = "reek:UnusedPrivateMethod"
+    run, unsupported = lines.select { |line| line.start_with?("Checks run:", "Checks unsupported:") }
+    !selected.include?("reek:Attribute") && output.include?("Checks disabled: reek:Attribute") && run.include?(check) && !unsupported.include?(check)
   end
 
   def self.verify_exclusion_independence(error)
@@ -203,10 +205,10 @@ class DefaultInvocationContract
     verify(output.include?("Checks selected: reek:UncommunicativeModuleName\nChecks run: reek:UncommunicativeModuleName\n"), "explicit checks did not remain a subset")
   end
 
-  def self.verify_unsupported_opt_in_status
+  def self.verify_configured_opt_in_runs
     File.write("#{DIRECTORY}/.reek.yml", "detectors:\n  UnusedPrivateMethod:\n    enabled: true\n")
     status, output, = run_default
-    verify(status == 1 && output.include?("Checks unsupported: reek:UnusedPrivateMethod"), "unsupported opt-in check did not keep the default run incomplete")
+    verify(status == 1 && output.include?("Checks run:") && !output.lines.find { |line| line.start_with?("Checks unsupported:") }.include?("reek:UnusedPrivateMethod"), "configured opt-in check did not run as a supported default")
   end
 
   def self.verify_empty_default_scan

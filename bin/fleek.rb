@@ -56,6 +56,7 @@ class Fleek
       reek:UnusedParameters reek:UtilityFunction
     ].freeze
     RUNNABLE_DEFAULT_CHECKS = DEFAULT_CHECKS
+    RUNNABLE_OPT_IN_CHECKS = %w[reek:UnusedPrivateMethod].freeze
     EXPLICIT_CHECKS = %w[flay:StructuralDuplication reek:ClassVariable].freeze
     EXPLICIT = AnalysisProfile.new(EXPLICIT_CHECKS, EXPLICIT_CHECKS, [], [], false)
 
@@ -71,7 +72,7 @@ class Fleek
 
     def self.profile(selected)
       disabled = DEFAULT_CHECKS - selected
-      run = RUNNABLE_DEFAULT_CHECKS & selected
+      run = (RUNNABLE_DEFAULT_CHECKS + RUNNABLE_OPT_IN_CHECKS) & selected
       AnalysisProfile.new(selected, run, disabled, selected - run, true)
     end
   end
@@ -119,6 +120,8 @@ class Fleek
     static size_t fleek_control_parameter_used;
     static char fleek_unused_parameters_buffer[8192];
     static size_t fleek_unused_parameters_used;
+    static char fleek_unused_private_method_buffer[8192];
+    static size_t fleek_unused_private_method_used;
     static char fleek_utility_function_buffer[8192];
     static size_t fleek_utility_function_used;
     static char fleek_duplicate_method_call_buffer[8192];
@@ -1013,6 +1016,118 @@ class Fleek
       pm_options_free(&options);
       return findings < 0 ? -4 : findings;
     }
+
+    typedef struct {
+      const pm_def_node_t *methods[128];
+      bool private_methods[128];
+      bool used[128];
+      size_t count;
+      bool unsupported;
+    } fleek_unused_private_state_t;
+    typedef struct {
+      pm_parser_t *parser;
+      fleek_unused_private_state_t *state;
+      size_t current_method;
+    } fleek_unused_private_call_state_t;
+    static bool fleek_unused_private_call(const pm_node_t *node, void *data) {
+      fleek_unused_private_call_state_t *call_state = (fleek_unused_private_call_state_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) {
+        call_state->state->unsupported = true; return false;
+      }
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return true;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      if (fleek_name_is(call_state->parser, call->name, "send") || fleek_name_is(call_state->parser, call->name, "public_send") ||
+          fleek_name_is(call_state->parser, call->name, "__send__") || fleek_name_is(call_state->parser, call->name, "method") ||
+          fleek_name_is(call_state->parser, call->name, "eval") || fleek_name_is(call_state->parser, call->name, "class_eval") ||
+          fleek_name_is(call_state->parser, call->name, "instance_eval") || fleek_name_is(call_state->parser, call->name, "define_method")) {
+        call_state->state->unsupported = true; return false;
+      }
+      if (call->receiver != NULL && !PM_NODE_TYPE_P(call->receiver, PM_SELF_NODE)) return true;
+      for (size_t index = 0; index < call_state->state->count; index++) {
+        if (index == call_state->current_method || !call_state->state->private_methods[index]) continue;
+        if (fleek_constants_equal(call_state->parser, call->name, call_state->state->methods[index]->name)) call_state->state->used[index] = true;
+      }
+      return true;
+    }
+    static bool fleek_unused_private_collect_methods(pm_parser_t *parser, const pm_class_node_t *class_node,
+      fleek_unused_private_state_t *state) {
+      if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) || !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE)) return false;
+      const pm_statements_node_t *statements = (const pm_statements_node_t *) class_node->body;
+      bool private_visibility = false;
+      if (statements->body.size > 128) return false;
+      for (size_t index = 0; index < statements->body.size; index++) {
+        const pm_node_t *item = statements->body.nodes[index];
+        if (PM_NODE_TYPE_P(item, PM_CALL_NODE)) {
+          const pm_call_node_t *call = (const pm_call_node_t *) item;
+          if (call->receiver == NULL && call->arguments == NULL && (fleek_name_is(parser, call->name, "private") || fleek_name_is(parser, call->name, "public") || fleek_name_is(parser, call->name, "protected"))) {
+            private_visibility = fleek_name_is(parser, call->name, "private");
+            continue;
+          }
+          return false;
+        }
+        if (!PM_NODE_TYPE_P(item, PM_DEF_NODE) || state->count == 128) return false;
+        const pm_def_node_t *method = (const pm_def_node_t *) item;
+        if (method->receiver != NULL) return false;
+        state->methods[state->count] = method;
+        state->private_methods[state->count] = private_visibility;
+        state->used[state->count] = false;
+        state->count++;
+      }
+      return true;
+    }
+    static void fleek_unused_private_collect_calls(pm_parser_t *parser, fleek_unused_private_state_t *state) {
+      for (size_t index = 0; !state->unsupported && index < state->count; index++) {
+        const pm_def_node_t *method = state->methods[index];
+        if (method->body == NULL) continue;
+        fleek_unused_private_call_state_t call_state = { parser, state, index };
+        pm_visit_node(method->body, fleek_unused_private_call, &call_state);
+      }
+    }
+    static int fleek_unused_private_render_findings(pm_parser_t *parser, const char *source,
+      const pm_class_node_t *class_node, fleek_unused_private_state_t *state) {
+      pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser->constant_pool,
+        ((const pm_constant_read_node_t *) class_node->constant_path)->name);
+      int findings = 0;
+      for (size_t index = 0; !state->unsupported && index < state->count; index++) {
+        if (!state->private_methods[index] || state->used[index]) continue;
+        const pm_def_node_t *method = state->methods[index];
+        pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
+        int written = snprintf(fleek_unused_private_method_buffer + fleek_unused_private_method_used,
+          sizeof(fleek_unused_private_method_buffer) - fleek_unused_private_method_used, "%d\\t%.*s\\t%.*s\\n",
+          fleek_source_line((const uint8_t *) source, method->def_keyword_loc.start), (int) class_name->length,
+          class_name->start, (int) name->length, name->start);
+        if (written < 0 || (size_t) written >= sizeof(fleek_unused_private_method_buffer) - fleek_unused_private_method_used) {
+          state->unsupported = true;
+          break;
+        }
+        fleek_unused_private_method_used += (size_t) written;
+        findings++;
+      }
+      return findings;
+    }
+    int fleek_unused_private_method(const char *source, size_t length) {
+      fleek_unused_private_method_buffer[0] = 0; fleek_unused_private_method_used = 0;
+      fleek_class_count = fleek_module_count = 0; fleek_only_scope = NULL;
+      if (memchr(source, 0, length) != NULL) return -2;
+      fleek_source_start = (const uint8_t *) source;
+      pm_options_t options = {0}; options.line = 1; options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
+      pm_parser_t parser; pm_parser_init(&parser, (const uint8_t *) source, length, &options);
+      pm_node_t *root = pm_parse(&parser);
+      if (parser.error_list.head != NULL) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1; }
+      pm_visit_node(root, fleek_collect_classes, NULL);
+      if (fleek_class_count != 1 || fleek_module_count != 0 || !PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE)) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+      }
+      const pm_class_node_t *class_node = (const pm_class_node_t *) fleek_only_scope;
+      fleek_unused_private_state_t state = { .count = 0, .unsupported = false };
+      bool supported = fleek_unused_private_collect_methods(&parser, class_node, &state);
+      if (supported) fleek_unused_private_collect_calls(&parser, &state);
+      int findings = supported ? fleek_unused_private_render_findings(&parser, source, class_node, &state) : 0;
+      if (!supported) state.unsupported = true;
+      pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
+      return state.unsupported ? -4 : findings;
+    }
+    const char *fleek_unused_private_method_finding(void) { return fleek_unused_private_method_buffer; }
 
     typedef struct { size_t count; } fleek_scope_count_state_t;
     typedef struct { pm_constant_id_t names[128]; size_t count; } fleek_parameter_names_t;
@@ -4263,6 +4378,8 @@ class Fleek
     ffi_func :fleek_control_parameter_finding, [], :str
     ffi_func :fleek_unused_parameters, [:str, :size_t], :int
     ffi_func :fleek_unused_parameters_finding, [], :str
+    ffi_func :fleek_unused_private_method, [:str, :size_t], :int
+    ffi_func :fleek_unused_private_method_finding, [], :str
     ffi_func :fleek_utility_function, [:str, :size_t], :int
     ffi_func :fleek_utility_function_finding, [], :str
     ffi_func :fleek_duplicate_method_call, [:str, :size_t, :size_t, :str], :int
@@ -5374,6 +5491,7 @@ class Fleek
     "LongYieldList" => ["one simple class or module with direct instance methods", "%s yields %s parameters"],
     "ControlParameter" => ["simple methods with direct conditionals", "%s is controlled by argument '%s'"],
     "UnusedParameters" => ["simple method parameter lists and supported method bodies", "%s has unused parameter '%s'"],
+    "UnusedPrivateMethod" => ["one simple class with direct instance methods and bare private/public/protected visibility", "%s has the unused private instance method '%s'"],
     "UtilityFunction" => ["direct instance methods without inherited overrides", "%s doesn't depend on instance state (maybe move it to another class?)"],
     "DuplicateMethodCall" => ["direct method calls with identical source form", "%s calls '%s' %s times"],
     "ManualDispatch" => ["simple method bodies containing respond_to?", "%s manually dispatches method call"],
@@ -5449,6 +5567,10 @@ class Fleek
     return report_configuration_error(error) if error.length.positive?
     files, errors = discover_sources(source_inputs, ReekConfiguration.new)
     selected, excluded, disabled = detector_source_sets(files, configuration, detector)
+    if report_mode == :single_selected
+      selected = files.reject { |path| excluded.include?(path) }
+      disabled = []
+    end
     return report_detector_disabled(detector, disabled.first) if detector_fully_disabled?(files, errors, selected, excluded)
     run_reek_detector_files(detector, report_mode, configuration, files, errors, selected, excluded, disabled)
   end
@@ -5485,7 +5607,7 @@ class Fleek
   # :reek:LongParameterList
   # :reek:TooManyStatements
   def self.print_reek_detector_header(detector, files, errors, excluded, disabled, report_mode)
-    if report_mode == :single
+    if report_mode != :combined
       print_report_identity
       puts "Checks selected: reek:#{detector}"
       puts "Checks run: reek:#{detector}"
@@ -5559,6 +5681,7 @@ class Fleek
     when "LongYieldList" then NativePrism.fleek_long_yield_list(source, length, maximum)
     when "ControlParameter" then NativePrism.fleek_control_parameter(source, length)
     when "UnusedParameters" then NativePrism.fleek_unused_parameters(source, length)
+    when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method(source, length)
     when "UtilityFunction" then NativePrism.fleek_utility_function(source, length)
     when "DuplicateMethodCall"
       NativePrism.fleek_duplicate_method_call(source, length, maximum, option)
@@ -5595,6 +5718,7 @@ class Fleek
     when "LongYieldList" then NativePrism.fleek_long_yield_list_finding
     when "ControlParameter" then NativePrism.fleek_control_parameter_finding
     when "UnusedParameters" then NativePrism.fleek_unused_parameters_finding
+    when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method_finding
     when "UtilityFunction" then NativePrism.fleek_utility_function_finding
     when "DuplicateMethodCall" then NativePrism.fleek_duplicate_method_call_finding
     when "ManualDispatch" then NativePrism.fleek_manual_dispatch_finding
@@ -6331,7 +6455,7 @@ class Fleek
     option_error = selected_check_option_error(check, inputs)
     return report_combined_input_error(option_error) unless option_error.empty?
     detector = check.delete_prefix("reek:")
-    return run_unsupported_opt_in(inputs, "UnusedPrivateMethod") if check == "reek:UnusedPrivateMethod"
+    return run_selected_opt_in_detector(inputs, "UnusedPrivateMethod") if check == "reek:UnusedPrivateMethod"
     return run_class_variable(inputs) if check == "reek:ClassVariable"
     return run_attribute(inputs) if check == "reek:Attribute"
     return run_instance_variable_assumption(inputs) if check == "reek:InstanceVariableAssumption"
@@ -6356,14 +6480,16 @@ class Fleek
     check == FLAY_CHECK && inputs.include?("--reek-config") ? "--reek-config applies only to Reek checks." : ""
   end
 
-  def self.run_unsupported_opt_in(inputs, detector)
-    profile, error = unsupported_opt_in_profile(inputs, detector)
+  def self.run_selected_opt_in_detector(inputs, detector)
+    profile, error = selected_opt_in_profile(inputs, detector)
     return report_configuration_error(error) unless error.empty?
+    configured = inputs.include?("--reek-config") || !ReekConfiguration.discovered_path.empty?
+    return run_reek_detector(inputs, detector, :single_selected) unless configured
     run_combined_checks(inputs, profile)
   end
 
   # :reek:TooManyStatements
-  def self.unsupported_opt_in_profile(inputs, detector)
+  def self.selected_opt_in_profile(inputs, detector)
     configuration, sources, error = parse_reek_configuration(inputs)
     return [nil, error] unless error.empty?
     files, = discover_sources(sources, ReekConfiguration.new)
@@ -6371,8 +6497,8 @@ class Fleek
     check = "reek:#{detector}"
     configured = inputs.include?("--reek-config") || !ReekConfiguration.discovered_path.empty?
     disabled = configured && !enabled_by_config ? [check] : []
-    unsupported = disabled.empty? ? [check] : []
-    [AnalysisProfile.new([check], [], disabled, unsupported, true), ""]
+    run = disabled.empty? ? [check] : []
+    [AnalysisProfile.new([check], run, disabled, [], true), ""]
   end
 end
 

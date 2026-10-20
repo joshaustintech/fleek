@@ -109,10 +109,48 @@ class DefaultArgumentApiContract
   end
 
   def self.verify_unused_private_opt_in
-    actual = run_fleek("test/fixtures/unused_private_method.rb", "", "reek:UnusedPrivateMethod")
-    verify(actual[0] == 1, "selected UnusedPrivateMethod did not remain incomplete")
-    verify(actual[1].include?("Checks unsupported: reek:UnusedPrivateMethod"), "selected UnusedPrivateMethod was omitted from coverage")
+    verify_unused_private_finding_parity
+    verify_called_private_method_is_clean
+    verify_dynamic_private_method_call_is_incomplete
     verify_unused_private_disabled
+  end
+
+  def self.verify_unused_private_finding_parity
+    actual = verify_unused_private_case("test/fixtures/unused_private_method.rb", 2)
+    verify_private_method_location(actual[1])
+  end
+
+  def self.verify_called_private_method_is_clean
+    verify_unused_private_case("test/fixtures/unused_private_method_called.rb", 0)
+  end
+
+  def self.verify_dynamic_private_method_call_is_incomplete
+    actual = run_fleek("test/fixtures/unused_private_method_dynamic_call.rb", "", "reek:UnusedPrivateMethod")
+    checks = [actual[0] == 1, actual[2].include?("UnusedPrivateMethod supports"), actual[1].include?("Status: incomplete")]
+    verify(checks.all?, "dynamic private method call was treated as complete")
+  end
+
+  def self.verify_private_method_location(output)
+    verify(output.include?('lines="4" context="PrivateThing" name="hidden"'), "UnusedPrivateMethod context or line differs")
+  end
+
+  def self.verify_unused_private_case(source, expected_status)
+    actual, reference = unused_private_method_reports(source)
+    verify_unused_private_result(actual, reference, expected_status)
+    actual
+  end
+
+  def self.unused_private_method_reports(source)
+    config = "test/fixtures/config_unused_private_enabled.yml"
+    reference = run_reek(source, "UnusedPrivateMethod", config)
+    actual = run_fleek(source, "", "reek:UnusedPrivateMethod")
+    [actual, reference]
+  end
+
+  def self.verify_unused_private_result(actual, reference, expected_status)
+    AnalysisRunner.assert_detector_findings(actual, reference, "UnusedPrivateMethod")
+    verify([actual[0], reference[0]] == [expected_status, expected_status], "UnusedPrivateMethod status differs from Reek")
+    verify(actual[1].include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && actual[2].empty?, "UnusedPrivateMethod coverage or stderr differs")
   end
 
   def self.verify_unused_private_disabled

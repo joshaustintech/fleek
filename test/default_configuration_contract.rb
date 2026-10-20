@@ -25,11 +25,16 @@ class DefaultConfigurationContract
   end
 
   def self.verify_fleek_profile
-    result = run_fleek("test/fixtures/config_unused_private_enabled.yml", SOURCE)
-    selected, unsupported = profile_lines(result[1])
-    verify(result[0] == 1, "configured unsupported default did not remain incomplete")
-    verify(selected.include?("reek:UnusedPrivateMethod"), "configured Reek opt-in detector was not selected")
-    verify(unsupported.include?("reek:UnusedPrivateMethod"), "configured Reek opt-in detector was hidden from coverage")
+    status, output, = run_fleek("test/fixtures/config_unused_private_enabled.yml", SOURCE)
+    verify_opt_in_profile_runs(status, output, "configured Reek opt-in detector did not run as supported")
+  end
+
+  def self.verify_opt_in_profile_runs(status, output, message)
+    selected, unsupported = profile_lines(output)
+    run = report_line(output, "Checks run:")
+    check = "reek:UnusedPrivateMethod"
+    valid = [1, 2].include?(status) && selected.include?(check) && run.include?(check) && !unsupported.include?(check)
+    verify(valid, message)
   end
 
   def self.verify_scope_precedence
@@ -45,17 +50,15 @@ class DefaultConfigurationContract
   end
 
   def self.verify_fleek_scope_precedence
-    enabled = run_fleek("test/fixtures/config_unused_private_scope.yml", SCOPED_SOURCE)
-    selected, unsupported = profile_lines(enabled[1])
-    verify(enabled[0] == 1 && selected.include?("reek:UnusedPrivateMethod"), "Fleek did not apply the most specific Reek enablement")
-    verify(unsupported.include?("reek:UnusedPrivateMethod"), "directory-enabled unsupported detector was hidden")
+    status, output, = run_fleek("test/fixtures/config_unused_private_scope.yml", SCOPED_SOURCE)
+    verify_opt_in_profile_runs(status, output, "directory-enabled opt-in detector did not run as supported")
     verify_fleek_scope_disable
   end
 
   def self.verify_fleek_scope_disable
-    disabled = run_fleek("test/fixtures/config_unused_private_scope.yml", SOURCE)
-    selected, = profile_lines(disabled[1])
-    verify(disabled[0] == 1 && !selected.include?("reek:UnusedPrivateMethod"), "Fleek ignored the parent directory disablement")
+    status, output, = run_fleek("test/fixtures/config_unused_private_scope.yml", SOURCE)
+    selected, = profile_lines(output)
+    verify([0, 1].include?(status) && !selected.include?("reek:UnusedPrivateMethod"), "Fleek ignored the parent directory disablement")
   end
 
   def self.run_fleek(config, source)

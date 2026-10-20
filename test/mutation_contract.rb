@@ -312,7 +312,9 @@ class MutationCase
     "text report completion state" => "test/text_report_contract.rb",
     "default check selection" => "test/default_invocation_contract.rb",
     "default runnable selection" => "test/default_invocation_contract.rb",
-    "unsupported opt-in incomplete status" => "test/default_invocation_contract.rb",
+    "UnusedPrivateMethod private visibility" => "test/default_argument_api_contract.rb",
+    "UnusedPrivateMethod direct call tracking" => "test/default_argument_api_contract.rb",
+    "UnusedPrivateMethod dynamic call boundary" => "test/default_argument_api_contract.rb",
     "implicit current directory" => "test/default_invocation_contract.rb"
   }
   CONTRACT_DEPENDENCIES = {
@@ -1910,11 +1912,6 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay ignore scope",
   "Flay ignore did not report excluded source")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "report_all && !unsupported.empty? ? 1 : status",
-  "report_all && !unsupported.empty? ? status : status",
-  "unsupported opt-in incomplete status",
-  "unsupported opt-in check did not keep the default run incomplete")).run
-MutationCase.new(MutationCase::Configuration.new(source,
   'inputs = arguments.empty? ? [Dir.pwd] : arguments',
   'inputs = arguments',
   "implicit current directory",
@@ -1934,6 +1931,21 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'opt_in = []',
   "configured opt-in detector selection",
   "configured Reek opt-in detector was not selected")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'state->private_methods[state->count] = private_visibility;',
+  'state->private_methods[state->count] = false;',
+  "UnusedPrivateMethod private visibility",
+  "UnusedPrivateMethod findings differ from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'if (fleek_constants_equal(call_state->parser, call->name, call_state->state->methods[index]->name)) call_state->state->used[index] = true;',
+  'if (false) call_state->state->used[index] = true;',
+  "UnusedPrivateMethod direct call tracking",
+  "UnusedPrivateMethod findings differ from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'fleek_name_is(call_state->parser, call->name, "send")',
+  'false',
+  "UnusedPrivateMethod dynamic call boundary",
+  "dynamic private method call was treated as complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'paths.any? { |path| effective_detector_enabled(name, best_scope(path)) }',
   'paths.any? { |_path| effective_detector_enabled(name, -1) }',
