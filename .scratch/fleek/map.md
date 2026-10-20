@@ -12,7 +12,7 @@
 
 ## Decisions-so-far
 
-- Ticket 52 completed the accepted-descriptor and adapter audit. Range/regexp value identity remains outside the node descriptor and is tracked as [ticket 119](issues/119-describe-range-and-regexp-identity.md); parent ticket 22 remains open until that gap and its other criteria resolve. See [ADR 0190](../../docs/adr/0190-describe-range-and-regexp-identity.md).
+- Ticket 52 completed the accepted-descriptor and adapter audit; ticket 119 moved Range/regexp value identity into the node descriptor and passed the full gate and both review axes. Parent ticket 22 remains open for its other criteria. See [ADR 0190](../../docs/adr/0190-describe-range-and-regexp-identity.md).
 
 - Ticket 51 matches Flay's composed begin/rescue/ensure pruning across source paths: top-level candidates select `:ensure`, class candidates retain method groups, reversed file inputs keep canonical location order, and supported groups survive beside an unsupported sibling with incomplete coverage. See [ADR 0189](../../docs/adr/0189-preserve-composed-cross-file-pruning.md); ticket 119 and parent 22 remain open.
 - Ticket 50 corrects method mass for bounded composed begin/rescue/ensure nodes with interpolated regexp/string values while preserving incomplete findings beside unsupported defaults. See [ADR 0188](../../docs/adr/0188-match-composed-exception-wrapper-mass.md); ticket 119 and parent 22 remain open.

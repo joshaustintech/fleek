@@ -132,6 +132,16 @@ class FlayGeneratedDescriptorContract
     parameter_types = parameter_table.scan(/\[(PM_[A-Z_]+_NODE)\]\s*=\s*\{\s*\.supported\s*=\s*true/).flatten
     assert_inventory("node", node_types.uniq, case_types(NODE_CASES, true))
     assert_inventory("parameter", parameter_types.uniq, case_types(NODE_CASES, false))
+    assert_node_identity(node_table, "PM_RANGE_NODE", "RANGE")
+    assert_node_identity(node_table, "PM_REGULAR_EXPRESSION_NODE", "REGULAR_EXPRESSION")
+    assert_node_identity(node_table, "PM_INTERPOLATED_REGULAR_EXPRESSION_NODE", "INTERPOLATED_REGULAR_EXPRESSION")
+  end
+
+  def self.assert_node_identity(table, node, identity)
+    entry = table.match(/\[#{node}\]\s*=\s*\{([^}]*)\}/m)
+    unless entry && entry[1].include?("FLEEK_DUPLICATION_IDENTITY_#{identity}")
+      raise "generated Flay node descriptor omits #{identity} identity for #{node}"
+    end
   end
 
   def self.table_source(source, marker, ending)

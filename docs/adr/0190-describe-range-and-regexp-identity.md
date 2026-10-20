@@ -14,4 +14,4 @@ Track Range and regexp descriptor completion as a bounded child ticket. Move the
 
 ## Consequences
 
-Ticket 22 remains open until the child ticket proves descriptor parity. No syntax support or report behavior changes in this audit. Existing public contracts remain the baseline for the focused implementation.
+Ticket 119 now proves descriptor parity with unchanged public behavior. Ticket 22 remains open for its other acceptance criteria. Existing public contracts remain the baseline for the implementation.

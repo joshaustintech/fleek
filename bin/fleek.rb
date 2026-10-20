@@ -2496,7 +2496,10 @@ class Fleek
       FLEEK_DUPLICATION_IDENTITY_INTEGER,
       FLEEK_DUPLICATION_IDENTITY_FLOAT,
       FLEEK_DUPLICATION_IDENTITY_STRING,
-      FLEEK_DUPLICATION_IDENTITY_SYMBOL
+      FLEEK_DUPLICATION_IDENTITY_SYMBOL,
+      FLEEK_DUPLICATION_IDENTITY_RANGE,
+      FLEEK_DUPLICATION_IDENTITY_REGULAR_EXPRESSION,
+      FLEEK_DUPLICATION_IDENTITY_INTERPOLATED_REGULAR_EXPRESSION
     } fleek_duplication_identity_t;
     typedef struct {
       size_t name_offset;
@@ -2534,7 +2537,7 @@ class Fleek
       [PM_EMBEDDED_VARIABLE_NODE] = { 0, 0, -1, false, false, true },
       [PM_EMBEDDED_STATEMENTS_NODE] = { 0, 0, 0, false, false, true },
       [PM_FLOAT_NODE] = { 0, 0, 0, false, false, true, FLEEK_DUPLICATION_IDENTITY_FLOAT, offsetof(pm_float_node_t, value) },
-      [PM_RANGE_NODE] = { 0, 0, -2, false, false, true },
+      [PM_RANGE_NODE] = { .mass_adjustment = -2, .supported = true, .identity = FLEEK_DUPLICATION_IDENTITY_RANGE },
       [PM_SYMBOL_NODE] = { 0, 0, 0, false, false, true, FLEEK_DUPLICATION_IDENTITY_SYMBOL, offsetof(pm_symbol_node_t, unescaped) },
       [PM_INTEGER_NODE] = { 0, 0, 0, false, false, true, FLEEK_DUPLICATION_IDENTITY_INTEGER, offsetof(pm_integer_node_t, value) },
       [PM_TRUE_NODE] = { 0, 0, 0, false, false, true },
@@ -2560,7 +2563,8 @@ class Fleek
       [PM_PARAMETERS_NODE] = { 0, 0, 0, false, false, true },
       [PM_REQUIRED_PARAMETER_NODE] = { 0, 0, 0, false, false, true },
       [PM_OPTIONAL_PARAMETER_NODE] = { 0, 0, 0, false, false, true },
-      [PM_INTERPOLATED_REGULAR_EXPRESSION_NODE] = { 0, 0, -1, false, false, true },
+      [PM_INTERPOLATED_REGULAR_EXPRESSION_NODE] = { .mass_adjustment = -1, .supported = true,
+        .identity = FLEEK_DUPLICATION_IDENTITY_INTERPOLATED_REGULAR_EXPRESSION },
       [PM_RETURN_NODE] = { 0, 0, 0, false, false, true },
       [PM_YIELD_NODE] = { 0, 0, 0, false, false, true },
       [PM_FORWARDING_SUPER_NODE] = { 0, 0, 0, false, false, true },
@@ -2575,7 +2579,9 @@ class Fleek
       [PM_IF_NODE] = { 0, 0, 0, false, false, true },
       [PM_UNLESS_NODE] = { 0, 0, 0, false, false, true },
       [PM_ELSE_NODE] = { 0, 0, -1, false, false, true },
-      [PM_REGULAR_EXPRESSION_NODE] = { 0, 0, 0, false, false, true }
+      [PM_REGULAR_EXPRESSION_NODE] = { .mass_adjustment = 0, .supported = true,
+        .identity = FLEEK_DUPLICATION_IDENTITY_REGULAR_EXPRESSION,
+        .identity_offset = offsetof(pm_regular_expression_node_t, unescaped) }
     };
     #undef FLEEK_NAMED_NODE_RULE
     #undef FLEEK_OPERATOR_NODE_RULE
@@ -2991,21 +2997,14 @@ class Fleek
         fleek_duplication_parameter_arrays_equal(parser, &left_parameters->posts, &right_parameters->posts, true) &&
         fleek_duplication_parameter_arrays_equal(parser, &left_parameters->keywords, &right_parameters->keywords, true);
     }
-    static bool fleek_duplication_regular_expression_equal(const pm_node_t *left, const pm_node_t *right) {
-      const pm_regular_expression_node_t *left_regex = (const pm_regular_expression_node_t *) left;
-      const pm_regular_expression_node_t *right_regex = (const pm_regular_expression_node_t *) right;
-      size_t left_length = pm_string_length(&left_regex->unescaped);
-      size_t right_length = pm_string_length(&right_regex->unescaped);
-      return PM_NODE_FLAGS(left) == PM_NODE_FLAGS(right) && left_length == right_length &&
-        (left_length == 0 || memcmp(pm_string_source(&left_regex->unescaped), pm_string_source(&right_regex->unescaped), left_length) == 0);
-    }
-    static bool fleek_duplication_interpolated_regular_expression_equal(const pm_node_t *left, const pm_node_t *right) {
-      const pm_interpolated_regular_expression_node_t *left_regex = (const pm_interpolated_regular_expression_node_t *) left;
-      const pm_interpolated_regular_expression_node_t *right_regex = (const pm_interpolated_regular_expression_node_t *) right;
-      return PM_NODE_FLAGS(left) == PM_NODE_FLAGS(right) && left_regex->parts.size == right_regex->parts.size;
+    static bool fleek_duplication_strings_equal(const pm_string_t *left, const pm_string_t *right) {
+      size_t length = pm_string_length(left);
+      return length == pm_string_length(right) &&
+        (length == 0 || memcmp(pm_string_source(left), pm_string_source(right), length) == 0);
     }
     static bool fleek_duplication_scalar_identity_equal(pm_parser_t *parser, const pm_node_t *left, const pm_node_t *right) {
       const fleek_duplication_node_rule_t *rule = fleek_duplication_node_rule(left->type);
+      if (rule->identity == FLEEK_DUPLICATION_IDENTITY_NONE) return true;
       const uint8_t *left_value = (const uint8_t *) left + rule->identity_offset;
       const uint8_t *right_value = (const uint8_t *) right + rule->identity_offset;
       if (rule->identity == FLEEK_DUPLICATION_IDENTITY_CONSTANT) {
@@ -3020,9 +3019,20 @@ class Fleek
       if (rule->identity == FLEEK_DUPLICATION_IDENTITY_STRING || rule->identity == FLEEK_DUPLICATION_IDENTITY_SYMBOL) {
         const pm_string_t *left_string = (const pm_string_t *) left_value;
         const pm_string_t *right_string = (const pm_string_t *) right_value;
-        size_t length = pm_string_length(left_string);
-        return length == pm_string_length(right_string) &&
-          (length == 0 || memcmp(pm_string_source(left_string), pm_string_source(right_string), length) == 0);
+        return fleek_duplication_strings_equal(left_string, right_string);
+      }
+      if (rule->identity == FLEEK_DUPLICATION_IDENTITY_RANGE) {
+        return PM_NODE_FLAG_P(left, PM_RANGE_FLAGS_EXCLUDE_END) == PM_NODE_FLAG_P(right, PM_RANGE_FLAGS_EXCLUDE_END);
+      }
+      if (rule->identity == FLEEK_DUPLICATION_IDENTITY_REGULAR_EXPRESSION) {
+        const pm_string_t *left_string = (const pm_string_t *) left_value;
+        const pm_string_t *right_string = (const pm_string_t *) right_value;
+        return PM_NODE_FLAGS(left) == PM_NODE_FLAGS(right) && fleek_duplication_strings_equal(left_string, right_string);
+      }
+      if (rule->identity == FLEEK_DUPLICATION_IDENTITY_INTERPOLATED_REGULAR_EXPRESSION) {
+        const pm_interpolated_regular_expression_node_t *left_regex = (const pm_interpolated_regular_expression_node_t *) left;
+        const pm_interpolated_regular_expression_node_t *right_regex = (const pm_interpolated_regular_expression_node_t *) right;
+        return PM_NODE_FLAGS(left) == PM_NODE_FLAGS(right) && left_regex->parts.size == right_regex->parts.size;
       }
       return true;
     }
@@ -3030,10 +3040,6 @@ class Fleek
       if (left->type != right->type || !fleek_duplication_variable_node_equal(parser, left, right) ||
           !fleek_duplication_parameter_nodes_equal(parser, left, right, false) ||
           !fleek_duplication_scalar_identity_equal(parser, left, right)) return false;
-      if (PM_NODE_TYPE_P(left, PM_RANGE_NODE) &&
-          PM_NODE_FLAG_P(left, PM_RANGE_FLAGS_EXCLUDE_END) != PM_NODE_FLAG_P(right, PM_RANGE_FLAGS_EXCLUDE_END)) return false;
-      if (PM_NODE_TYPE_P(left, PM_REGULAR_EXPRESSION_NODE) && !fleek_duplication_regular_expression_equal(left, right)) return false;
-      if (PM_NODE_TYPE_P(left, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) && !fleek_duplication_interpolated_regular_expression_equal(left, right)) return false;
       return true;
     }
     static bool fleek_duplication_class_values_equal(pm_parser_t *parser, const fleek_duplication_method_t *left, const fleek_duplication_method_t *right) {
