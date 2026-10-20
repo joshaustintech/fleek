@@ -54,6 +54,9 @@ GEM
       rainbow (~> 3.0)
       rexml (~> 3.1)
     rexml (3.4.4)
+    ruby_parser (3.22.0)
+      racc (~> 1.5)
+      sexp_processor (~> 4.16)
     sexp_processor (4.17.6)
     zeitwerk (2.8.3)
 
@@ -64,6 +67,7 @@ PLATFORMS
 DEPENDENCIES
   flay (= 2.14.4)
   reek (= 6.6.0)
+  ruby_parser (= 3.22.0)
 
 CHECKSUMS
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
@@ -86,6 +90,7 @@ CHECKSUMS
   rainbow (3.1.1) sha256=039491aa3a89f42efa1d6dec2fc4e62ede96eb6acd95e52f1ad581182b79bc6a
   reek (6.6.0) sha256=5e55592c98adc7d4f6815d69e8783b6eab00797d3fdcbd0327c876ec3893c2fd
   rexml (3.4.4) sha256=19e0a2c3425dfbf2d4fc1189747bdb2f849b6c5e74180401b15734bc97b5d142
+  ruby_parser (3.22.0) sha256=1eb4937cd9eb220aa2d194e352a24dba90aef00751e24c8dfffdb14000f15d23
   sexp_processor (4.17.6) sha256=3c5d0e9db06377abde06db51dbacb14ce239ed0bd038ae515bc42c81602c6c1f
   zeitwerk (2.8.3) sha256=2c85125a8467ce069e20123d1e709a08955c9d29c118c25b46b7b7fafdbb92e5
 

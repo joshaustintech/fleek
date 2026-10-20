@@ -25,6 +25,7 @@ class CheckRunner
     test/duplication_contract.rb
     test/duplication_fuzzy_contract.rb
     test/duplication_fuzzy_distance_contract.rb
+    test/legacy_parser_contract.rb
     test/duplication_group_order_contract.rb
     test/duplication_method_capacity_contract.rb
     test/duplication_method_block_contract.rb

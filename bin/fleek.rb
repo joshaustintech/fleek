@@ -10,7 +10,7 @@ class Fleek
   # Retains source identity alongside its diagnostic for the text report.
   SourceFailure = Struct.new(:path, :message, :kind)
   # Carries inputs and locations through structural duplication reporting.
-  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold, :excluded_paths, :source, :result, :partial, :partial_paths, :source_scope, :only_node, :liberal, :fuzzy)
+  DuplicationReport = Struct.new(:paths, :errors, :source_map, :mass_threshold, :excluded_paths, :source, :result, :partial, :partial_paths, :source_scope, :only_node, :liberal, :fuzzy, :legacy)
   # Carries one Flay group through stable report formatting.
   DuplicationGroup = Struct.new(:node, :kind, :mass, :score, :locations, :fuzzy_locations)
   # Carries validated analyzer inputs through combined execution.
@@ -82,6 +82,7 @@ class Fleek
   # Provides the native Prism parser adapter.
   module NativePrism
     DUPLICATION_UNSUPPORTED_SOURCE = -4
+    DUPLICATION_LEGACY_PARSE_ERROR = -5
     FLAY_DEFAULT_MASS = 16
     ffi_source <<~C
     #include "prism.h"
@@ -236,7 +237,7 @@ class Fleek
 
     static fleek_group_t fleek_groups[64];
     static size_t fleek_group_count;
-    enum { FLEEK_DUPLICATION_PARSE_ERROR = -1, FLEEK_DUPLICATION_NUL_SOURCE = -2, FLEEK_DUPLICATION_UNSUPPORTED_SOURCE = -4 };
+    enum { FLEEK_DUPLICATION_PARSE_ERROR = -1, FLEEK_DUPLICATION_NUL_SOURCE = -2, FLEEK_DUPLICATION_UNSUPPORTED_SOURCE = -4, FLEEK_DUPLICATION_LEGACY_PARSE_ERROR = -5 };
     static pm_constant_id_t *fleek_duplication_scope_scratch;
     static size_t fleek_duplication_scope_scratch_capacity;
     static uint8_t *fleek_duplication_scope_type_scratch;
@@ -4006,7 +4007,38 @@ class Fleek
       return 0;
     }
 
-    int fleek_structural_duplication(const char *source, size_t length, int mass_threshold, int liberal, int fuzzy, int cross_file, const char *file_offsets) {
+    typedef struct { bool unsupported; } fleek_legacy_parser_state_t;
+    static bool fleek_legacy_parser_syntax_supported(const pm_node_t *node, void *data) {
+      const pm_node_t *left = NULL;
+      const uint8_t *operator_start = NULL;
+      const uint8_t *operator_end = NULL;
+      if (PM_NODE_TYPE_P(node, PM_AND_NODE)) {
+        const pm_and_node_t *logical = (const pm_and_node_t *) node;
+        left = logical->left;
+        operator_start = logical->operator_loc.start;
+        operator_end = logical->operator_loc.end;
+      } else if (PM_NODE_TYPE_P(node, PM_OR_NODE)) {
+        const pm_or_node_t *logical = (const pm_or_node_t *) node;
+        left = logical->left;
+        operator_start = logical->operator_loc.start;
+        operator_end = logical->operator_loc.end;
+      } else {
+        return true;
+      }
+      size_t operator_length = (size_t) (operator_end - operator_start);
+      size_t between_length = (size_t) (operator_start - left->location.end);
+      bool legacy_operator = (operator_length == 2 &&
+        (memcmp(operator_start, "&&", 2) == 0 || memcmp(operator_start, "||", 2) == 0 ||
+        memcmp(operator_start, "or", 2) == 0)) ||
+        (operator_length == 3 && memcmp(operator_start, "and", 3) == 0);
+      if (legacy_operator && memchr(left->location.end, '\\n', between_length) != NULL) {
+        ((fleek_legacy_parser_state_t *) data)->unsupported = true;
+        return false;
+      }
+      return true;
+    }
+
+    int fleek_structural_duplication(const char *source, size_t length, int mass_threshold, int liberal, int fuzzy, int cross_file, int legacy, const char *file_offsets) {
       if (fleek_duplication_buffer != NULL) fleek_duplication_buffer[0] = 0;
       fleek_duplication_buffer_used = 0;
       fleek_duplication_total_score = 0;
@@ -4020,6 +4052,13 @@ class Fleek
       pm_node_t *root = pm_parse(&parser);
       if (parser.error_list.head != NULL) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_PARSE_ERROR;
+      }
+      if (legacy) {
+        fleek_legacy_parser_state_t state = { false };
+        pm_visit_node(root, fleek_legacy_parser_syntax_supported, &state);
+        if (state.unsupported) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_LEGACY_PARSE_ERROR;
+        }
       }
       if (!PM_NODE_TYPE_P(root, PM_PROGRAM_NODE)) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
@@ -4258,7 +4297,7 @@ class Fleek
     ffi_func :fleek_uncommunicative_parameter_name_finding, [], :str
     ffi_func :fleek_uncommunicative_variable_name, [:str, :size_t, :str, :str], :int
     ffi_func :fleek_uncommunicative_variable_name_finding, [], :str
-    ffi_func :fleek_structural_duplication, [:str, :size_t, :int, :int, :int, :int, :str], :int
+    ffi_func :fleek_structural_duplication, [:str, :size_t, :int, :int, :int, :int, :int, :str], :int
     ffi_func :fleek_structural_duplication_finding, [], :str
     ffi_func :fleek_structural_duplication_partial, [], :int
   end
@@ -4689,9 +4728,9 @@ class Fleek
   def self.print_analysis_usage
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
     puts "       fleek --checks reek:ClassVariable[,flay:StructuralDuplication] [--reek-config FILE] SOURCE"
-    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--liberal] [--fuzzy [DIFF]] [--reek-config FILE] SOURCE..."
+    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--liberal] [--fuzzy [DIFF]] [--legacy] [--reek-config FILE] SOURCE..."
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
-    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--liberal] [--fuzzy [DIFF]] [--only NODE] SOURCE"
+    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--liberal] [--fuzzy [DIFF]] [--legacy] [--only NODE] SOURCE"
   end
 
   def self.help_requested?(arguments)
@@ -4747,7 +4786,7 @@ class Fleek
 
   def self.print_usage_error(message)
     warn message
-    warn "Use long options: --checks, --mass, --liberal, --fuzzy, and --reek-config."
+    warn "Use long options: --checks, --mass, --liberal, --fuzzy, --legacy, and --reek-config."
     warn "Usage: fleek [--help | --version]"
     1
   end
@@ -4773,7 +4812,7 @@ class Fleek
   def self.duplication_input_report(inputs, ignore_patterns)
     files, errors = discover_sources(duplication_source_paths(inputs), ReekConfiguration.new)
     included, excluded = partition_flay_sources(files, ignore_patterns)
-    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded, nil, nil, false, [], "included", duplication_only_node(inputs), inputs.include?("--liberal"), duplication_fuzzy_distance(inputs))
+    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded, nil, nil, false, [], "included", duplication_only_node(inputs), inputs.include?("--liberal"), duplication_fuzzy_distance(inputs), inputs.include?("--legacy"))
   end
 
   def self.partition_flay_sources(files, patterns)
@@ -4901,14 +4940,14 @@ class Fleek
   end
 
   def self.duplication_source_input_error(inputs)
-    unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" && input != "--only" && input != "--liberal" && input != "--fuzzy" && !input.start_with?("--fuzzy=") }
+    unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" && input != "--only" && input != "--liberal" && input != "--fuzzy" && input != "--legacy" && !input.start_with?("--fuzzy=") }
     return "Unsupported Flay option: #{quote_text(unsupported_option)}" if unsupported_option
     return "flay:StructuralDuplication requires at least one Ruby source path." if duplication_source_paths(inputs).empty?
     ""
   end
 
   def self.duplication_source_paths(inputs)
-    without_optional_integer_option(without_option(without_option_pairs(without_option_pairs(inputs, "--mass"), "--only"), "--liberal"), "--fuzzy")
+    without_option(without_optional_integer_option(without_option(without_option_pairs(without_option_pairs(inputs, "--mass"), "--only"), "--liberal"), "--fuzzy"), "--legacy")
   end
 
   # :reek:DuplicateMethodCall
@@ -5001,7 +5040,7 @@ class Fleek
   # :reek:TooManyStatements
   def self.run_native_duplication(report)
     source = report.source
-    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold, report.liberal ? 1 : 0, report.fuzzy, report.paths.length > 1 ? 1 : 0, duplication_file_offsets(report.source_map))
+    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold, report.liberal ? 1 : 0, report.fuzzy, report.paths.length > 1 ? 1 : 0, report.legacy ? 1 : 0, duplication_file_offsets(report.source_map))
     mark_partial_duplication_report(report)
   end
 
@@ -5019,10 +5058,22 @@ class Fleek
   end
 
   # :reek:BooleanParameter
+  # :reek:TooManyStatements
   def self.report_invalid_duplication_sources(report, combined_error = false)
-    return report_unsupported_duplication_sources(report, combined_error) if report.result == NativePrism::DUPLICATION_UNSUPPORTED_SOURCE
+    result = report.result
+    return report_legacy_duplication_parse_failure(report, combined_error) if result == NativePrism::DUPLICATION_LEGACY_PARSE_ERROR
+    return report_unsupported_duplication_sources(report, combined_error) if result == NativePrism::DUPLICATION_UNSUPPORTED_SOURCE
     return report_single_duplication_parse_failure(report, combined_error) if report.paths.length == 1
     warn "ERROR: Combined source set could not be parsed; no duplication results were analyzed."
+    report_duplication_failure_summary(report, combined_error)
+  end
+
+  # :reek:TooManyStatements
+  def self.report_legacy_duplication_parse_failure(report, combined_error)
+    paths = report.paths
+    path = paths.length == 1 ? " #{quote_text(paths[0])}" : ""
+    warn "ERROR: Flay --legacy cannot parse a line-leading boolean operator in#{path}; selected sources were not analyzed."
+    report_duplication_errors(report.errors)
     report_duplication_failure_summary(report, combined_error)
   end
 
@@ -5041,7 +5092,7 @@ class Fleek
 
   def self.report_duplication_input_failure(message)
     warn "ERROR: #{message}"
-    warn "Use --mass MASS and --fuzzy; check-specific options use long names."
+    warn "Use --mass MASS, --fuzzy, and --legacy; check-specific options use long names."
     1
   end
 
@@ -5669,7 +5720,7 @@ class Fleek
   # :reek:TooManyStatements
   def self.prepare_combined_analysis(inputs)
     flay_inputs = without_option_pairs(inputs, "--reek-config")
-    reek_inputs = without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only")
+    reek_inputs = without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy")
     flay_error = structural_duplication_input_error(flay_inputs)
     configuration, reek_sources, config_error = combined_reek_configuration(reek_inputs)
     return CombinedAnalysis.new(flay_inputs, reek_inputs, nil, config_error, []) unless config_error.empty?
@@ -6243,7 +6294,7 @@ class Fleek
   end
 
   def self.without_flay_options(inputs)
-    without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only")
+    without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy")
   end
 
   # :reek:TooManyStatements
@@ -6273,7 +6324,7 @@ class Fleek
   end
 
   def self.selected_check_option_error(check, inputs)
-    reek_option = inputs.find { |argument| ["--mass", "--only", "--liberal", "--fuzzy"].include?(argument) || argument.start_with?("--fuzzy=") } if check.start_with?("reek:") && !check.include?(FLAY_CHECK)
+    reek_option = inputs.find { |argument| ["--mass", "--only", "--liberal", "--fuzzy", "--legacy"].include?(argument) || argument.start_with?("--fuzzy=") } if check.start_with?("reek:") && !check.include?(FLAY_CHECK)
     return "#{reek_option} applies only to flay:StructuralDuplication." if reek_option
     check == FLAY_CHECK && inputs.include?("--reek-config") ? "--reek-config applies only to Reek checks." : ""
   end
