@@ -6,7 +6,7 @@
 
 **Blocked by:** 42; 115 — Verify harness savings before resuming feature work.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
@@ -21,10 +21,18 @@ Existing exception-flow, string and regexp contracts; ADRs 0138, 0139, 0168, 017
 
 ## Acceptance criteria
 
-- [ ] Listed behavior cases have reproducible inputs, pinned expected results and matching public behavior. Inventory-only work records evidence and concrete child links; completion gates remain open until every required residual gap resolves.
-- [ ] Semantic findings, coverage, streams and normalized outcome are asserted where applicable; evidence-only inventories distinguish verified rows from unresolved work.
-- [ ] Relevant regression/mutation or evidence checks pass; Answer records exact commands and remaining issue links.
-- [ ] Stop after this behavior is proven; parent acceptance is not reduced by this child.
+- [x] Listed behavior cases have reproducible inputs, pinned expected results and matching public behavior. Inventory-only work records evidence and concrete child links; completion gates remain open until every required residual gap resolves.
+- [x] Semantic findings, coverage, streams and normalized outcome are asserted where applicable; evidence-only inventories distinguish verified rows from unresolved work.
+- [x] Relevant regression/mutation or evidence checks pass; Answer records exact commands and remaining issue links.
+- [x] Stop after this behavior is proven; parent acceptance is not reduced by this child.
+
+## Answer
+
+Added native method-mass correction for begin/rescue/ensure compositions, including bound rescue references. The public contract covers identical and changed interpolated regexp pairs (Flay mass 36), identical and changed interpolated-string pairs (mass 32), a plain rescue/ensure pair (mass 28), and an unsupported default beside a supported pair. Before the correction, the regexp and string cases were six mass points below Flay. The unsupported case retains the similar mass-36 finding, reports `scope=partial` and incomplete coverage, exits 1, and places the partial-results diagnostic on stderr only. See [ADR 0188](../../../docs/adr/0188-match-composed-exception-wrapper-mass.md).
+
+Verified with pinned Spinel 2026.09.12, Flay 2.14.4, and Reek 6.6.0. Focused CLI contract: `/private/tmp/fleek-spinel-pinned-rebuild/bin/spinel -E test/duplication_composed_exception_contract.rb`. Focused mutations: `FLEEK_MUTATIONS='Flay composed exception wrapper mass,Flay composed exception binding mass' make mutation`; both mutations were caught. Full cold gate: `FLEEK_DISABLE_MUTATION_CONTRACT_CACHE=true JOBS=4 make check` passed with 65 workers and four mutation workers. `make flay` reported score 0; `make reek` reported 0 warnings; `make ticket-check` reported 127 valid tickets. `git diff --check` passed. Spec and standards reviews found no remaining issues.
+
+Tickets 42 and 115 are resolved. Tickets 51–52 and parent Tickets 22/43 remain open; this child does not reduce their acceptance scope.
 
 ## Execution and stop condition
 

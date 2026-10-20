@@ -3496,6 +3496,14 @@ class Fleek
         if (method->has_optional_method_parameters && PM_NODE_TYPE_P(method->data.ast.nodes[index], PM_BLOCK_PARAMETERS_NODE) && adjustment > 0) adjustment--;
         if (adjustment < 0) mass -= (size_t) (-adjustment);
         else mass += (size_t) adjustment;
+        if (PM_NODE_TYPE_P(method->data.ast.nodes[index], PM_BEGIN_NODE)) {
+          const pm_begin_node_t *begin_node = (const pm_begin_node_t *) method->data.ast.nodes[index];
+          if (begin_node->rescue_clause != NULL && begin_node->ensure_clause != NULL) {
+            // RubyParser's composed wrapper weight is shared across method candidates.
+            mass += 2;
+            if (begin_node->rescue_clause->reference != NULL) mass += 1;
+          }
+        }
       }
       return mass;
     }
