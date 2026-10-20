@@ -29,7 +29,7 @@ Implement Flay's real default structural duplication behavior on a declared supp
 
 - Implement the selected default Flay structural algorithm and its AST semantics, mass, normal pruning, identical multiplier, grouping, scores, and ordering. Literal/name-insensitive structural matching is not text equality.
 - Initially declare a narrow supported syntax boundary and reject unsupported nodes rather than silently dropping them. Expand only with behavioral proof.
-- Support the default algorithm and its mass threshold; bounded method fuzzy matching and the tested legacy parser boundary are recorded in ADRs 0191, 0192, and 0193. Liberal, diff, plugins, and unsupported report options remain explicit unsupported requests until separately implemented.
+- Support the default algorithm and its mass threshold; bounded method fuzzy matching, the tested legacy parser boundary, and Flay ignore path expansion are recorded in ADRs 0191, 0192, 0193, and 0194. Liberal, diff, plugins, and unsupported report options remain explicit unsupported requests until separately implemented.
 - Use one check-selection interface and distinct long options. Omit conflicting upstream short aliases.
 - Produce one text report with separate duplication and smell sections; preserve type-specific content and metrics without inventing a combined score.
 - Apply duplication ignore policy only to duplication. Reek exclusions and suppression remain smell-specific.

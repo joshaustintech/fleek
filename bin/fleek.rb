@@ -4821,7 +4821,7 @@ class Fleek
   end
 
   def self.load_flay_ignore_patterns
-    File.file?(".flayignore") ? [File.read(".flayignore").split("\n"), ""] : [[], ""]
+    File.exist?(".flayignore") ? [File.read(".flayignore").split("\n"), ""] : [[], ""]
   rescue SystemCallError
     [[], "Cannot read .flayignore."]
   end
@@ -4834,7 +4834,8 @@ class Fleek
     absolute_pattern = File.expand_path(pattern)
     absolute_path = File.expand_path(path)
     return File.fnmatch?(absolute_pattern.chomp("/"), File.dirname(absolute_path), File::FNM_PATHNAME) if pattern.end_with?("/")
-    File.fnmatch?(absolute_pattern, absolute_path, pattern.include?("/") ? 0 : File::FNM_PATHNAME)
+    return File.fnmatch?(absolute_pattern.tr("/", "\u0001"), absolute_path.tr("/", "\u0001")) unless pattern.include?("/")
+    File.fnmatch?(absolute_pattern, absolute_path, File::FNM_PATHNAME)
   end
 
   # :reek:TooManyStatements
