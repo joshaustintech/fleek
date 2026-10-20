@@ -63,6 +63,7 @@ class CheckRunner
     test/duplication_similar_composed_block_contract.rb
     test/duplication_composed_collection_contract.rb
     test/duplication_composed_exception_contract.rb
+    test/duplication_composed_cross_file_contract.rb
     test/duplication_method_variable_rule_contract.rb
     test/duplication_method_scalar_value_contract.rb
     test/duplication_method_call_contract.rb

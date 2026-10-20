@@ -256,6 +256,7 @@ class Fleek
       uint8_t *scope_types;
       size_t scope_depth;
       size_t scope_mass;
+      size_t source_offset;
     } fleek_duplication_method_t;
 
     typedef struct {
@@ -2753,6 +2754,7 @@ class Fleek
       fleek_duplication_collect_class_node(method->body, &ast);
       if (ast.overflow || result->shape_count == 0) { fleek_duplication_free_candidate_ast(result); return false; }
       result->line = 1;
+      result->source_offset = (size_t) (method->def_keyword_loc.start - source);
       for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') result->line++;
       return true;
     }
@@ -3067,6 +3069,7 @@ class Fleek
       fleek_duplication_collect_class_node(method->body, &ast);
       if (ast.overflow || result->shape_count == 0) { fleek_duplication_free_candidate_ast(result); return false; }
       result->line = 1;
+      result->source_offset = (size_t) (method->def_keyword_loc.start - source);
       for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') result->line++;
       return true;
     }
@@ -3507,6 +3510,57 @@ class Fleek
       }
       return mass;
     }
+    static bool fleek_duplication_composed_exception(const fleek_duplication_method_t *method, size_t node) {
+      if (!PM_NODE_TYPE_P(method->data.ast.nodes[node], PM_BEGIN_NODE)) return false;
+      const pm_begin_node_t *begin_node = (const pm_begin_node_t *) method->data.ast.nodes[node];
+      return begin_node->rescue_clause != NULL && begin_node->ensure_clause != NULL;
+    }
+    static size_t fleek_duplication_source_file(const char *file_offsets, size_t offset) {
+      size_t file = 0;
+      const char *cursor = file_offsets;
+      while (*cursor != 0) {
+        char *end = NULL;
+        unsigned long long boundary = strtoull(cursor, &end, 10);
+        if (end == cursor || (boundary > offset)) break;
+        file++;
+        if (*end == 0) break;
+        cursor = end + 1;
+      }
+      return file;
+    }
+    static int fleek_duplication_emit_composed_exception_group(pm_parser_t *parser, const uint8_t *source,
+        const fleek_duplication_method_t *left, const fleek_duplication_method_t *right, int mass_threshold) {
+      size_t selected_left = SIZE_MAX;
+      size_t selected_right = SIZE_MAX;
+      size_t selected_mass = 0;
+      for (size_t left_node = 0; left_node < left->shape_count; left_node++) {
+        if (!fleek_duplication_composed_exception(left, left_node)) continue;
+        size_t mass = fleek_duplication_class_subtree_mass(left, left_node);
+        if (mass < (size_t) mass_threshold) continue;
+        for (size_t right_node = 0; right_node < right->shape_count; right_node++) {
+          if (!fleek_duplication_composed_exception(right, right_node) ||
+              fleek_duplication_class_subtree_mass(right, right_node) != mass ||
+              !fleek_duplication_class_subtrees_equal(left, left_node, right, right_node)) continue;
+          if (mass <= selected_mass) continue;
+          selected_left = left_node;
+          selected_right = right_node;
+          selected_mass = mass;
+        }
+      }
+      if (selected_left == SIZE_MAX) return 0;
+      const pm_begin_node_t *begin_node = (const pm_begin_node_t *) left->data.ast.nodes[selected_left];
+      const pm_begin_node_t *right_begin_node = (const pm_begin_node_t *) right->data.ast.nodes[selected_right];
+      if (begin_node->statements == NULL || begin_node->statements->body.size == 0 ||
+          right_begin_node->statements == NULL || right_begin_node->statements->body.size == 0) return 0;
+      int lines[2] = {
+        fleek_source_line(source, begin_node->statements->body.nodes[0]->location.start),
+        fleek_source_line(source, right_begin_node->statements->body.nodes[0]->location.start)
+      };
+      bool identical = fleek_duplication_class_subtree_values_equal(parser, left, selected_left, right, selected_right);
+      // Flay counts three wrapper nodes per :ensure member that Prism does not expose in this subtree.
+      return fleek_duplication_append_group("ensure", identical, selected_mass + 3, lines, 2,
+        FLEEK_DUPLICATION_GROUP_METHOD) ? 1 : -1;
+    }
     static size_t fleek_duplication_class_block_mass(const fleek_duplication_method_t *method, size_t node) {
       size_t mass = fleek_duplication_class_subtree_mass(method, node);
       if (!method->has_optional_method_parameters) return mass;
@@ -3647,7 +3701,16 @@ class Fleek
       }
       return true;
     }
-    static bool fleek_duplication_scope_candidates_match(const fleek_duplication_class_candidates_t *set, size_t left, size_t right, size_t mass_threshold) {
+    static bool fleek_duplication_scope_candidates_match(const fleek_duplication_class_candidates_t *set, size_t left, size_t right, size_t mass_threshold, const char *file_offsets, bool cross_file) {
+      if (cross_file && fleek_duplication_source_file(file_offsets, set->candidates[left].source_offset) !=
+          fleek_duplication_source_file(file_offsets, set->candidates[right].source_offset)) {
+        for (size_t offset = 0; offset < set->scope_candidate_counts[left]; offset++) {
+          const fleek_duplication_method_t *candidate = &set->candidates[left + offset];
+          for (size_t node = 0; node < candidate->shape_count; node++) {
+            if (fleek_duplication_composed_exception(candidate, node)) return false;
+          }
+        }
+      }
       return set->scope_indices[left] != set->scope_indices[right] &&
         fleek_duplication_scope_candidate_first(set, left) && fleek_duplication_scope_candidate_first(set, right) &&
         fleek_duplication_scope_candidate_complete(set, left) && fleek_duplication_scope_candidate_complete(set, right) &&
@@ -3670,12 +3733,12 @@ class Fleek
         fleek_duplication_method_parameters_equal(parser, first, second) &&
         fleek_duplication_class_values_equal(parser, &set->candidates[left], &set->candidates[right]);
     }
-    static bool fleek_duplication_has_partial_subtree(const fleek_duplication_class_candidates_t *set, int mass_threshold) {
+    static bool fleek_duplication_has_partial_subtree(const fleek_duplication_class_candidates_t *set, int mass_threshold, const char *file_offsets, bool cross_file) {
       for (size_t left = 0; left < set->count; left++) {
         for (size_t right = left + 1; right < set->count; right++) {
           bool same_shape = fleek_duplication_candidate_shapes_equal(set, left, right);
           size_t mass = fleek_duplication_class_method_mass(&set->candidates[left]);
-          if (same_shape && fleek_duplication_scope_candidates_match(set, left, right, (size_t) mass_threshold)) continue;
+          if (same_shape && fleek_duplication_scope_candidates_match(set, left, right, (size_t) mass_threshold, file_offsets, cross_file)) continue;
           if (same_shape && mass >= (size_t) mass_threshold) continue;
           for (size_t left_node = 0; left_node < set->candidates[left].shape_count; left_node++) {
             for (size_t right_node = 0; right_node < set->candidates[right].shape_count; right_node++) {
@@ -3689,7 +3752,7 @@ class Fleek
       }
       return false;
     }
-    static bool fleek_duplication_emit_scope_groups(pm_parser_t *parser, const fleek_duplication_class_candidates_t *set, int mass_threshold, bool *covered) {
+    static bool fleek_duplication_emit_scope_groups(pm_parser_t *parser, const fleek_duplication_class_candidates_t *set, int mass_threshold, const char *file_offsets, bool cross_file, bool *covered) {
       bool *grouped = calloc(set->count, sizeof(bool));
       size_t *members = malloc(set->count * sizeof(size_t));
       int *lines = malloc(set->count * sizeof(int));
@@ -3701,7 +3764,7 @@ class Fleek
         size_t count = 1;
         for (size_t candidate = first + 1; candidate < set->count; candidate++) {
           if (grouped[candidate] || !fleek_duplication_scope_candidate_first(set, candidate) || !fleek_duplication_scope_candidate_complete(set, candidate) ||
-              !fleek_duplication_scope_candidates_match(set, first, candidate, (size_t) mass_threshold)) continue;
+              !fleek_duplication_scope_candidates_match(set, first, candidate, (size_t) mass_threshold, file_offsets, cross_file)) continue;
           members[count++] = candidate;
         }
         if (count < 2) continue;
@@ -3798,11 +3861,11 @@ class Fleek
       set->capacity = 0;
     }
     static bool fleek_duplication_analyze_scoped_candidates(pm_parser_t *parser, const uint8_t *source,
-        const fleek_duplication_class_candidates_t *set, int mass_threshold, bool liberal) {
-      if (fleek_duplication_has_partial_subtree(set, mass_threshold)) return false;
+        const fleek_duplication_class_candidates_t *set, int mass_threshold, bool liberal, const char *file_offsets, bool cross_file) {
+      if (fleek_duplication_has_partial_subtree(set, mass_threshold, file_offsets, cross_file)) return false;
       bool *covered = calloc(set->count, sizeof(bool));
       if (covered == NULL) return false;
-      bool complete = fleek_duplication_emit_scope_groups(parser, set, mass_threshold, covered) &&
+      bool complete = fleek_duplication_emit_scope_groups(parser, set, mass_threshold, file_offsets, cross_file, covered) &&
         fleek_duplication_emit_method_groups(parser, source, set, mass_threshold, covered, liberal);
       free(covered);
       return complete;
@@ -3832,7 +3895,7 @@ class Fleek
         fleek_duplication_class_values_equal(parser, left_method, right_method);
     }
 
-    int fleek_structural_duplication(const char *source, size_t length, int mass_threshold, int liberal) {
+    int fleek_structural_duplication(const char *source, size_t length, int mass_threshold, int liberal, int cross_file, const char *file_offsets) {
       if (fleek_duplication_buffer != NULL) fleek_duplication_buffer[0] = 0;
       fleek_duplication_buffer_used = 0;
       fleek_duplication_total_score = 0;
@@ -3924,7 +3987,7 @@ class Fleek
           fleek_duplication_free_candidate_scope_names(&class_candidates);
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
         }
-        if (!fleek_duplication_analyze_scoped_candidates(&parser, (const uint8_t *) source, &class_candidates, mass_threshold, liberal)) {
+        if (!fleek_duplication_analyze_scoped_candidates(&parser, (const uint8_t *) source, &class_candidates, mass_threshold, liberal, file_offsets, cross_file != 0)) {
           fleek_duplication_free_candidate_scope_names(&class_candidates);
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
         }
@@ -3950,6 +4013,15 @@ class Fleek
         fleek_duplication_optional_parameter_count(first) == fleek_duplication_optional_parameter_count(second) &&
         fleek_duplication_method_parameter_shapes_equal(first, second);
       bool identical = same_shape && fleek_duplication_methods_identical(&parser, first, second, &first_method, &second_method);
+      bool methods_cross_file = cross_file && fleek_duplication_source_file(file_offsets, first_method.source_offset) !=
+        fleek_duplication_source_file(file_offsets, second_method.source_offset);
+      int composed_group = same_shape && methods_cross_file ? fleek_duplication_emit_composed_exception_group(&parser,
+        (const uint8_t *) source, &first_method, &second_method, mass_threshold) : 0;
+      if (composed_group < 0) {
+        fleek_duplication_free_candidate_ast(&first_method);
+        fleek_duplication_free_candidate_ast(&second_method);
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
+      }
       const fleek_duplication_method_t *iter_methods[2] = { &first_method, &second_method };
       int iter_group = same_shape ? 0 :
         fleek_duplication_emit_matching_iter_group(&parser, (const uint8_t *) source,
@@ -3959,7 +4031,7 @@ class Fleek
         fleek_duplication_free_candidate_ast(&second_method);
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
       }
-      if (iter_group == 0 && same_shape && mass >= (size_t) mass_threshold) {
+      if (iter_group == 0 && composed_group == 0 && same_shape && mass >= (size_t) mass_threshold) {
         int lines[2] = { first_method.line, second_method.line };
         if (!fleek_duplication_append_group("defn", identical, mass, lines, 2,
             FLEEK_DUPLICATION_GROUP_METHOD)) {
@@ -4066,7 +4138,7 @@ class Fleek
     ffi_func :fleek_uncommunicative_parameter_name_finding, [], :str
     ffi_func :fleek_uncommunicative_variable_name, [:str, :size_t, :str, :str], :int
     ffi_func :fleek_uncommunicative_variable_name_finding, [], :str
-    ffi_func :fleek_structural_duplication, [:str, :size_t, :int, :int], :int
+    ffi_func :fleek_structural_duplication, [:str, :size_t, :int, :int, :int, :str], :int
     ffi_func :fleek_structural_duplication_finding, [], :str
     ffi_func :fleek_structural_duplication_partial, [], :int
   end
@@ -4712,9 +4784,10 @@ class Fleek
     [source, source_map]
   end
 
+  # :reek:TooManyStatements
   def self.append_duplication_source(source, source_map, path)
     content = File.binread(path)
-    source_map << [path, source.count("\n") + 1]
+    source_map << [path, source.count("\n") + 1, source.bytesize]
     source + content + (content.end_with?("\n") ? "" : "\n")
   end
 
@@ -4726,9 +4799,13 @@ class Fleek
     print_duplication_report(report, result, combined_analysis)
   end
 
+  def self.duplication_file_offsets(source_map)
+    source_map.map { |entry| entry[2].to_s }.join(",")
+  end
+
   def self.run_native_duplication(report)
     source = report.source
-    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold, report.liberal ? 1 : 0)
+    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold, report.liberal ? 1 : 0, report.paths.length > 1 ? 1 : 0, duplication_file_offsets(report.source_map))
     mark_partial_duplication_report(report)
   end
 

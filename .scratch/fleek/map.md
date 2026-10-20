@@ -12,6 +12,7 @@
 
 ## Decisions-so-far
 
+- Ticket 51 matches Flay's composed begin/rescue/ensure pruning across source paths: top-level candidates select `:ensure`, class candidates retain method groups, reversed file inputs keep canonical location order, and supported groups survive beside an unsupported sibling with incomplete coverage. See [ADR 0189](../../docs/adr/0189-preserve-composed-cross-file-pruning.md); ticket 52 and parent 22/43 remain open.
 - Ticket 50 corrects method mass for bounded composed begin/rescue/ensure nodes with interpolated regexp/string values while preserving incomplete findings beside unsupported defaults. See [ADR 0188](../../docs/adr/0188-match-composed-exception-wrapper-mass.md); tickets 51–52 and parent 22/43 remain open.
 - Ticket 49 adds pinned composition evidence without changing the native analyzer: multi-condition case/array mass 38, loop with array/hash mass 30, identical conditional collection mass/score 26/52, and clean different-topology boundary. See [ADR 0187](../../docs/adr/0187-preserve-composed-collection-control-parity.md); tickets 50–52 still gate parent 43/22.
 - Ticket 43 composes parameter-shape selection with method candidate groups: differing optional defaults select independently grouped `:iter` subtrees across method candidates, including subset matches and multiple groups per method; identical parameter shapes retain `:defn`. See [ADR 0186](../../docs/adr/0186-group-composed-methods-by-flay-subtree.md).
