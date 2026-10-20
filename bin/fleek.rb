@@ -249,6 +249,7 @@ class Fleek
       } data;
       size_t shape_count;
       size_t parameter_mass;
+      bool has_optional_method_parameters;
       int line;
       int scope_kind;
       pm_constant_id_t *scope_names;
@@ -2733,11 +2734,22 @@ class Fleek
         (parameters->keyword_rest == NULL || fleek_duplication_parameter_node_supported(parameters->keyword_rest, result)) &&
         (parameters->block == NULL || fleek_duplication_parameter_node_supported((const pm_node_t *) parameters->block, result));
     }
+    static bool fleek_duplication_has_optional_method_parameters(const pm_node_t *node) {
+      if (node == NULL || !PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE)) return false;
+      const pm_parameters_node_t *parameters = (const pm_parameters_node_t *) node;
+      if (parameters->optionals.size > 0) return true;
+      for (size_t index = 0; index < parameters->keywords.size; index++) {
+        if (PM_NODE_TYPE_P(parameters->keywords.nodes[index], PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) return true;
+      }
+      return false;
+    }
     static bool fleek_duplication_class_method(const pm_node_t *node, const uint8_t *source, fleek_duplication_method_t *result) {
       if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       result->parameter_mass = 0;
+      result->has_optional_method_parameters = false;
       if (method->receiver != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result) || method->body == NULL || method->equal_loc.start != NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
+      result->has_optional_method_parameters = fleek_duplication_has_optional_method_parameters((const pm_node_t *) method->parameters);
       fleek_duplication_ast_t ast = { result, false, NULL };
       fleek_duplication_collect_class_node(method->body, &ast);
       if (ast.overflow || result->shape_count == 0) { fleek_duplication_free_candidate_ast(result); return false; }
@@ -2983,8 +2995,10 @@ class Fleek
       if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       result->parameter_mass = 0;
+      result->has_optional_method_parameters = false;
       if (method->receiver != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result) ||
           method->body == NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
+      result->has_optional_method_parameters = fleek_duplication_has_optional_method_parameters((const pm_node_t *) method->parameters);
       fleek_duplication_ast_t ast = { result, false, NULL };
       fleek_duplication_collect_class_node(method->body, &ast);
       if (ast.overflow || result->shape_count == 0) { fleek_duplication_free_candidate_ast(result); return false; }
@@ -3414,6 +3428,8 @@ class Fleek
       }
       for (size_t index = 0; index < method->shape_count; index++) {
         int8_t adjustment = method->data.ast.mass_adjustments[index];
+        // Flay counts the optional block-list wrapper once across optional method and block defaults.
+        if (method->has_optional_method_parameters && PM_NODE_TYPE_P(method->data.ast.nodes[index], PM_BLOCK_PARAMETERS_NODE) && adjustment > 0) adjustment--;
         if (adjustment < 0) mass -= (size_t) (-adjustment);
         else mass += (size_t) adjustment;
       }

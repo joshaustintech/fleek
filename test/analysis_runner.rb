@@ -172,10 +172,12 @@ class FlayMethodCandidateContract
     reference_status = run_flay(path, reference_output_path, reference_error_path)
     actual_output = File.read(actual_output_path)
     reference_output = File.read(reference_output_path)
+    actual_error = File.read(actual_error_path)
+    reference_error = File.read(reference_error_path)
     reference_group = reference_output.lines.find { |line| line.include?("code found in :defn") }
-    raise "#{label} Flay reference failed: #{reference_output} #{File.read(reference_error_path)}" unless reference_status.success? && reference_group
+    raise "#{label} Flay reference failed: #{reference_output} #{reference_error}" unless reference_status.success? && reference_group
     raise "#{label} Flay mass differed: #{reference_group}" unless reference_mass(reference_group) == mass
-    raise "#{label} methods were not analyzed: #{actual_output} #{File.read(actual_error_path)}" unless actual_status == 2
+    raise "#{label} methods were not analyzed: #{actual_output} #{actual_error}" unless actual_status == 2
     kind = reference_group.include?("IDENTICAL code") ? "identical" : "similar"
     score = kind == "identical" ? mass * 2 : mass
     locations = [first_line, second_line].map { |line| "#{path}:#{line}" }.join(",")
@@ -187,6 +189,22 @@ class FlayMethodCandidateContract
     coverage = "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded"
     raise "#{label} coverage was incomplete: #{actual_output}" unless actual_output.include?(coverage) && actual_output.include?("Status: findings")
     puts "#{label} contract: pass"
+  ensure
+    AnalysisRunner.cleanup_contract_outputs([actual_error_path, reference_output_path, reference_error_path], actual_output_path)
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_empty_stderr(path, label)
+    root = ENV["FLEEK_TEMP_ROOT"] || "/tmp"
+    actual_output_path = "#{root}/#{label}-actual.out"
+    actual_error_path = "#{root}/#{label}-actual.err"
+    reference_output_path = "#{root}/#{label}-reference.out"
+    reference_error_path = "#{root}/#{label}-reference.err"
+    run_fleek(path, actual_output_path, actual_error_path)
+    run_flay(path, reference_output_path, reference_error_path)
+    actual_error = File.read(actual_error_path)
+    reference_error = File.read(reference_error_path)
+    raise "#{label} wrote to stderr: #{actual_error} #{reference_error}" unless actual_error.empty? && reference_error.empty?
   ensure
     AnalysisRunner.cleanup_contract_outputs([actual_error_path, reference_output_path, reference_error_path], actual_output_path)
   end
