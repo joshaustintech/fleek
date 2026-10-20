@@ -2833,10 +2833,20 @@ class Fleek
       fleek_duplication_buffer[fleek_duplication_buffer_used] = 0;
       return true;
     }
-    static bool fleek_duplication_append_group(const char *node, bool identical, size_t node_mass, const int *lines, size_t count) {
-      if (node_mass != 0 && count > SIZE_MAX / node_mass) return false;
-      size_t group_mass = node_mass * count;
-      size_t multiplier = identical ? count : 1;
+    typedef enum { FLEEK_DUPLICATION_GROUP_METHOD, FLEEK_DUPLICATION_GROUP_ITER } fleek_duplication_group_weight_t;
+    static bool fleek_duplication_append_group(const char *node, bool identical, size_t node_mass, const int *lines, size_t count,
+        fleek_duplication_group_weight_t weight) {
+      size_t group_mass;
+      size_t multiplier;
+      if (weight == FLEEK_DUPLICATION_GROUP_ITER) {
+        if (node_mass > SIZE_MAX / 2) return false;
+        group_mass = node_mass * 2;
+        multiplier = identical ? 2 : 1;
+      } else {
+        if (node_mass != 0 && count > SIZE_MAX / node_mass) return false;
+        group_mass = node_mass * count;
+        multiplier = identical ? count : 1;
+      }
       if (group_mass != 0 && multiplier > SIZE_MAX / group_mass) return false;
       size_t group_score = group_mass * multiplier;
       if (group_score > (size_t) (INT_MAX - fleek_duplication_total_score)) return false;
@@ -2975,18 +2985,33 @@ class Fleek
       }
       return true;
     }
+    static bool fleek_duplication_class_node_values_equal(pm_parser_t *parser, const pm_node_t *left, const pm_node_t *right) {
+      if (left->type != right->type || !fleek_duplication_variable_node_equal(parser, left, right) ||
+          !fleek_duplication_parameter_nodes_equal(parser, left, right, false) ||
+          !fleek_duplication_scalar_identity_equal(parser, left, right)) return false;
+      if (PM_NODE_TYPE_P(left, PM_RANGE_NODE) &&
+          PM_NODE_FLAG_P(left, PM_RANGE_FLAGS_EXCLUDE_END) != PM_NODE_FLAG_P(right, PM_RANGE_FLAGS_EXCLUDE_END)) return false;
+      if (PM_NODE_TYPE_P(left, PM_REGULAR_EXPRESSION_NODE) && !fleek_duplication_regular_expression_equal(left, right)) return false;
+      if (PM_NODE_TYPE_P(left, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) && !fleek_duplication_interpolated_regular_expression_equal(left, right)) return false;
+      return true;
+    }
     static bool fleek_duplication_class_values_equal(pm_parser_t *parser, const fleek_duplication_method_t *left, const fleek_duplication_method_t *right) {
       for (size_t index = 0; index < left->shape_count; index++) {
-        const pm_node_t *first = left->data.ast.nodes[index];
-        const pm_node_t *second = right->data.ast.nodes[index];
-        if (first->type != second->type) return false;
-        if (PM_NODE_TYPE_P(first, PM_RANGE_NODE) &&
-            PM_NODE_FLAG_P(first, PM_RANGE_FLAGS_EXCLUDE_END) != PM_NODE_FLAG_P(second, PM_RANGE_FLAGS_EXCLUDE_END)) return false;
-        if (!fleek_duplication_variable_node_equal(parser, first, second)) return false;
-        if (!fleek_duplication_parameter_nodes_equal(parser, first, second, false)) return false;
-        if (!fleek_duplication_scalar_identity_equal(parser, first, second)) return false;
-        if (PM_NODE_TYPE_P(first, PM_REGULAR_EXPRESSION_NODE) && !fleek_duplication_regular_expression_equal(first, second)) return false;
-        if (PM_NODE_TYPE_P(first, PM_INTERPOLATED_REGULAR_EXPRESSION_NODE) && !fleek_duplication_interpolated_regular_expression_equal(first, second)) return false;
+        if (!fleek_duplication_class_node_values_equal(parser, left->data.ast.nodes[index], right->data.ast.nodes[index])) return false;
+      }
+      return true;
+    }
+    static bool fleek_duplication_class_subtree_values_equal(pm_parser_t *parser, const fleek_duplication_method_t *left,
+        size_t left_node, const fleek_duplication_method_t *right, size_t right_node) {
+      size_t left_count = left->data.ast.node_ends[left_node] - left_node;
+      size_t right_count = right->data.ast.node_ends[right_node] - right_node;
+      if (left_count != right_count) return false;
+      for (size_t offset = 0; offset < left_count; offset++) {
+        const pm_node_t *first = left->data.ast.nodes[left_node + offset];
+        const pm_node_t *second = right->data.ast.nodes[right_node + offset];
+        if (!fleek_duplication_class_node_values_equal(parser, first, second)) return false;
+        if (fleek_duplication_parameter_rule(first->type) != NULL &&
+            !fleek_duplication_parameter_nodes_equal(parser, first, second, true)) return false;
       }
       return true;
     }
@@ -3435,6 +3460,36 @@ class Fleek
       }
       return mass;
     }
+    static size_t fleek_duplication_class_block_mass(const fleek_duplication_method_t *method, size_t node) {
+      size_t mass = fleek_duplication_class_subtree_mass(method, node);
+      if (!method->has_optional_method_parameters) return mass;
+      for (size_t index = node; index < method->data.ast.node_ends[node]; index++) {
+        if (PM_NODE_TYPE_P(method->data.ast.nodes[index], PM_BLOCK_PARAMETERS_NODE) &&
+            method->data.ast.mass_adjustments[index] > 0) return mass + 1;
+      }
+      return mass;
+    }
+    static int fleek_duplication_emit_matching_iter_group(pm_parser_t *parser, const uint8_t *source,
+        const fleek_duplication_method_t *left, const fleek_duplication_method_t *right, int mass_threshold) {
+      for (size_t left_node = 0; left_node < left->shape_count; left_node++) {
+        if (!PM_NODE_TYPE_P(left->data.ast.nodes[left_node], PM_BLOCK_NODE)) continue;
+        for (size_t right_node = 0; right_node < right->shape_count; right_node++) {
+          if (!PM_NODE_TYPE_P(right->data.ast.nodes[right_node], PM_BLOCK_NODE) ||
+              !fleek_duplication_class_subtrees_equal(left, left_node, right, right_node)) continue;
+          bool identical = fleek_duplication_class_subtree_values_equal(parser, left, left_node, right, right_node);
+          size_t left_mass = fleek_duplication_class_block_mass(left, left_node);
+          size_t right_mass = fleek_duplication_class_block_mass(right, right_node);
+          if (left_mass < (size_t) mass_threshold || left_mass != right_mass) continue;
+          int lines[2] = {
+            fleek_source_line(source, left->data.ast.nodes[left_node]->location.start),
+            fleek_source_line(source, right->data.ast.nodes[right_node]->location.start)
+          };
+          return fleek_duplication_append_group("iter", identical, left_mass, lines, 2,
+            FLEEK_DUPLICATION_GROUP_ITER) ? 1 : -1;
+        }
+      }
+      return 0;
+    }
     static bool fleek_duplication_candidate_shapes_equal(const fleek_duplication_class_candidates_t *set, size_t left, size_t right) {
       return fleek_duplication_class_shapes_equal(&set->candidates[left], &set->candidates[right]) &&
         fleek_duplication_optional_parameter_count(set->methods[left]) == fleek_duplication_optional_parameter_count(set->methods[right]);
@@ -3557,7 +3612,8 @@ class Fleek
         }
         const char *node = set->candidates[first].scope_kind == 1 ? "class" : "module";
         size_t node_mass = fleek_duplication_scope_method_mass(set, first) + fleek_duplication_scope_mass(parser, set, first);
-        if (!fleek_duplication_append_group(node, identical, node_mass, lines, count)) { complete = false; break; }
+        if (!fleek_duplication_append_group(node, identical, node_mass, lines, count,
+            FLEEK_DUPLICATION_GROUP_METHOD)) { complete = false; break; }
       }
       free(grouped);
       free(members);
@@ -3589,7 +3645,8 @@ class Fleek
         }
         size_t node_mass = fleek_duplication_class_method_mass(&set->candidates[first]);
         if (!pruned && node_mass >= (size_t) mass_threshold &&
-            !fleek_duplication_append_group("defn", identical, node_mass, lines, count)) { complete = false; break; }
+            !fleek_duplication_append_group("defn", identical, node_mass, lines, count,
+              FLEEK_DUPLICATION_GROUP_METHOD)) { complete = false; break; }
       }
       free(grouped);
       free(members);
@@ -3769,9 +3826,18 @@ class Fleek
       bool same_shape = fleek_duplication_class_shapes_equal(&first_method, &second_method) &&
         fleek_duplication_optional_parameter_count(first) == fleek_duplication_optional_parameter_count(second);
       bool identical = same_shape && fleek_duplication_methods_identical(&parser, first, second, &first_method, &second_method);
-      if (same_shape && mass >= (size_t) mass_threshold) {
+      int iter_group = fleek_duplication_method_parameters_equal(&parser, first, second) ? 0 :
+        fleek_duplication_emit_matching_iter_group(&parser, (const uint8_t *) source,
+          &first_method, &second_method, mass_threshold);
+      if (iter_group < 0) {
+        fleek_duplication_free_candidate_ast(&first_method);
+        fleek_duplication_free_candidate_ast(&second_method);
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
+      }
+      if (iter_group == 0 && same_shape && mass >= (size_t) mass_threshold) {
         int lines[2] = { first_method.line, second_method.line };
-        if (!fleek_duplication_append_group("defn", identical, mass, lines, 2)) {
+        if (!fleek_duplication_append_group("defn", identical, mass, lines, 2,
+            FLEEK_DUPLICATION_GROUP_METHOD)) {
           fleek_duplication_free_candidate_ast(&first_method);
           fleek_duplication_free_candidate_ast(&second_method);
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
