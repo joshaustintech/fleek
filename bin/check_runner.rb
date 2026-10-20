@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "workspace_stager"
+
 # Runs independent checks in disposable source copies; worker lifecycle stays together.
 # :reek:ControlParameter
 # :reek:DuplicateMethodCall
@@ -14,6 +16,7 @@
 class CheckRunner
   TESTS = %w[
     test/check_runner_precompile_budget_contract.rb
+    test/check_runner_staging_contract.rb
     test/check_runner_scheduler_contract.rb
     test/cli_contract.rb
     test/commit_identity_contract.rb
@@ -169,10 +172,7 @@ class CheckRunner
     worker = { id: nil, task: task, directory: directory, output: "/tmp/fleek-check-#{Process.pid}-#{@serial}.out",
       error: "/tmp/fleek-check-#{Process.pid}-#{@serial}.err", temporary_root: temporary_root }
     @workers << worker
-    copy_process = Process.spawn("rsync", "-a", "--exclude=/build/mutation-*", "./", directory,
-      out: "/dev/null", err: "/dev/null")
-    _, copy_status = Process.waitpid2(copy_process)
-    raise "could not create isolated check copy" unless copy_status.success?
+    raise "could not create isolated check copy" unless WorkspaceStager.copy(".", directory)
     raise "check worker includes generated mutation artifacts" unless Dir.glob("#{directory}/build/mutation-*").empty?
     namespace_temporary_paths(directory, @serial) if task[0] == :spinel
     configure_mutation_shard(directory, task) if task[0] == :mutation
