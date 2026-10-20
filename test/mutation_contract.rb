@@ -204,7 +204,7 @@ class MutationCase
     "Flay optional keyword bare-call defaults" => "test/duplication_method_parameter_contract.rb",
     "Flay node-rule candidate support" => "test/duplication_method_collection_contract.rb",
     "Flay node-rule mass adjustments" => "test/duplication_method_multiple_assignment_contract.rb",
-    "Flay generated descriptor support" => "test/duplication_generated_descriptor_contract.rb",
+    "Flay generated descriptor support" => "test/duplication_method_range_contract.rb",
     "Flay generated descriptor mass" => "test/duplication_generated_descriptor_contract.rb",
     "Flay variable-rule name identity" => "test/duplication_method_multiple_assignment_contract.rb",
     "Flay variable-rule operator identity" => "test/duplication_method_variable_rule_contract.rb",
@@ -1603,7 +1603,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_RANGE_NODE] = { 0, 0, -2, false, false, true },",
   "[PM_RANGE_NODE] = { 0, 0, -2, false, false, false },",
   "Flay generated descriptor support",
-  "generated Flay node descriptor inventory differs")).run
+  "range-expression methods were not analyzed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "[PM_RANGE_NODE] = { 0, 0, -2, false, false, true },",
   "[PM_RANGE_NODE] = { 0, 0, 0, false, false, true },",

@@ -9,7 +9,7 @@
 class CheckRunnerPrecompileBudgetContract
   LABELS = ["Flay method call splat candidates", "Flay generated descriptor support", "Flay method array expression",
     "Flay method while loop candidates", "Flay method for loop candidates", "Flay required keyword parameter candidates",
-    "Flay next expression candidates", "Flay regular expression candidates", "Flay method range candidates",
+    "Flay next expression candidates", "Flay regular expression candidates", "Flay generated descriptor mass",
     "Flay class method candidate collection"].join(",").freeze
 
   def self.run
