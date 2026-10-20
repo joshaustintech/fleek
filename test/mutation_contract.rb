@@ -32,6 +32,8 @@ class MutationCase
     "Attribute nested class scope acceptance" => "test/default_object_scope_contract.rb",
     "Attribute nested class visibility isolation" => "test/default_object_scope_contract.rb",
     "missing InstanceVariableAssumption finding" => "test/default_object_scope_contract.rb",
+    "InstanceVariableAssumption nested class scope acceptance" => "test/default_object_scope_contract.rb",
+    "InstanceVariableAssumption nested initialization boundary" => "test/default_object_scope_contract.rb",
     "missing SubclassedFromCoreClass finding" => "test/default_object_scope_contract.rb",
     "missing ModuleInitialize finding" => "test/default_object_scope_contract.rb",
     "missing IrresponsibleModule finding" => "test/default_object_scope_contract.rb",
@@ -674,7 +676,17 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_READ_NODE)",
   "false",
   "missing InstanceVariableAssumption finding",
-  "InstanceVariableAssumption findings differ from Reek")).run
+  "nested InstanceVariableAssumption status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "return scopes->class_count == 2 && scopes->module_count == 0 &&",
+  "return false &&",
+  "InstanceVariableAssumption nested class scope acceptance",
+  "nested InstanceVariableAssumption status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (fleek_id_in_list(variables.initialized, variables.initialized_count, name)) continue;",
+  "if (false) continue;",
+  "InstanceVariableAssumption nested initialization boundary",
+  "nested InstanceVariableAssumption clean control status or streams changed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'memcmp(superclass_name->start, "Array", 5) == 0',
   "false",

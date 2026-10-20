@@ -19,6 +19,7 @@ class DefaultObjectScopeContract
     verify_attribute_settings
     verify_attribute_alias
     verify_attribute_nested_class
+    verify_nested_instance_variable_assumption
     verify_unsupported_shapes
     verify_comment_overflow
     verify_other_detectors
@@ -95,6 +96,42 @@ class DefaultObjectScopeContract
     AnalysisRunner.assert_status(actual, reference, label)
     verify(output.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && output.include?("Status: findings") && actual[2].empty?, "#{label} coverage or streams changed")
     AnalysisRunner.assert_detector_findings(actual, reference, label)
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_nested_instance_variable_assumption
+    source = "test/fixtures/instance_variable_assumption_nested_class.rb"
+    reference = run_reek_for("InstanceVariableAssumption", source)
+    actual = run_fleek_check("InstanceVariableAssumption", source)
+    reference_output = reference[1]
+    verify(reference[0] == 2 && reference_output.include?("[2]:InstanceVariableAssumption:") && reference_output.include?("Profile::Credentials"), "pinned nested InstanceVariableAssumption finding changed")
+    AnalysisRunner.assert_detector_findings(actual, reference, "nested InstanceVariableAssumption")
+    AnalysisRunner.assert_status(actual, reference, "nested InstanceVariableAssumption")
+    verify_nested_instance_variable_clean_control
+    verify_nested_instance_variable_exclusion(source)
+  end
+
+  def self.verify_nested_instance_variable_clean_control
+    source = "test/fixtures/instance_variable_assumption_nested_initialized.rb"
+    reference = run_reek_for("InstanceVariableAssumption", source)
+    actual = run_fleek_check("InstanceVariableAssumption", source)
+    verify(reference[0] == 0, "pinned nested InstanceVariableAssumption clean control changed")
+    verify_nested_instance_variable_clean_result(actual, reference, "nested InstanceVariableAssumption clean control")
+  end
+
+  def self.verify_nested_instance_variable_exclusion(source)
+    config = "test/fixtures/config_instance_variable_nested_exclusion.yml"
+    reference = run_reek_config_for("InstanceVariableAssumption", source, config)
+    actual = run_fleek_check_config("InstanceVariableAssumption", source, config)
+    verify(reference[0] == 0, "pinned nested InstanceVariableAssumption exclusion changed")
+    verify_nested_instance_variable_clean_result(actual, reference, "nested InstanceVariableAssumption exclusion")
+  end
+
+  def self.verify_nested_instance_variable_clean_result(actual, reference, label)
+    output = actual[1]
+    status = actual[0]
+    verify(status == reference[0] && status == 0 && actual[2].empty? && output.include?("Status: complete"), "#{label} status or streams changed")
+    AnalysisRunner.assert_detector_findings(actual, reference, "InstanceVariableAssumption")
   end
 
   def self.verify_expected_finding(detector, source, line)

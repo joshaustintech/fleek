@@ -719,6 +719,46 @@ class Fleek
       return false;
     }
 
+    typedef struct {
+      size_t class_count;
+      size_t module_count;
+      const pm_node_t *outer_class;
+      const pm_node_t *nested_class;
+    } fleek_instance_variable_scopes_t;
+
+    static bool fleek_collect_instance_variable_scopes(const pm_node_t *node, void *data) {
+      fleek_instance_variable_scopes_t *scopes = (fleek_instance_variable_scopes_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE)) {
+        scopes->class_count++;
+        if (scopes->class_count == 1) scopes->outer_class = node;
+        if (scopes->class_count == 2) scopes->nested_class = node;
+      }
+      if (PM_NODE_TYPE_P(node, PM_MODULE_NODE)) scopes->module_count++;
+      return true;
+    }
+
+    static bool fleek_instance_variable_nested_class_scope(const fleek_instance_variable_scopes_t *scopes) {
+      return scopes->class_count == 2 && scopes->module_count == 0 &&
+        fleek_class_has_direct_child(scopes->outer_class, scopes->nested_class);
+    }
+
+    static int fleek_instance_variable_assumptions_for_class(pm_parser_t *parser, const uint8_t *source_start, const pm_node_t *node, const char *class_name, size_t class_name_length, char *output_buffer, size_t output_capacity, size_t *used) {
+      const pm_class_node_t *class_node = (const pm_class_node_t *) node;
+      fleek_instance_variables_t variables = { parser, {0}, 0, {0}, 0, 0, 0 };
+      if (class_node->body != NULL) pm_visit_node(class_node->body, fleek_instance_methods, &variables);
+      int line = fleek_source_line(source_start, class_node->class_keyword_loc.start);
+      for (size_t index = 0; index < variables.assumption_count; index++) {
+        pm_constant_id_t name = variables.assumptions[index];
+        if (fleek_id_in_list(variables.initialized, variables.initialized_count, name)) continue;
+        pm_constant_t *variable = pm_constant_pool_id_to_constant(&parser->constant_pool, name);
+        if (*used >= output_capacity) { variables.unsupported = 1; break; }
+        int written = snprintf(output_buffer + *used, output_capacity - *used, "%d\\t%.*s\\t%.*s\\n", line, (int) class_name_length, class_name, (int) variable->length, variable->start);
+        if (written < 0 || (size_t) written >= output_capacity - *used) { variables.unsupported = 1; break; }
+        *used += (size_t) written;
+      }
+      return variables.unsupported ? -4 : 0;
+    }
+
     int fleek_instance_variable_assumption(const char *source, size_t length) {
       fleek_instance_variable_assumption_buffer[0] = 0;
       fleek_class_count = fleek_module_count = 0;
@@ -734,34 +774,43 @@ class Fleek
       if (parser.error_list.head != NULL) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1;
       }
-      pm_visit_node(root, fleek_collect_classes, NULL);
-      if (fleek_class_count == 0) {
+      fleek_instance_variable_scopes_t scopes = {0, 0, NULL, NULL};
+      pm_visit_node(root, fleek_collect_instance_variable_scopes, &scopes);
+      if (scopes.class_count == 0) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
       }
-      if (fleek_class_count != 1 || fleek_module_count != 0 || !PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE)) {
+      bool simple_scope = scopes.class_count == 1 && scopes.module_count == 0;
+      bool nested_class_scope = fleek_instance_variable_nested_class_scope(&scopes);
+      if (!simple_scope && !nested_class_scope) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
-      const pm_class_node_t *class_node = (const pm_class_node_t *) fleek_only_scope;
+      const pm_node_t *outer_node = scopes.outer_class;
+      const pm_class_node_t *class_node = (const pm_class_node_t *) outer_node;
       if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE)) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
       pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) class_node->constant_path)->name);
-      fleek_instance_variables_t variables = { &parser, {0}, 0, {0}, 0, 0, 0 };
-      if (class_node->body != NULL) pm_visit_node(class_node->body, fleek_instance_methods, &variables);
       size_t used = 0;
-      int line = fleek_source_line((const uint8_t *) source, class_node->class_keyword_loc.start);
-      for (size_t index = 0; index < variables.assumption_count; index++) {
-        pm_constant_id_t name = variables.assumptions[index];
-        if (fleek_id_in_list(variables.initialized, variables.initialized_count, name)) continue;
-        pm_constant_t *variable = pm_constant_pool_id_to_constant(&parser.constant_pool, name);
-        int written = snprintf(fleek_instance_variable_assumption_buffer + used, sizeof(fleek_instance_variable_assumption_buffer) - used, "%d\\t%.*s\\t%.*s\\n", line, (int) class_name->length, class_name->start, (int) variable->length, variable->start);
-        if (written < 0 || (size_t) written >= sizeof(fleek_instance_variable_assumption_buffer) - used) { variables.unsupported = 1; break; }
-        used += (size_t) written;
+      if (fleek_instance_variable_assumptions_for_class(&parser, (const uint8_t *) source, outer_node, (const char *) class_name->start, class_name->length, fleek_instance_variable_assumption_buffer, sizeof(fleek_instance_variable_assumption_buffer), &used) != 0) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+      }
+      if (nested_class_scope) {
+        const pm_class_node_t *nested = (const pm_class_node_t *) scopes.nested_class;
+        if (!PM_NODE_TYPE_P(nested->constant_path, PM_CONSTANT_READ_NODE)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        pm_constant_t *nested_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) nested->constant_path)->name);
+        char nested_class_name[512];
+        int written = snprintf(nested_class_name, sizeof(nested_class_name), "%.*s::%.*s", (int) class_name->length, class_name->start, (int) nested_name->length, nested_name->start);
+        if (written < 0 || (size_t) written >= sizeof(nested_class_name) ||
+            fleek_instance_variable_assumptions_for_class(&parser, (const uint8_t *) source, scopes.nested_class, nested_class_name, (size_t) written, fleek_instance_variable_assumption_buffer, sizeof(fleek_instance_variable_assumption_buffer), &used) != 0) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
       }
       pm_node_destroy(&parser, root);
       pm_parser_free(&parser);
       pm_options_free(&options);
-      return variables.unsupported ? -4 : used > 0 ? 1 : 0;
+      return used > 0 ? 1 : 0;
     }
 
     const char *fleek_instance_variable_assumption_finding(void) { return fleek_instance_variable_assumption_buffer; }
@@ -5579,7 +5628,7 @@ class Fleek
 
   REEK_DETECTORS = {
     "Attribute" => ["public literal attr_accessor and attr_writer declarations in one simple class or module, including one direct nested class", "%s is a writable attribute"],
-    "InstanceVariableAssumption" => ["direct instance methods in one simple class", "%s assumes too much for instance variable '%s'"],
+    "InstanceVariableAssumption" => ["direct instance methods in one simple class, including one direct nested class", "%s assumes too much for instance variable '%s'"],
     "SubclassedFromCoreClass" => ["one simple class inheriting directly from Array, Hash, or String", "%s inherits from core class '%s'"],
     "ModuleInitialize" => ["one simple module with direct instance methods", "%s has initialize method"],
     "IrresponsibleModule" => ["one simple class or module", "%s has no descriptive comment"],
