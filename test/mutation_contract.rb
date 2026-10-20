@@ -453,6 +453,9 @@ class MutationCase
     jobs = [Integer(ENV.fetch("JOBS", "1"), 10), contract_count].min
     contracts.each_slice(jobs) { |batch| compile_contract_batch(batch, directory, source_directory) }
     puts "Mutation contracts: #{contract_count} shared binaries compiled"
+    if ENV["FLEEK_PRECOMPILE_BUDGET_REPORT"] == "true"
+      puts "Mutation precompile budget: JOBS=#{jobs}; max batch=#{[jobs, contract_count].min}; contracts=#{contracts.join(',')}; dependencies=#{dependency_paths.join(',')}"
+    end
   end
 
   # :reek:TooManyStatements

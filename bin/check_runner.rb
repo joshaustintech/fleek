@@ -13,6 +13,7 @@
 # :reek:UtilityFunction
 class CheckRunner
   TESTS = %w[
+    test/check_runner_precompile_budget_contract.rb
     test/check_runner_scheduler_contract.rb
     test/cli_contract.rb
     test/commit_identity_contract.rb
@@ -78,7 +79,9 @@ class CheckRunner
   end
 
   def run
-    File.write("#{ENV.fetch('FLEEK_RUNNER_PROBE_ROOT')}/runner-pid", Process.pid.to_s) if @mode == "runner-probe"
+    if @mode == "runner-probe"
+      File.write("#{ENV.fetch('FLEEK_RUNNER_PROBE_ROOT')}/runner-pid", Process.pid.to_s)
+    end
     tasks.each do |task|
       wait_for_capacity
       if task[0] == :mutation && !@mutation_contract_directory
@@ -212,17 +215,28 @@ class CheckRunner
     raise "could not create mutation precompile temp directory" unless mkdir_status.success?
     output = "#{@mutation_precompile_root}/out"
     error = "#{@mutation_precompile_root}/err"
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     process_id = Process.spawn("env",
       "FLEEK_TEMP_ROOT=#{@mutation_precompile_root}",
       "FLEEK_MUTATION_CONTRACT_DIRECTORY=#{@mutation_contract_directory}",
-      "FLEEK_PRECOMPILE_MUTATION_CONTRACTS=1", "SPINEL=#{@spinel}", "SPINEL_ROOT=#{@spinel_root}",
+      "FLEEK_PRECOMPILE_MUTATION_CONTRACTS=1",
+      "FLEEK_PRECOMPILE_BUDGET_REPORT=#{ENV['FLEEK_PRECOMPILE_BUDGET_REPORT'] || 'false'}",
+      "JOBS=#{@jobs}",
+      "SPINEL=#{@spinel}", "SPINEL_ROOT=#{@spinel_root}",
       @spinel, "-E", "test/mutation_contract.rb", out: output, err: error)
     _, status = Process.waitpid2(process_id)
+    child_error = File.exist?(error) ? File.read(error) : ""
     print File.read(output) if File.exist?(output)
-    warn File.read(error) if File.exist?(error)
+    warn child_error unless child_error.empty?
     File.delete(output) if File.exist?(output)
     File.delete(error) if File.exist?(error)
-    raise "could not precompile shared mutation contracts" unless status.success?
+    if ENV["FLEEK_PRECOMPILE_BUDGET_REPORT"] == "true"
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+      puts "Mutation precompile elapsed: #{elapsed}s"
+    end
+    unless status.success?
+      raise "could not precompile shared mutation contracts (status=#{status.exitstatus}): #{child_error}"
+    end
   end
 
   def spawn_task(task, directory, output, error, temporary_root)
@@ -239,7 +253,9 @@ class CheckRunner
         chdir: directory, out: output, err: error)
     when :probe
       Process.spawn("env", "SPINEL=#{@spinel}", "FLEEK_RUNNER_PROBE_ROOT=#{ENV.fetch('FLEEK_RUNNER_PROBE_ROOT')}",
-        "FLEEK_RUNNER_PROBE_TASK=#{value}", @spinel, "-E", "test/check_runner_probe_child.rb",
+        "FLEEK_RUNNER_PROBE_TASK=#{value}", "FLEEK_PROBE_GATE_SPINEL=#{@spinel}",
+        "FLEEK_PROBE_GATE_ROOT=#{ENV.fetch('FLEEK_RUNNER_PROBE_ROOT')}", "FLEEK_PROBE_GATE_MARKER=release-slow",
+        @spinel, "-E", "test/check_runner_probe_child.rb",
         chdir: directory, out: output, err: error)
     when :command then spawn_check(value, directory, output, error)
     end

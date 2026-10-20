@@ -13,6 +13,7 @@
 ## Decisions-so-far
 
 - Issue 107 fixes runner head-of-line blocking: reap any child, attribute result by PID, then clean that worker's isolated roots. The gated test covers fast-success and fast-failure ordering while slow worker remains alive. Full check passes; see [ADR 0173](../../docs/adr/0173-reap-any-completed-check-worker.md). Ticket 108 is next; ticket 115 remains the post-change correctness handoff.
+- Issue 108 passes the runner's resolved CPU-bounded `JOBS` value to shared mutation-contract precompile, while preserving the selected-contract cap, isolated temp roots, and `-O 1`. Full check passed in 398.63s with zero Flay/Reek findings. See [ADR 0174](../../docs/adr/0174-use-resolved-budget-for-contract-precompile.md). Ticket 109 is next; ticket 115 remains the post-change correctness handoff.
 - Issue 106 measured the full harness baseline and focused mutation costs before optimization. ADR 0172 ranks worker-slot waiting, serial shared-contract precompile, and repeated contract compilation; staging was 0.32s for 10.6 MB and did not rank as a leading cost. Full-gate findings and limitations are recorded in [ADR 0172](../../docs/adr/0172-measure-harness-costs.md). Ticket 107 resolves first ranked cause; ticket 108 is next. Ticket 115 remains the post-change correctness handoff.
 
 - Retro follow-ups are tracked as [issue 44: validate local ticket documents](issues/44-validate-local-ticket-documents.md) and [issue 45: honor prior authorization in ticket breakdowns](issues/45-honor-autonomous-ticket-authorization.md). Both are resolved.

@@ -5,10 +5,9 @@ task = ENV.fetch("FLEEK_RUNNER_PROBE_TASK")
 File.write("#{root}/started-#{task}", "started")
 
 if task == "slow"
-  deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 20
-  until File.exist?("#{root}/release-slow")
-    raise "slow runner probe timed out" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-  end
+  gate = Process.spawn(ENV.fetch("FLEEK_PROBE_GATE_SPINEL"), "-E", "test/check_runner_probe_gate.rb",
+    out: "/dev/null", err: "/dev/null")
+  Process.waitpid2(gate)
   raise "active worker source was removed early" unless File.file?("test/check_runner_probe_child.rb")
 end
 
