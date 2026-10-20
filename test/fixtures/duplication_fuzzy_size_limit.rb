@@ -1,0 +1,20 @@
+def large_report(first, second, third, fourth, fifth, sixth, seventh)
+  result = transform(1)
+  result = normalize(2)
+  result = annotate(3)
+  result = collect(4)
+  result = format(5)
+  result = publish(6)
+  result = validate(7)
+  result = prepare(8)
+end
+
+def smaller_report(first, second, third, fourth, fifth, sixth, seventh)
+  result = transform(1)
+  result = normalize(2)
+  result = annotate(3)
+  result = collect(4)
+  result = format(5)
+  result = publish(6)
+  result = validate(7)
+end

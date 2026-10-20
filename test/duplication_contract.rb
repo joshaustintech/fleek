@@ -573,9 +573,6 @@ unsupported = DuplicationProcess.run(DuplicationProcess::Input.new(unsupported_p
 unsupported_state = unsupported[1].include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded") && unsupported[1].include?("Status: incomplete")
 DuplicationProcess.verify(unsupported[0] == 1 && unsupported_state && unsupported[2].include?("Partial results may omit Flay candidates"), "unsupported syntax implied complete analysis")
 
-fuzzy = DuplicationProcess.run(DuplicationProcess::Input.new(similar_path, "fleek", "--fuzzy"))
-DuplicationProcess.verify(fuzzy[0] == 1 && fuzzy[2].include?("Unsupported Flay option: \"--fuzzy\""), "unsupported fuzzy request was accepted")
-
 [[15, 2, 32], [16, 2, 32], [17, 0, 0]].each do |threshold, expected_status, expected_score|
   actual = DuplicationProcess.run(DuplicationProcess::Input.new(similar_path, "fleek", "--mass", threshold))
   reference = DuplicationProcess.run(DuplicationProcess::Input.new(similar_path, "flay", "--mass", threshold))

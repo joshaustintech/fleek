@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the bounded structural group implementation.
+Accepted; fuzzy boundary superseded by [ADR 0191](0191-match-bounded-flay-fuzzy-method-candidates.md).
 
 ## Context
 

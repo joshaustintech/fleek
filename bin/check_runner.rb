@@ -23,6 +23,7 @@ class CheckRunner
     test/commit_identity_contract.rb
     test/text_report_contract.rb
     test/duplication_contract.rb
+    test/duplication_fuzzy_contract.rb
     test/duplication_group_order_contract.rb
     test/duplication_method_capacity_contract.rb
     test/duplication_method_block_contract.rb

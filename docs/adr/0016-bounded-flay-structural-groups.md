@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the first native duplication slice.
+Superseded in part by [ADR 0191](0191-match-bounded-flay-fuzzy-method-candidates.md).
 
 ## Context
 
