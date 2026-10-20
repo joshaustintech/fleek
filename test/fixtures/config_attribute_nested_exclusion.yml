@@ -1,0 +1,4 @@
+detectors:
+  Attribute:
+    exclude:
+      - Profile::Credentials#secret

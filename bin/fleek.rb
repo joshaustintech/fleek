@@ -506,6 +506,39 @@ class Fleek
       return line;
     }
 
+    typedef struct {
+      size_t class_count;
+      size_t module_count;
+      const pm_node_t *scope;
+      const pm_node_t *outer_class;
+      const pm_node_t *nested_class;
+    } fleek_attribute_scopes_t;
+
+    static bool fleek_collect_attribute_scopes(const pm_node_t *node, void *data) {
+      fleek_attribute_scopes_t *scopes = (fleek_attribute_scopes_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE)) {
+        scopes->class_count++;
+        if (scopes->class_count == 1) scopes->outer_class = node;
+        if (scopes->class_count == 2) scopes->nested_class = node;
+        if (scopes->scope == NULL) scopes->scope = node;
+      }
+      if (PM_NODE_TYPE_P(node, PM_MODULE_NODE)) {
+        scopes->module_count++;
+        if (scopes->scope == NULL) scopes->scope = node;
+      }
+      return true;
+    }
+
+    static bool fleek_class_has_direct_child(const pm_node_t *class_scope, const pm_node_t *child) {
+      const pm_node_t *body = ((const pm_class_node_t *) class_scope)->body;
+      if (!PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) return false;
+      const pm_node_list_t *statements = &((const pm_statements_node_t *) body)->body;
+      for (size_t index = 0; index < statements->size; index++) {
+        if (statements->nodes[index] == child) return true;
+      }
+      return false;
+    }
+
     static bool fleek_attribute_calls(const pm_node_t *node, void *data) {
       fleek_class_t *scope = (fleek_class_t *) data;
       if (PM_NODE_TYPE_P(node, PM_CLASS_NODE) || PM_NODE_TYPE_P(node, PM_MODULE_NODE) || PM_NODE_TYPE_P(node, PM_DEF_NODE) || PM_NODE_TYPE_P(node, PM_SINGLETON_CLASS_NODE)) return false;
@@ -580,9 +613,12 @@ class Fleek
       if (parser.error_list.head != NULL) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1;
       }
-      pm_visit_node(root, fleek_collect_classes, NULL);
-      bool simple_scope = fleek_class_count + fleek_module_count == 1 && fleek_only_scope != NULL;
-      if (!simple_scope) {
+      fleek_attribute_scopes_t scopes = {0, 0, NULL, NULL, NULL};
+      pm_visit_node(root, fleek_collect_attribute_scopes, &scopes);
+      bool simple_scope = scopes.class_count + scopes.module_count == 1 && scopes.scope != NULL;
+      bool nested_class_scope = scopes.class_count == 2 && scopes.module_count == 0 &&
+        fleek_class_has_direct_child(scopes.outer_class, scopes.nested_class);
+      if (!simple_scope && !nested_class_scope) {
         fleek_attribute_search_t search = { &parser, false };
         pm_visit_node(root, fleek_has_attribute_writer, &search);
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
@@ -590,12 +626,13 @@ class Fleek
       }
       const pm_node_t *constant_path;
       const pm_node_t *body;
-      if (PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE)) {
-        const pm_class_node_t *class_node = (const pm_class_node_t *) fleek_only_scope;
+      const pm_node_t *scope_node = nested_class_scope ? scopes.outer_class : scopes.scope;
+      if (PM_NODE_TYPE_P(scope_node, PM_CLASS_NODE)) {
+        const pm_class_node_t *class_node = (const pm_class_node_t *) scope_node;
         constant_path = class_node->constant_path;
         body = class_node->body;
       } else {
-        const pm_module_node_t *module_node = (const pm_module_node_t *) fleek_only_scope;
+        const pm_module_node_t *module_node = (const pm_module_node_t *) scope_node;
         constant_path = module_node->constant_path;
         body = module_node->body;
       }
@@ -603,8 +640,30 @@ class Fleek
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
       pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) constant_path)->name);
+      char nested_class_name[512];
+      size_t nested_class_name_length = class_name->length;
+      const char *scope_name = (const char *) class_name->start;
+      if (nested_class_scope) {
+        const pm_class_node_t *nested = (const pm_class_node_t *) scopes.nested_class;
+        if (!PM_NODE_TYPE_P(nested->constant_path, PM_CONSTANT_READ_NODE)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        pm_constant_t *nested_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) nested->constant_path)->name);
+        int written = snprintf(nested_class_name, sizeof(nested_class_name), "%.*s::%.*s", (int) class_name->length, class_name->start, (int) nested_name->length, nested_name->start);
+        if (written < 0 || (size_t) written >= sizeof(nested_class_name)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        scope_name = nested_class_name;
+        nested_class_name_length = (size_t) written;
+      }
       fleek_class_t scope = { &parser, (const char *) class_name->start, class_name->length, 0 };
       if (body != NULL) pm_visit_node(body, fleek_attribute_calls, &scope);
+      if (nested_class_scope) {
+        const pm_class_node_t *nested = (const pm_class_node_t *) scopes.nested_class;
+        fleek_class_t nested_scope = { &parser, scope_name, nested_class_name_length, 0 };
+        fleek_attribute_public = true;
+        if (nested->body != NULL) pm_visit_node(nested->body, fleek_attribute_calls, &nested_scope);
+      }
       pm_node_destroy(&parser, root);
       pm_parser_free(&parser);
       pm_options_free(&options);
@@ -5519,7 +5578,7 @@ class Fleek
   end
 
   REEK_DETECTORS = {
-    "Attribute" => ["public literal attr_accessor and attr_writer declarations in one simple class or module", "%s is a writable attribute"],
+    "Attribute" => ["public literal attr_accessor and attr_writer declarations in one simple class or module, including one direct nested class", "%s is a writable attribute"],
     "InstanceVariableAssumption" => ["direct instance methods in one simple class", "%s assumes too much for instance variable '%s'"],
     "SubclassedFromCoreClass" => ["one simple class inheriting directly from Array, Hash, or String", "%s inherits from core class '%s'"],
     "ModuleInitialize" => ["one simple module with direct instance methods", "%s has initialize method"],

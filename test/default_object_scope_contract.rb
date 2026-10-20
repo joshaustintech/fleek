@@ -18,6 +18,7 @@ class DefaultObjectScopeContract
     verify_attribute_explicit(reference)
     verify_attribute_settings
     verify_attribute_alias
+    verify_attribute_nested_class
     verify_unsupported_shapes
     verify_comment_overflow
     verify_other_detectors
@@ -42,7 +43,7 @@ class DefaultObjectScopeContract
   end
 
   def self.verify_attribute_settings
-    verify_attribute_exclusion
+    verify_attribute_exclusion_config
     verify_attribute_disabled
     verify_attribute_scope_precedence
   end
@@ -64,6 +65,36 @@ class DefaultObjectScopeContract
     source = "test/fixtures/attribute_visibility_method.rb"
     verify_expected_finding("Attribute", source, "[2]:")
     verify_supported_clean_detector("Attribute", "test/fixtures/attribute_read_only.rb")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_attribute_nested_class
+    source = "test/fixtures/attribute_nested_class.rb"
+    reference = run_reek_for("Attribute", source)
+    actual = run_fleek_check("Attribute", source)
+    verify_nested_attribute_findings(reference, actual)
+    config = "test/fixtures/config_attribute_nested_exclusion.yml"
+    excluded_reference = run_reek_config_for("Attribute", source, config)
+    excluded_actual = run_fleek_check_config("Attribute", source, config)
+    verify_nested_attribute_exclusion(excluded_reference, excluded_actual)
+  end
+
+  def self.verify_nested_attribute_findings(reference, actual)
+    reference_output = reference[1]
+    verify(reference[0] == 2 && reference_output.include?("[5]:Attribute:") && reference_output.include?("[6]:Attribute:") && !reference_output.include?("[7]:Attribute:"), "pinned Reek nested Attribute visibility changed")
+    verify_nested_attribute_result(actual, reference, "nested Attribute")
+  end
+
+  def self.verify_nested_attribute_exclusion(reference, actual)
+    verify_attribute_exclusion_findings(reference, 5, 6)
+    verify_nested_attribute_result(actual, reference, "nested Attribute exclusion")
+  end
+
+  def self.verify_nested_attribute_result(actual, reference, label)
+    output = actual[1]
+    AnalysisRunner.assert_status(actual, reference, label)
+    verify(output.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && output.include?("Status: findings") && actual[2].empty?, "#{label} coverage or streams changed")
+    AnalysisRunner.assert_detector_findings(actual, reference, label)
   end
 
   def self.verify_expected_finding(detector, source, line)
@@ -107,12 +138,16 @@ class DefaultObjectScopeContract
   end
 
   # :reek:TooManyStatements
-  def self.verify_attribute_exclusion
+  def self.verify_attribute_exclusion_findings(reference, excluded_line, included_line)
+    output = reference[1]
+    verify(reference[0] == 2 && !output.include?("[#{excluded_line}]:Attribute:") && output.include?("[#{included_line}]:Attribute:"), "pinned Reek Attribute exclusion changed")
+  end
+
+  def self.verify_attribute_exclusion_config
     config = "test/fixtures/config_attribute_exclusion.yml"
     reference = run_reek_config(config)
-    reference_output = reference[1]
     actual = run_fleek_config(config)
-    verify(reference[0] == 2 && !reference_output.include?("[2]:Attribute:") && reference_output.include?("[3]:Attribute:"), "pinned Reek Attribute exclusion changed")
+    verify_attribute_exclusion_findings(reference, 2, 3)
     AnalysisRunner.assert_detector_findings(actual, reference, "Attribute")
   end
 
@@ -242,6 +277,11 @@ class DefaultObjectScopeContract
 
   def self.run_fleek_check(detector, source)
     process_id = Process.spawn("build/fleek", "--checks", "reek:#{detector}", source, out: "/tmp/fleek-object-fleek.out", err: "/tmp/fleek-object-fleek.err")
+    AnalysisRunner.observe(process_id, "/tmp/fleek-object-fleek.out", "/tmp/fleek-object-fleek.err")
+  end
+
+  def self.run_fleek_check_config(detector, source, config)
+    process_id = Process.spawn("build/fleek", "--checks", "reek:#{detector}", "--reek-config", config, source, out: "/tmp/fleek-object-fleek.out", err: "/tmp/fleek-object-fleek.err")
     AnalysisRunner.observe(process_id, "/tmp/fleek-object-fleek.out", "/tmp/fleek-object-fleek.err")
   end
 
