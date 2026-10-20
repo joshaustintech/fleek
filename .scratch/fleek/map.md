@@ -13,6 +13,7 @@
 ## Decisions-so-far
 
 - Ticket 53 enables default distance-one Flay fuzzy matching for bounded method candidates, preserving default output without `--fuzzy` and enforcing Flay's 10-element and average-mass limits. See [issue 53](issues/53-fuzzy-default-distance.md) and [ADR 0191](../../docs/adr/0191-match-bounded-flay-fuzzy-method-candidates.md).
+- Ticket 54 extends bounded fuzzy matching to explicit Flay distances, optional/repeated-value parsing, and zero/negative validation. See [issue 54](issues/54-fuzzy-distance-controls.md) and [ADR 0192](../../docs/adr/0192-match-explicit-flay-fuzzy-distance.md).
 - Ticket 52 completed the accepted-descriptor and adapter audit; ticket 119 moved Range/regexp value identity into the node descriptor and passed the full gate and both review axes. With generated/composed evidence from tickets 42, 43, and 118, parent ticket 22 is resolved. See [ADR 0190](../../docs/adr/0190-describe-range-and-regexp-identity.md).
 
 - Ticket 51 matches Flay's composed begin/rescue/ensure pruning across source paths: top-level candidates select `:ensure`, class candidates retain method groups, reversed file inputs keep canonical location order, and supported groups survive beside an unsupported sibling with incomplete coverage. See [ADR 0189](../../docs/adr/0189-preserve-composed-cross-file-pruning.md); ticket 119 and parent 22 are resolved.

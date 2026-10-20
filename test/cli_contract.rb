@@ -45,7 +45,7 @@ raise "help parser prototype" unless help_result[1].include?("--parse-ruby4 SOUR
 raise "help named stdin" unless help_result[1].include?("--stdin SOURCE [PATH...]")
 raise "help Reek config" unless help_result[1].include?("--reek-config FILE")
 raise "help supported coverage missing" unless help_result[1].include?("Supported checks: reek:Attribute, reek:ClassVariable, reek:InstanceVariableAssumption, reek:IrresponsibleModule, reek:ModuleInitialize, reek:SubclassedFromCoreClass, and flay:StructuralDuplication")
-raise "help Flay options missing" unless help_result[1].include?("flay:StructuralDuplication [--mass MASS] [--liberal] [--fuzzy] [--only NODE] SOURCE")
+raise "help Flay options missing" unless help_result[1].include?("flay:StructuralDuplication [--mass MASS] [--liberal] [--fuzzy [DIFF]] [--only NODE] SOURCE")
 raise "help unsupported capabilities missing" unless help_result[1].include?("machine formats are unsupported")
 raise "help explicit selection missing" unless help_result[1].include?("Analysis requires --checks")
 raise "help report contract missing" unless help_result[1].include?("stable text v1")

@@ -3812,9 +3812,9 @@ class Fleek
     }
     static int fleek_duplication_emit_fuzzy_pair(pm_parser_t *parser, const uint8_t *source,
         const pm_def_node_t *left_node, const pm_def_node_t *right_node,
-        const fleek_duplication_method_t *left, const fleek_duplication_method_t *right, int mass_threshold);
+        const fleek_duplication_method_t *left, const fleek_duplication_method_t *right, int mass_threshold, int fuzzy);
     static bool fleek_duplication_emit_method_groups(pm_parser_t *parser, const uint8_t *source,
-        const fleek_duplication_class_candidates_t *set, int mass_threshold, const bool *covered, bool liberal, bool fuzzy) {
+        const fleek_duplication_class_candidates_t *set, int mass_threshold, const bool *covered, bool liberal, int fuzzy) {
       bool *grouped = calloc(set->count, sizeof(bool));
       size_t *members = malloc(set->count * sizeof(size_t));
       int *lines = malloc(set->count * sizeof(int));
@@ -3856,13 +3856,13 @@ class Fleek
             !fleek_duplication_append_group("defn", identical, node_mass, lines, count,
               FLEEK_DUPLICATION_GROUP_METHOD, NULL)) { complete = false; break; }
       }
-      if (complete && fuzzy) {
+      if (complete && fuzzy > 0) {
         for (size_t first = 0; first < set->count; first++) {
           if (covered[first] && !liberal) continue;
           for (size_t second = first + 1; second < set->count; second++) {
             if (covered[second] && !liberal) continue;
             int emitted = fleek_duplication_emit_fuzzy_pair(parser, source, set->methods[first], set->methods[second],
-              &set->candidates[first], &set->candidates[second], mass_threshold);
+              &set->candidates[first], &set->candidates[second], mass_threshold, fuzzy);
             if (emitted < 0) { complete = false; break; }
           }
           if (!complete) break;
@@ -3896,7 +3896,7 @@ class Fleek
       set->capacity = 0;
     }
     static bool fleek_duplication_analyze_scoped_candidates(pm_parser_t *parser, const uint8_t *source,
-        const fleek_duplication_class_candidates_t *set, int mass_threshold, bool liberal, bool fuzzy, const char *file_offsets, bool cross_file) {
+        const fleek_duplication_class_candidates_t *set, int mass_threshold, bool liberal, int fuzzy, const char *file_offsets, bool cross_file) {
       if (fleek_duplication_has_partial_subtree(set, mass_threshold, file_offsets, cross_file)) return false;
       bool *covered = calloc(set->count, sizeof(bool));
       if (covered == NULL) return false;
@@ -3930,17 +3930,29 @@ class Fleek
         fleek_duplication_class_values_equal(parser, left_method, right_method);
     }
 
-    static bool fleek_duplication_tree_without_node_equal(const fleek_duplication_method_t *left, size_t removed,
-        const fleek_duplication_method_t *right) {
-      size_t removed_start = left->data.ast.tree_starts[removed];
-      size_t removed_end = left->data.ast.tree_ends[removed];
-      if (left->data.ast.tree_count - (removed_end - removed_start) != right->data.ast.tree_count) return false;
+    static bool fleek_duplication_tree_without_nodes_equal(const fleek_duplication_method_t *left,
+        const size_t *removed, size_t removed_count, const fleek_duplication_method_t *right) {
+      size_t removed_nodes = 0;
+      for (size_t index = 0; index < removed_count; index++) {
+        removed_nodes += left->data.ast.tree_ends[removed[index]] - left->data.ast.tree_starts[removed[index]];
+      }
+      if (left->data.ast.tree_count - removed_nodes != right->data.ast.tree_count) return false;
       size_t right_index = 0;
+      size_t removed_index = 0;
       for (size_t left_index = 0; left_index < left->data.ast.tree_count; left_index++) {
-        if (left_index == removed_start) { left_index = removed_end - 1; continue; }
+        if (removed_index < removed_count && left_index == left->data.ast.tree_starts[removed[removed_index]]) {
+          left_index = left->data.ast.tree_ends[removed[removed_index]] - 1;
+          removed_index++;
+          continue;
+        }
         if (left->data.ast.tree[left_index] != right->data.ast.tree[right_index++]) return false;
       }
       return true;
+    }
+
+    static bool fleek_duplication_tree_without_node_equal(const fleek_duplication_method_t *left, size_t removed,
+        const fleek_duplication_method_t *right) {
+      return fleek_duplication_tree_without_nodes_equal(left, &removed, 1, right);
     }
 
     static bool fleek_duplication_fuzzy_method_shapes_equal(const pm_def_node_t *left, const pm_def_node_t *right) {
@@ -3958,32 +3970,38 @@ class Fleek
 
     static int fleek_duplication_emit_fuzzy_pair(pm_parser_t *parser, const uint8_t *source,
         const pm_def_node_t *left_node, const pm_def_node_t *right_node,
-        const fleek_duplication_method_t *left, const fleek_duplication_method_t *right, int mass_threshold) {
+        const fleek_duplication_method_t *left, const fleek_duplication_method_t *right, int mass_threshold, int fuzzy) {
       if (!fleek_duplication_fuzzy_method_shapes_equal(left_node, right_node)) return 0;
       size_t right_mass = fleek_duplication_class_method_mass(right);
       size_t left_mass = fleek_duplication_class_method_mass(left);
       size_t left_size = 3 + left->body_statement_count;
       size_t right_size = 3 + right->body_statement_count;
       if (left_size > 10 || right_size > 10 || left_mass / left_size > 12 || right_mass / right_size > 12) return 0;
-      for (size_t removed = 0; removed < left->shape_count; removed = left->data.ast.node_ends[removed]) {
-        size_t subtree_mass = fleek_duplication_class_subtree_mass(left, removed);
-        if (left_mass < subtree_mass || left_mass - subtree_mass != right_mass ||
-            right_mass < (size_t) mass_threshold ||
-            !fleek_duplication_tree_without_node_equal(left, removed, right)) continue;
-        int lines[2] = { left->line, right->line };
-        int fuzzy_lines[2] = { left->line, 0 };
-        return fleek_duplication_append_group("defn", false, right_mass, lines, 2,
-          FLEEK_DUPLICATION_GROUP_METHOD, fuzzy_lines) ? 1 : -1;
-      }
-      for (size_t removed = 0; removed < right->shape_count; removed = right->data.ast.node_ends[removed]) {
-        size_t subtree_mass = fleek_duplication_class_subtree_mass(right, removed);
-        if (right_mass < subtree_mass || right_mass - subtree_mass != left_mass ||
-            left_mass < (size_t) mass_threshold ||
-            !fleek_duplication_tree_without_node_equal(right, removed, left)) continue;
-        int lines[2] = { left->line, right->line };
-        int fuzzy_lines[2] = { 0, right->line };
-        return fleek_duplication_append_group("defn", false, left_mass, lines, 2,
-          FLEEK_DUPLICATION_GROUP_METHOD, fuzzy_lines) ? 1 : -1;
+      const fleek_duplication_method_t *methods[2] = { left, right };
+      const fleek_duplication_method_t *targets[2] = { right, left };
+      size_t masses[2] = { left_mass, right_mass };
+      for (size_t side = 0; side < 2; side++) {
+        const fleek_duplication_method_t *method = methods[side];
+        size_t roots[16];
+        size_t root_count = 0;
+        for (size_t root = 0; root < method->shape_count && root_count < 16; root = method->data.ast.node_ends[root]) roots[root_count++] = root;
+        size_t limit = (size_t) fuzzy < root_count ? (size_t) fuzzy : root_count;
+        size_t combinations = (size_t) 1 << root_count;
+        for (size_t mask = 1; mask < combinations; mask++) {
+          size_t removed[16], removed_count = 0, removed_mass = 0;
+          for (size_t index = 0; index < root_count; index++) {
+            if ((mask & ((size_t) 1 << index)) == 0) continue;
+            removed[removed_count++] = roots[index];
+            removed_mass += fleek_duplication_class_subtree_mass(method, roots[index]);
+          }
+          if (removed_count > limit || masses[side] < removed_mass || masses[side] - removed_mass != masses[1 - side] ||
+              masses[1 - side] < (size_t) mass_threshold ||
+              !fleek_duplication_tree_without_nodes_equal(method, removed, removed_count, targets[side])) continue;
+          int lines[2] = { left->line, right->line };
+          int fuzzy_lines[2] = { side == 0 ? left->line : 0, side == 1 ? right->line : 0 };
+          return fleek_duplication_append_group("defn", false, masses[1 - side], lines, 2,
+            FLEEK_DUPLICATION_GROUP_METHOD, fuzzy_lines) ? 1 : -1;
+        }
       }
       return 0;
     }
@@ -4124,9 +4142,9 @@ class Fleek
         fleek_duplication_free_candidate_ast(&second_method);
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
       }
-      if (fuzzy && !same_shape && iter_group == 0) {
+      if (fuzzy > 0 && !same_shape && iter_group == 0) {
         int fuzzy_group = fleek_duplication_emit_fuzzy_pair(&parser, (const uint8_t *) source,
-          first, second, &first_method, &second_method, mass_threshold);
+          first, second, &first_method, &second_method, mass_threshold, fuzzy);
         if (fuzzy_group < 0) {
           fleek_duplication_free_candidate_ast(&first_method);
           fleek_duplication_free_candidate_ast(&second_method);
@@ -4671,9 +4689,9 @@ class Fleek
   def self.print_analysis_usage
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
     puts "       fleek --checks reek:ClassVariable[,flay:StructuralDuplication] [--reek-config FILE] SOURCE"
-    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--liberal] [--fuzzy] [--reek-config FILE] SOURCE..."
+    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--liberal] [--fuzzy [DIFF]] [--reek-config FILE] SOURCE..."
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
-    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--liberal] [--fuzzy] [--only NODE] SOURCE"
+    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--liberal] [--fuzzy [DIFF]] [--only NODE] SOURCE"
   end
 
   def self.help_requested?(arguments)
@@ -4755,7 +4773,7 @@ class Fleek
   def self.duplication_input_report(inputs, ignore_patterns)
     files, errors = discover_sources(duplication_source_paths(inputs), ReekConfiguration.new)
     included, excluded = partition_flay_sources(files, ignore_patterns)
-    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded, nil, nil, false, [], "included", duplication_only_node(inputs), inputs.include?("--liberal"), inputs.include?("--fuzzy"))
+    DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded, nil, nil, false, [], "included", duplication_only_node(inputs), inputs.include?("--liberal"), duplication_fuzzy_distance(inputs))
   end
 
   def self.partition_flay_sources(files, patterns)
@@ -4780,12 +4798,67 @@ class Fleek
     File.fnmatch?(absolute_pattern, absolute_path, pattern.include?("/") ? 0 : File::FNM_PATHNAME)
   end
 
+  # :reek:TooManyStatements
   def self.structural_duplication_input_error(inputs)
     mass_error = duplication_mass_error(inputs)
     return mass_error unless mass_error.empty?
+    fuzzy_error = duplication_fuzzy_error(inputs)
+    return fuzzy_error unless fuzzy_error.empty?
     only_error = duplication_only_error(inputs)
     return only_error unless only_error.empty?
     duplication_source_input_error(inputs)
+  end
+
+  # :reek:TooManyStatements
+  # :reek:NilCheck
+  def self.duplication_fuzzy_error(inputs)
+    index = 0
+    length = inputs.length
+    while index < length
+      input = inputs[index]
+      if input.start_with?("--fuzzy=")
+        return "--fuzzy requires an integer distance." if integer_option_value(input.delete_prefix("--fuzzy=")).nil?
+      elsif input == "--fuzzy"
+        next_index = index + 1
+        if next_index < length
+          value = inputs[next_index]
+          unless value.start_with?("-")
+            return "--fuzzy requires an integer distance." if integer_option_value(value).nil?
+            index = next_index
+          end
+        end
+      end
+      index += 1
+    end
+    ""
+  end
+
+  # :reek:DuplicateMethodCall
+  # :reek:TooManyStatements
+  def self.duplication_fuzzy_distance(inputs)
+    distance = 0
+    index = 0
+    while index < inputs.length
+      input = inputs[index]
+      next_input = inputs[index + 1]
+      if input == "--fuzzy"
+        candidate = integer_option_value(next_input)
+        distance = candidate || 1
+        index += next_input && !next_input.start_with?("-") ? 2 : 1
+      elsif input.start_with?("--fuzzy=")
+        distance = integer_option_value(input.delete_prefix("--fuzzy=")) || 0
+        index += 1
+      else
+        index += 1
+      end
+    end
+    [[distance, 0].max, 10].min
+  end
+
+  def self.integer_option_value(value)
+    Integer(value)
+  rescue ArgumentError, TypeError
+    nil
   end
 
   # :reek:TooManyStatements
@@ -4828,14 +4901,34 @@ class Fleek
   end
 
   def self.duplication_source_input_error(inputs)
-    unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" && input != "--only" && input != "--liberal" && input != "--fuzzy" }
+    unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" && input != "--only" && input != "--liberal" && input != "--fuzzy" && !input.start_with?("--fuzzy=") }
     return "Unsupported Flay option: #{quote_text(unsupported_option)}" if unsupported_option
     return "flay:StructuralDuplication requires at least one Ruby source path." if duplication_source_paths(inputs).empty?
     ""
   end
 
   def self.duplication_source_paths(inputs)
-    without_option(without_option(without_option_pairs(without_option_pairs(inputs, "--mass"), "--only"), "--liberal"), "--fuzzy")
+    without_optional_integer_option(without_option(without_option_pairs(without_option_pairs(inputs, "--mass"), "--only"), "--liberal"), "--fuzzy")
+  end
+
+  # :reek:DuplicateMethodCall
+  # :reek:TooManyStatements
+  def self.without_optional_integer_option(inputs, option)
+    result = []
+    index = 0
+    while index < inputs.length
+      input = inputs[index]
+      next_input = inputs[index + 1]
+      if input == option
+        index += next_input && !next_input.start_with?("-") ? 2 : 1
+      elsif input.start_with?("#{option}=")
+        index += 1
+      else
+        result << input
+        index += 1
+      end
+    end
+    result
   end
 
   def self.without_option(inputs, option)
@@ -4908,7 +5001,7 @@ class Fleek
   # :reek:TooManyStatements
   def self.run_native_duplication(report)
     source = report.source
-    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold, report.liberal ? 1 : 0, report.fuzzy ? 1 : 0, report.paths.length > 1 ? 1 : 0, duplication_file_offsets(report.source_map))
+    report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold, report.liberal ? 1 : 0, report.fuzzy, report.paths.length > 1 ? 1 : 0, duplication_file_offsets(report.source_map))
     mark_partial_duplication_report(report)
   end
 
@@ -5576,7 +5669,7 @@ class Fleek
   # :reek:TooManyStatements
   def self.prepare_combined_analysis(inputs)
     flay_inputs = without_option_pairs(inputs, "--reek-config")
-    reek_inputs = without_option_pairs(without_option_pairs(without_option(without_option(inputs, "--liberal"), "--fuzzy"), "--mass"), "--only")
+    reek_inputs = without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only")
     flay_error = structural_duplication_input_error(flay_inputs)
     configuration, reek_sources, config_error = combined_reek_configuration(reek_inputs)
     return CombinedAnalysis.new(flay_inputs, reek_inputs, nil, config_error, []) unless config_error.empty?
@@ -6150,7 +6243,7 @@ class Fleek
   end
 
   def self.without_flay_options(inputs)
-    without_option_pairs(without_option_pairs(without_option(without_option(inputs, "--liberal"), "--fuzzy"), "--mass"), "--only")
+    without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only")
   end
 
   # :reek:TooManyStatements
@@ -6180,7 +6273,7 @@ class Fleek
   end
 
   def self.selected_check_option_error(check, inputs)
-    reek_option = inputs.find { |argument| ["--mass", "--only", "--liberal", "--fuzzy"].include?(argument) } if check.start_with?("reek:") && !check.include?(FLAY_CHECK)
+    reek_option = inputs.find { |argument| ["--mass", "--only", "--liberal", "--fuzzy"].include?(argument) || argument.start_with?("--fuzzy=") } if check.start_with?("reek:") && !check.include?(FLAY_CHECK)
     return "#{reek_option} applies only to flay:StructuralDuplication." if reek_option
     check == FLAY_CHECK && inputs.include?("--reek-config") ? "--reek-config applies only to Reek checks." : ""
   end
