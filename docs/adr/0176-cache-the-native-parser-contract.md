@@ -12,7 +12,7 @@ Focused mutation runs repeatedly compile the same native-parser public contract.
 
 Add opt-in caching through `FLEEK_CACHE_NATIVE_PARSER_CONTRACT=true`, only when the selected shared-contract set is exactly `test/native_parser_contract.rb` with no dependencies. Store a single verified envelope per key under ignored `build/mutation-contract-cache/native-parser/`. Key the full prepared source bundle, compiler executable bytes and resolved path, Spinel runtime headers and archives, compile options, code-generation environment, platform, and cache format. Verify the executable payload digest and mode on every hit; restore it through a unique temporary file and atomic rename. Publish only after successful compilation, with a unique temporary entry and atomic rename. Concurrent publishers replace complete entries and remove only their own temporary files.
 
-The default stays uncached. The native-parser contract still rebuilds each mutant and executes the restored public contract from the new worker directory with that worker's temporary root.
+At ticket 110, the default stayed uncached because the measured end-to-end gain was small. Ticket 112 later enabled caching for all mapped mutation contracts by default; [ADR 0178](0178-default-mapped-mutation-contract-cache.md) records the persistent root and cold-run switch. The native-parser contract still rebuilds each mutant and executes the restored public contract from the new worker directory with that worker's temporary root.
 
 ## Evidence
 
@@ -22,4 +22,4 @@ The cache contract verifies miss then hit and compile count, source/compiler/run
 
 ## Consequences
 
-Repeated opted-in runs avoid compiling one unchanged leaf harness. Source, compiler, runtime, flags, platform, or code-generation environment changes produce a miss. Invalid entries rebuild; failed builds never publish. Other contracts, mutants, and analyzer results remain uncached. Cache validation overhead makes this unsuitable as a default optimization on this host.
+Repeated opted-in runs avoid compiling one unchanged leaf harness. Source, compiler, runtime, flags, platform, or code-generation environment changes produce a miss. Invalid entries rebuild; failed builds never publish. Other contracts, mutants, and analyzer results remained uncached in this initial slice. The single-contract cold cost kept this slice opt-in; ADR 0178 records the later measured full-run decision to enable mapped-contract reuse by default.

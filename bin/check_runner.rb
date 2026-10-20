@@ -78,6 +78,7 @@ class CheckRunner
     @spinel_root = ENV.fetch("SPINEL_ROOT", "")
     @jobs = worker_limit
     @mutation_jobs = mutation_worker_limit
+    @mutation_contract_cache_root = File.expand_path("build/mutation-contract-cache")
     @failures = []
     @serial = 0
   end
@@ -220,6 +221,7 @@ class CheckRunner
     process_id = Process.spawn("env",
       "FLEEK_TEMP_ROOT=#{@mutation_precompile_root}",
       "FLEEK_MUTATION_CONTRACT_DIRECTORY=#{@mutation_contract_directory}",
+      "FLEEK_MUTATION_CONTRACT_CACHE_ROOT=#{@mutation_contract_cache_root}",
       "FLEEK_PRECOMPILE_MUTATION_CONTRACTS=1",
       "FLEEK_PRECOMPILE_BUDGET_REPORT=#{ENV['FLEEK_PRECOMPILE_BUDGET_REPORT'] || 'false'}",
       "JOBS=#{@jobs}",
@@ -248,6 +250,7 @@ class CheckRunner
         chdir: directory, out: output, err: error)
     when :mutation
       Process.spawn("env", "FLEEK_TEMP_ROOT=#{temporary_root}", "FLEEK_MUTATION_CONTRACT_DIRECTORY=#{@mutation_contract_directory}",
+        "FLEEK_MUTATION_CONTRACT_CACHE_ROOT=#{@mutation_contract_cache_root}",
         "FLEEK_EXPECTED_WORKING_DIRECTORY=#{directory}",
         "FLEEK_EXPECTED_TEMP_ROOT=#{temporary_root}",
         "SPINEL=#{@spinel}", "SPINEL_ROOT=#{@spinel_root}", @spinel, "-E", "test/mutation_contract.rb",

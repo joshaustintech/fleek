@@ -2,6 +2,10 @@
 
 ## Status
 
+Accepted; default policy expanded by ADR 0178.
+
+## Status
+
 Accepted
 
 ## Context
@@ -14,8 +18,8 @@ Extend the existing opt-in public-contract cache to exactly `test/duplication_me
 
 ## Evidence
 
-The cache contract verifies the eligible contract/dependency sets, source and dependency changes, rewrite-format changes, and existing compiler/runtime/flag/corruption/failure/concurrency cases. An uncached focused run caught `Flay method call candidates` in 12.86s. An opted-in cold miss compiled one shared binary and caught the same mutation in 19.06s; the next isolated warm hit restored one binary, rebuilt the mutant, and caught it in 11.59s. Worker-directory and temporary-root assertions passed. Cold key calculation outweighs compilation savings, so caching remains opt-in. Full `make check JOBS=4` passed 60 workers; Flay score 0, Reek warnings 0, and all 124 ticket documents validated. Pinned Spinel is 2026.09.12 at `112bae85c1a25fc5399009a849f805bfe691426b`; Flay 2.14.4; Reek 6.6.0.
+The cache contract verifies the eligible contract/dependency sets, source and dependency changes, rewrite-format changes, and existing compiler/runtime/flag/corruption/failure/concurrency cases. An uncached focused run caught `Flay method call candidates` in 12.86s. An opted-in cold miss compiled one shared binary and caught the same mutation in 19.06s; the next isolated warm hit restored one binary, rebuilt the mutant, and caught it in 11.59s. Worker-directory and temporary-root assertions passed. Cold key calculation outweighed compilation savings for this focused invocation, so caching remained opt-in at ticket 111. Ticket 112 later enabled reuse by default across mapped mutation contracts; [ADR 0178](0178-default-mapped-mutation-contract-cache.md) records the full-run result. Full `make check JOBS=4` passed 60 workers; Flay score 0, Reek warnings 0, and all 124 ticket documents validated. Pinned Spinel is 2026.09.12 at `112bae85c1a25fc5399009a849f805bfe691426b`; Flay 2.14.4; Reek 6.6.0.
 
 ## Consequences
 
-Changing the selected contract, pair helper, analysis helper, or rewrite format misses the cache. Missing prepared files fail before restore. Remaining contracts use the existing compilation path, and opt-in callers accept cache-key hashing overhead.
+Changing the selected contract, pair helper, analysis helper, or rewrite format misses the cache. Missing prepared files fail before restore. Remaining contracts used the existing compilation path at ticket 111; ADR 0178 extends the same validation to all mapped mutation contracts and enables it by default.

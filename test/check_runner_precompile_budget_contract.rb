@@ -51,7 +51,8 @@ class CheckRunnerPrecompileBudgetContract
     Dir.mkdir(temporary_root)
     Process.spawn("env", "JOBS=#{jobs}", "SPINEL=#{fake_compiler}", "SPINEL_ROOT=#{ENV.fetch('SPINEL_ROOT')}",
       "FLEEK_PRECOMPILE_PROBE_ROOT=#{root}", "FLEEK_PRECOMPILE_MUTATION_CONTRACTS=1",
-      "FLEEK_PRECOMPILE_BUDGET_REPORT=true", "FLEEK_MUTATION_CONTRACT_DIRECTORY=#{directory}",
+      "FLEEK_PRECOMPILE_BUDGET_REPORT=true", "FLEEK_DISABLE_MUTATION_CONTRACT_CACHE=true",
+      "FLEEK_MUTATION_CONTRACT_DIRECTORY=#{directory}",
       "FLEEK_TEMP_ROOT=#{temporary_root}", "FLEEK_MUTATIONS=#{LABELS}",
       "FLEEK_PROBE_GATE_SPINEL=#{ENV.fetch('SPINEL')}", "FLEEK_PROBE_GATE_ROOT=#{root}",
       "FLEEK_PROBE_GATE_MARKER=release", ENV.fetch("SPINEL"), "-E",

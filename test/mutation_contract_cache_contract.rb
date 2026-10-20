@@ -13,6 +13,7 @@ class MutationContractCacheContract
     root = "#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}"
     create_inputs(root)
     verify_supported_contract_sets
+    verify_prepare_many(root)
     verify_miss_and_hit(root)
     verify_input_changes_miss(root)
     verify_corruption_misses(root)
@@ -26,20 +27,58 @@ class MutationContractCacheContract
   def self.verify_supported_contract_sets
     leaf = ["test/native_parser_contract.rb"]
     descriptor = ["test/duplication_method_call_contract.rb"]
-    expect(MutationContractCache.supports_contract_set?(leaf, []), "native parser leaf was not cacheable")
-    expect(MutationContractCache.supports_contract_set?(descriptor, ["test/duplication_method_pair_contract.rb"]),
+    mapped = leaf + descriptor
+    dependencies = { descriptor.first => ["test/duplication_method_pair_contract.rb"] }
+    expect(MutationContractCache.supports_contract_set?(leaf, [], mapped, dependencies), "native parser leaf was not cacheable")
+    expect(MutationContractCache.supports_contract_set?(descriptor, dependencies[descriptor.first], mapped, dependencies),
       "call descriptor and its shared helper were not cacheable")
-    expect(!MutationContractCache.supports_contract_set?(descriptor, []), "call descriptor without its helper was cacheable")
-    expect(!MutationContractCache.supports_contract_set?(descriptor, ["test/unrelated_contract.rb"]),
+    expect(MutationContractCache.supports_contract_set?(mapped, dependencies[descriptor.first], mapped, dependencies),
+      "all mapped contracts with their dependency closure were not cacheable")
+    expect(!MutationContractCache.supports_contract_set?(descriptor, [], mapped, dependencies),
+      "call descriptor without its helper was cacheable")
+    expect(!MutationContractCache.supports_contract_set?(descriptor, ["test/unrelated_contract.rb"], mapped, dependencies),
       "call descriptor with an unexpected dependency was cacheable")
-    expect(!MutationContractCache.supports_contract_set?(descriptor + leaf, ["test/duplication_method_pair_contract.rb"]),
-      "multiple selected contracts were cacheable")
+    expect(!MutationContractCache.supports_contract_set?(descriptor + ["test/unmapped.rb"], dependencies[descriptor.first], mapped,
+      dependencies), "unmapped selected contract was cacheable")
     cache = MutationContractCache.new("unused-cache-root")
     original = cache_key(cache, "#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}")
     changed_rewrite = cache.key("#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}/bundle",
       "#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}/compiler",
       "#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}/runtime", ["-O", "1"], "changed-rewrite")
     expect(original != changed_rewrite, "temporary-path rewrite format was omitted from cache identity")
+  end
+
+  def self.verify_prepare_many(root)
+    contracts = %w[test/duplication_method_call_contract.rb test/native_parser_contract.rb]
+    output = "#{root}/outputs"
+    ContractSupport.create_directories([output])
+    builds = [0]
+    cache = MutationContractCache.new("#{root}/many-cache")
+    first = prepare_many(cache, root, contracts, output, builds)
+    second_output = "#{root}/second-outputs"
+    ContractSupport.create_directories([second_output])
+    second = prepare_many(cache, root, contracts, second_output, builds)
+    expect(first == { hits: 0, misses: 2 } && second == { hits: 2, misses: 0 }, "multi-contract miss/hit counts differed")
+    expect(builds[0] == 2, "multi-contract hit invoked a compiler")
+    contracts.each do |contract|
+      name = File.basename(contract, ".rb")
+      expect(File.binread("#{output}/#{name}") == name, "first contract executable differed")
+      expect(File.binread("#{second_output}/#{name}") == name, "restored contract executable differed")
+      expect(File.realpath("#{output}/#{name}") != File.realpath("#{second_output}/#{name}"), "contract outputs were shared")
+    end
+  end
+
+  def self.prepare_many(cache, root, contracts, output, builds)
+    cache.prepare_many("#{root}/bundle", contracts, output, "#{root}/compiler", "#{root}/runtime", ["-O", "1"]) do |missing|
+      build_contracts(output, missing, builds)
+    end
+  end
+
+  def self.build_contracts(output, contracts, builds)
+    contracts.each do |contract|
+      name = File.basename(contract, ".rb")
+      ContractSupport.write_executable("#{output}/#{name}", builds, name)
+    end
   end
 
   def self.create_inputs(root)

@@ -31,6 +31,8 @@ class CheckRunnerStagingContract
     File.write("#{source}/.git/config", "git metadata sentinel")
     File.write("#{source}/dist/release.tar.gz", "release archive sentinel")
     File.write("#{source}/build/mutation-reference-cache/contract", "cache sentinel")
+    ContractSupport.create_directories(["#{source}/build/mutation-contract-cache"])
+    File.write("#{source}/build/mutation-contract-cache/contract", "persistent cache sentinel")
   end
 
   def self.verify_required_inputs(destination)
@@ -47,6 +49,7 @@ class CheckRunnerStagingContract
     ContractSupport.expect(!Dir.exist?("#{destination}/.git"), "Git metadata sentinel reached worker")
     ContractSupport.expect(!Dir.exist?("#{destination}/dist"), "release archive sentinel reached worker")
     ContractSupport.expect(!Dir.exist?("#{destination}/build/mutation-reference-cache"), "contract cache sentinel reached worker")
+    ContractSupport.expect(!Dir.exist?("#{destination}/build/mutation-contract-cache"), "persistent contract cache reached worker")
   end
 
   def self.verify_source_isolation(source, destination)

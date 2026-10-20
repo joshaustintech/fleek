@@ -453,11 +453,11 @@ class MutationCase
     end
     contract_count = contracts.length
     jobs = [Integer(ENV.fetch("JOBS", "1"), 10), contract_count].min
-    cache_result = prepare_cached_public_contract(contracts, dependency_paths, directory, source_directory)
+    cache_result = prepare_cached_public_contract(contracts, dependency_paths, directory, source_directory, jobs)
     if cache_result
-      puts "Mutation contract cache: #{cache_result}"
-      puts "Mutation contracts: 1 shared binary #{cache_result == :hit ? 'restored' : 'compiled'}"
+      report_cache_result(cache_result)
     else
+      puts "Mutation contract cache: disabled" if ENV["FLEEK_DISABLE_MUTATION_CONTRACT_CACHE"] == "true"
       contracts.each_slice(jobs) { |batch| compile_contract_batch(batch, directory, source_directory) }
       puts "Mutation contracts: #{contract_count} shared binaries compiled"
     end
@@ -466,20 +466,31 @@ class MutationCase
     end
   end
 
+  def self.report_cache_result(cache_result)
+    hits = cache_result[:hits]
+    misses = cache_result[:misses]
+    puts "Mutation contract cache: #{hits} hits, #{misses} misses"
+    puts "Mutation contracts: #{hits} shared binaries restored, #{misses} compiled"
+  end
+
   # :reek:LongParameterList
   # :reek:TooManyStatements
-  def self.prepare_cached_public_contract(contracts, dependencies, directory, source_directory)
-    return unless ENV["FLEEK_CACHE_NATIVE_PARSER_CONTRACT"] == "true"
-    return unless MutationContractCache.supports_contract_set?(contracts, dependencies)
+  def self.prepare_cached_public_contract(contracts, dependencies, directory, source_directory, jobs)
+    return if ENV["FLEEK_DISABLE_MUTATION_CONTRACT_CACHE"] == "true"
+    return unless MutationContractCache.supports_contract_set?(contracts, dependencies, CONTRACTS.values.uniq, CONTRACT_DEPENDENCIES)
 
     spinel = ENV["SPINEL"] || "spinel"
     root = ENV["SPINEL_ROOT"] || "#{File.dirname(spinel)}/.."
-    name = File.basename(contracts.first, ".rb")
-    executable = File.expand_path("#{directory}/#{name}")
-    cache = MutationContractCache.new("build/mutation-contract-cache/#{name}")
-    cache.prepare(source_directory, executable, spinel, root, ["-O", "1"]) do
-      compile_contract_batch(contracts, directory, source_directory)
+    cache_root = ENV.fetch("FLEEK_MUTATION_CONTRACT_CACHE_ROOT", "build/mutation-contract-cache")
+    cache = MutationContractCache.new(cache_root)
+    cache.prepare_many(source_directory, contracts, directory, spinel, root, ["-O", "1"]) do |misses|
+      compile_missing_contracts(misses, directory, source_directory, jobs)
     end
+  end
+
+  # :reek:LongParameterList
+  def self.compile_missing_contracts(contracts, directory, source_directory, jobs)
+    contracts.each_slice(jobs) { |batch| compile_contract_batch(batch, directory, source_directory) }
   end
 
   # :reek:TooManyStatements

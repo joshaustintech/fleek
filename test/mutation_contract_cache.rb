@@ -15,10 +15,6 @@ require "digest"
 class MutationContractCache
   FORMAT = "fleek-public-contract-cache-v3"
   REWRITE_FORMAT = "public-contract-temp-root-rewrite-v1"
-  CACHEABLE_CONTRACTS = {
-    "test/native_parser_contract.rb" => [],
-    "test/duplication_method_call_contract.rb" => ["test/duplication_method_pair_contract.rb"]
-  }.freeze
   ENVIRONMENT = %w[PATH CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH LIBRARY_PATH SDKROOT DEVELOPER_DIR CC CFLAGS CPPFLAGS LDFLAGS ARCHFLAGS MACOSX_DEPLOYMENT_TARGET].freeze
   TEMPORARY_SERIAL = [0]
 
@@ -26,10 +22,10 @@ class MutationContractCache
     @root = root
   end
 
-  def self.supports_contract_set?(contracts, dependencies)
-    return false unless contracts.length == 1
+  def self.supports_contract_set?(contracts, dependencies, mapped_contracts, dependency_map)
+    return false if contracts.empty? || !contracts.all? { |contract| mapped_contracts.include?(contract) }
 
-    CACHEABLE_CONTRACTS[contracts.first] == dependencies
+    contracts.flat_map { |contract| dependency_map.fetch(contract, []) } == dependencies
   end
 
   def prepare(bundle, executable, compiler, runtime_root, options)
@@ -43,6 +39,27 @@ class MutationContractCache
     yield executable
     publish(entry_path(cache_key), cache_key, executable)
     :miss
+  end
+
+  def prepare_many(bundle, contracts, directory, compiler, runtime_root, options)
+    cache_key = key_if_available(bundle, compiler, runtime_root, options)
+    hits = 0
+    misses = []
+    contracts.each do |contract|
+      name = File.basename(contract, ".rb")
+      executable = File.expand_path("#{directory}/#{name}")
+      if cache_key && restore(entry_path(cache_key, name), cache_key, executable)
+        hits += 1
+      else
+        misses << contract
+      end
+    end
+    yield misses unless misses.empty?
+    misses.each do |contract|
+      name = File.basename(contract, ".rb")
+      publish(entry_path(cache_key, name), cache_key, "#{directory}/#{name}") if cache_key
+    end
+    { hits: hits, misses: misses.length }
   end
 
   def key_if_available(bundle, compiler, runtime_root, options)
@@ -70,8 +87,9 @@ class MutationContractCache
     Digest::SHA256.hexdigest(digest)
   end
 
-  def entry_path(cache_key)
-    "#{@root}/#{cache_key}.cache"
+  def entry_path(cache_key, contract_name = nil)
+    suffix = contract_name ? "#{contract_name}-" : ""
+    "#{@root}/#{suffix}#{cache_key}.cache"
   end
 
   def make_cache_directory
