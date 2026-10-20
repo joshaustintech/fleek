@@ -4811,6 +4811,7 @@ class Fleek
 
   def self.duplication_input_report(inputs, ignore_patterns)
     files, errors = discover_sources(duplication_source_paths(inputs), ReekConfiguration.new)
+    files = files.map { |path| normalize_duplication_source_path(path) }.uniq
     included, excluded = partition_flay_sources(files, ignore_patterns)
     DuplicationReport.new(included, errors.sort_by(&:path), [], duplication_mass_threshold(inputs), excluded, nil, nil, false, [], "included", duplication_only_node(inputs), inputs.include?("--liberal"), duplication_fuzzy_distance(inputs), inputs.include?("--legacy"))
   end
@@ -4948,7 +4949,32 @@ class Fleek
   end
 
   def self.duplication_source_paths(inputs)
-    without_option(without_optional_integer_option(without_option(without_option_pairs(without_option_pairs(inputs, "--mass"), "--only"), "--liberal"), "--fuzzy"), "--legacy")
+    paths = without_option(without_optional_integer_option(without_option(without_option_pairs(without_option_pairs(inputs, "--mass"), "--only"), "--liberal"), "--fuzzy"), "--legacy")
+    paths.map { |path| normalize_duplication_source_path(path) }.uniq
+  end
+
+  # :reek:DuplicateMethodCall
+  # :reek:TooManyStatements
+  def self.normalize_duplication_source_path(path)
+    return "" if path.empty?
+    absolute = path.start_with?("/")
+    parts = []
+    path.split("/").each do |part|
+      next if part.empty? || part == "."
+      if part == ".."
+        if !parts.empty? && parts.last != ".."
+          parts.pop
+        elsif !absolute
+          parts << part
+        end
+      else
+        parts << part
+      end
+    end
+    normalized = parts.join("/")
+    return "/#{normalized}" if absolute && !normalized.empty?
+    return "/" if absolute
+    normalized.empty? ? "." : normalized
   end
 
   # :reek:DuplicateMethodCall

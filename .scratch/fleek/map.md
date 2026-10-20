@@ -358,7 +358,7 @@ Every feature child below additionally depends on harness handoff 115; original 
 - [54: Match explicit fuzzy distance and validation](issues/54-fuzzy-distance-controls.md) — parent 23; blocked by 53; 115.
 - [55: Match Flay legacy parser mode on shared syntax](issues/55-legacy-parser-semantics.md) — parent 23; blocked by 22; 115.
 - [56: Match .flayignore pattern semantics](issues/56-flayignore-pattern-semantics.md) — parent 23; blocked by 115.
-- [57: Match Flay path expansion and duplicate inputs](issues/57-flay-path-expansion-semantics.md) — parent 23; blocked by 56; 115.
+- [57: Match Flay path expansion and duplicate inputs](issues/57-flay-path-expansion-semantics.md) — parent 23; blocked by 115.
 - [58: Verify Flay control precedence and routing](issues/58-flay-control-interactions.md) — parent 23; blocked by 54; 55; 57; 115.
 - [59: Close Flay control inventory with evidence](issues/59-close-flay-controls-evidence.md) — parent 23; blocked by 53; 54; 55; 56; 57; 58; 115.
 - [60: Analyze directly unused private methods](issues/60-unused-private-method-basics.md) — parent 24; blocked by 115.
