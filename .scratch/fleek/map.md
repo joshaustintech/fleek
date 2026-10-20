@@ -12,6 +12,7 @@
 
 ## Decisions-so-far
 
+- Ticket 49 adds pinned composition evidence without changing the native analyzer: multi-condition case/array mass 38, loop with array/hash mass 30, identical conditional collection mass/score 26/52, and clean different-topology boundary. See [ADR 0187](../../docs/adr/0187-preserve-composed-collection-control-parity.md); tickets 50–52 still gate parent 43/22.
 - Ticket 43 composes parameter-shape selection with method candidate groups: differing optional defaults select independently grouped `:iter` subtrees across method candidates, including subset matches and multiple groups per method; identical parameter shapes retain `:defn`. See [ADR 0186](../../docs/adr/0186-group-composed-methods-by-flay-subtree.md).
 
 - Ticket 118 preserves Flay's nested `:iter` group for matching parameterized blocks when composed method parameter values differ, while identical signatures retain the enclosing-method choice. Generated contracts compare both shapes against Flay and catch a focused group-selection mutation; the cold full gate passes. See [ticket 118](issues/118-composed-block-subtree-selection.md) and [ADR 0185](../../docs/adr/0185-select-nested-block-group-for-renamed-composed-methods.md).

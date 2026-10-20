@@ -6,7 +6,7 @@
 
 **Blocked by:** 42; 115 — Verify harness savings before resuming feature work.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
@@ -21,10 +21,18 @@ Collection and control-flow descriptors; existing collection/control-flow contra
 
 ## Acceptance criteria
 
-- [ ] Listed behavior cases have reproducible inputs, pinned expected results and matching public behavior. Inventory-only work records evidence and concrete child links; completion gates remain open until every required residual gap resolves.
-- [ ] Semantic findings, coverage, streams and normalized outcome are asserted where applicable; evidence-only inventories distinguish verified rows from unresolved work.
-- [ ] Relevant regression/mutation or evidence checks pass; Answer records exact commands and remaining issue links.
-- [ ] Stop after this behavior is proven; parent acceptance is not reduced by this child.
+- [x] Listed behavior cases have reproducible inputs, pinned expected results and matching public behavior. Inventory-only work records evidence and concrete child links; completion gates remain open until every required residual gap resolves.
+- [x] Semantic findings, coverage, streams and normalized outcome are asserted where applicable; evidence-only inventories distinguish verified rows from unresolved work.
+- [x] Relevant regression/mutation or evidence checks pass; Answer records exact commands and remaining issue links.
+- [x] Stop after this behavior is proven; parent acceptance is not reduced by this child.
+
+## Answer
+
+No analyzer change was needed: all bounded compositions already matched. Added `test/duplication_composed_collection_contract.rb` and fixed fixtures for a multi-condition case/array call (similar `:defn`, mass/score 38), a loop with array and hash calls (similar, 30), an identical conditional collection pair (mass 26, score 52), and a different-child-topology pair (clean at threshold 3). Contracts check pinned Flay 2.14.4 and Fleek classifications, locations, scores, coverage, statuses, and empty stderr.
+
+Verified with pinned Spinel 2026.09.12: focused contract command `/private/tmp/fleek-spinel-pinned-rebuild/bin/spinel -E test/duplication_composed_collection_contract.rb`; focused mutations `Flay method CASE candidates`, `Flay method array expression`, `Flay method hash expression`, `Flay method while loop candidates`, and `Flay structural equality` were all caught. `FLEEK_DISABLE_MUTATION_CONTRACT_CACHE=true JOBS=4 make check` passed with 64 workers and four mutation workers. `make flay` reported score 0, `make reek` reported 0 warnings, and `make ticket-check` validated 127 tickets. Spec and standards reviews found no blockers.
+
+Ticket 49 proves only these bounded compositions. Tickets 50–52 and parent Tickets 22/43 remain open for their remaining criteria. See [ADR 0187](../../../docs/adr/0187-preserve-composed-collection-control-parity.md).
 
 ## Execution and stop condition
 
