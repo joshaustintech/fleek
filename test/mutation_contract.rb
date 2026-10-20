@@ -453,7 +453,7 @@ class MutationCase
     end
     contract_count = contracts.length
     jobs = [Integer(ENV.fetch("JOBS", "1"), 10), contract_count].min
-    cache_result = prepare_cached_native_parser_contract(contracts, dependency_paths, directory, source_directory)
+    cache_result = prepare_cached_public_contract(contracts, dependency_paths, directory, source_directory)
     if cache_result
       puts "Mutation contract cache: #{cache_result}"
       puts "Mutation contracts: 1 shared binary #{cache_result == :hit ? 'restored' : 'compiled'}"
@@ -468,14 +468,15 @@ class MutationCase
 
   # :reek:LongParameterList
   # :reek:TooManyStatements
-  def self.prepare_cached_native_parser_contract(contracts, dependencies, directory, source_directory)
+  def self.prepare_cached_public_contract(contracts, dependencies, directory, source_directory)
     return unless ENV["FLEEK_CACHE_NATIVE_PARSER_CONTRACT"] == "true"
-    return unless contracts == ["test/native_parser_contract.rb"] && dependencies.empty?
+    return unless MutationContractCache.supports_contract_set?(contracts, dependencies)
 
     spinel = ENV["SPINEL"] || "spinel"
     root = ENV["SPINEL_ROOT"] || "#{File.dirname(spinel)}/.."
-    executable = File.expand_path("#{directory}/native_parser_contract")
-    cache = MutationContractCache.new("build/mutation-contract-cache/native-parser")
+    name = File.basename(contracts.first, ".rb")
+    executable = File.expand_path("#{directory}/#{name}")
+    cache = MutationContractCache.new("build/mutation-contract-cache/#{name}")
     cache.prepare(source_directory, executable, spinel, root, ["-O", "1"]) do
       compile_contract_batch(contracts, directory, source_directory)
     end

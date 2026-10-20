@@ -12,6 +12,7 @@ class MutationContractCacheContract
   def self.run
     root = "#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}"
     create_inputs(root)
+    verify_supported_contract_sets
     verify_miss_and_hit(root)
     verify_input_changes_miss(root)
     verify_corruption_misses(root)
@@ -22,9 +23,30 @@ class MutationContractCacheContract
     ContractSupport.cleanup(root, "mutation cache contract") if root
   end
 
+  def self.verify_supported_contract_sets
+    leaf = ["test/native_parser_contract.rb"]
+    descriptor = ["test/duplication_method_call_contract.rb"]
+    expect(MutationContractCache.supports_contract_set?(leaf, []), "native parser leaf was not cacheable")
+    expect(MutationContractCache.supports_contract_set?(descriptor, ["test/duplication_method_pair_contract.rb"]),
+      "call descriptor and its shared helper were not cacheable")
+    expect(!MutationContractCache.supports_contract_set?(descriptor, []), "call descriptor without its helper was cacheable")
+    expect(!MutationContractCache.supports_contract_set?(descriptor, ["test/unrelated_contract.rb"]),
+      "call descriptor with an unexpected dependency was cacheable")
+    expect(!MutationContractCache.supports_contract_set?(descriptor + leaf, ["test/duplication_method_pair_contract.rb"]),
+      "multiple selected contracts were cacheable")
+    cache = MutationContractCache.new("unused-cache-root")
+    original = cache_key(cache, "#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}")
+    changed_rewrite = cache.key("#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}/bundle",
+      "#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}/compiler",
+      "#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}/runtime", ["-O", "1"], "changed-rewrite")
+    expect(original != changed_rewrite, "temporary-path rewrite format was omitted from cache identity")
+  end
+
   def self.create_inputs(root)
     ContractSupport.create_test_directories(root, "cache")
     File.write("#{root}/bundle/native_parser_contract.rb", "unchanged contract source")
+    File.write("#{root}/bundle/duplication_method_call_contract.rb", "prepared call contract")
+    File.write("#{root}/bundle/duplication_method_pair_contract.rb", "prepared pair helper")
     File.write("#{root}/bundle/analysis_runner.rb", "prepared bundle source")
     File.write("#{root}/compiler", "compiler identity 1")
     File.write("#{root}/runtime/lib/sp_types.h", "runtime header")
@@ -49,6 +71,12 @@ class MutationContractCacheContract
     File.write("#{root}/bundle/native_parser_contract.rb", "changed contract source")
     expect(compile_or_restore(root, "source-change", ["-O", "1"], builds, "source-change") == :miss,
       "prepared source change hit cache")
+    ["duplication_method_call_contract.rb", "duplication_method_pair_contract.rb", "analysis_runner.rb"].each do |source_name|
+      File.write("#{root}/bundle/#{source_name}", "changed #{source_name}")
+      destination = "#{source_name}-change"
+      expect(compile_or_restore(root, destination, ["-O", "1"], builds, "#{source_name}-change") == :miss,
+        "prepared dependency change hit cache: #{source_name}")
+    end
     File.write("#{root}/compiler", "compiler identity 2")
     expect(compile_or_restore(root, "compiler-change", ["-O", "1"], builds, "compiler-change") == :miss,
       "compiler change hit cache")

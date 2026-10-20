@@ -13,13 +13,23 @@ require "digest"
 # :reek:UtilityFunction
 # :reek:TooManyStatements
 class MutationContractCache
-  FORMAT = "fleek-native-parser-contract-cache-v2"
-  REWRITE_FORMAT = "native-parser-temp-root-rewrite-v1"
+  FORMAT = "fleek-public-contract-cache-v3"
+  REWRITE_FORMAT = "public-contract-temp-root-rewrite-v1"
+  CACHEABLE_CONTRACTS = {
+    "test/native_parser_contract.rb" => [],
+    "test/duplication_method_call_contract.rb" => ["test/duplication_method_pair_contract.rb"]
+  }.freeze
   ENVIRONMENT = %w[PATH CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH LIBRARY_PATH SDKROOT DEVELOPER_DIR CC CFLAGS CPPFLAGS LDFLAGS ARCHFLAGS MACOSX_DEPLOYMENT_TARGET].freeze
   TEMPORARY_SERIAL = [0]
 
   def initialize(root)
     @root = root
+  end
+
+  def self.supports_contract_set?(contracts, dependencies)
+    return false unless contracts.length == 1
+
+    CACHEABLE_CONTRACTS[contracts.first] == dependencies
   end
 
   def prepare(bundle, executable, compiler, runtime_root, options)
@@ -44,10 +54,10 @@ class MutationContractCache
     nil
   end
 
-  def key(bundle, compiler, runtime_root, options)
+  def key(bundle, compiler, runtime_root, options, rewrite_format = REWRITE_FORMAT)
     digest = String.new
     add(digest, FORMAT)
-    add(digest, REWRITE_FORMAT)
+    add(digest, rewrite_format)
     add(digest, RUBY_PLATFORM)
     add(digest, File.realpath(runtime_root))
     add(digest, options.join(" "))
