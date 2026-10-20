@@ -1059,7 +1059,22 @@ class Fleek
         const pm_node_t *item = statements->body.nodes[index];
         if (PM_NODE_TYPE_P(item, PM_CALL_NODE)) {
           const pm_call_node_t *call = (const pm_call_node_t *) item;
-          if (call->receiver == NULL && call->arguments == NULL && (fleek_name_is(parser, call->name, "private") || fleek_name_is(parser, call->name, "public") || fleek_name_is(parser, call->name, "protected"))) {
+          bool visibility_call = fleek_name_is(parser, call->name, "private") || fleek_name_is(parser, call->name, "public") || fleek_name_is(parser, call->name, "protected");
+          if (call->receiver == NULL && visibility_call && call->arguments != NULL &&
+              PM_NODE_TYPE_P((const pm_node_t *) call->arguments, PM_ARGUMENTS_NODE) &&
+              call->arguments->arguments.size == 1 && PM_NODE_TYPE_P(call->arguments->arguments.nodes[0], PM_SYMBOL_NODE)) {
+            const pm_symbol_node_t *symbol = (const pm_symbol_node_t *) call->arguments->arguments.nodes[0];
+            const uint8_t *name = pm_string_source(&symbol->unescaped);
+            size_t length = pm_string_length(&symbol->unescaped);
+            for (size_t method_index = 0; method_index < state->count; method_index++) {
+              pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, state->methods[method_index]->name);
+              if (method_name->length == length && memcmp(method_name->start, name, length) == 0) {
+                state->private_methods[method_index] = fleek_name_is(parser, call->name, "private");
+              }
+            }
+            continue;
+          }
+          if (call->receiver == NULL && call->arguments == NULL && visibility_call) {
             private_visibility = fleek_name_is(parser, call->name, "private");
             continue;
           }

@@ -313,6 +313,8 @@ class MutationCase
     "default check selection" => "test/default_invocation_contract.rb",
     "default runnable selection" => "test/default_invocation_contract.rb",
     "UnusedPrivateMethod private visibility" => "test/default_argument_api_contract.rb",
+    "UnusedPrivateMethod named visibility" => "test/default_argument_api_contract.rb",
+    "UnusedPrivateMethod public visibility" => "test/default_argument_api_contract.rb",
     "UnusedPrivateMethod direct call tracking" => "test/default_argument_api_contract.rb",
     "UnusedPrivateMethod dynamic call boundary" => "test/default_argument_api_contract.rb",
     "implicit current directory" => "test/default_invocation_contract.rb"
@@ -1935,6 +1937,16 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'state->private_methods[state->count] = private_visibility;',
   'state->private_methods[state->count] = false;',
   "UnusedPrivateMethod private visibility",
+  "UnusedPrivateMethod findings differ from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'state->private_methods[method_index] = fleek_name_is(parser, call->name, "private");',
+  'state->private_methods[method_index] = false;',
+  "UnusedPrivateMethod named visibility",
+  "UnusedPrivateMethod findings differ from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'private_visibility = fleek_name_is(parser, call->name, "private");',
+  'private_visibility = true;',
+  "UnusedPrivateMethod public visibility",
   "UnusedPrivateMethod findings differ from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'if (fleek_constants_equal(call_state->parser, call->name, call_state->state->methods[index]->name)) call_state->state->used[index] = true;',

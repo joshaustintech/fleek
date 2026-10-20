@@ -206,9 +206,27 @@ class DefaultInvocationContract
   end
 
   def self.verify_configured_opt_in_runs
+    result = run_configured_opt_in
+    verify_configured_opt_in_status(result)
+    output = result[1]
+    verify_configured_opt_in_finding(output)
+    File.delete("#{DIRECTORY}/private.rb")
+  end
+
+  def self.run_configured_opt_in
     File.write("#{DIRECTORY}/.reek.yml", "detectors:\n  UnusedPrivateMethod:\n    enabled: true\n")
-    status, output, = run_default
-    verify(status == 1 && output.include?("Checks run:") && !output.lines.find { |line| line.start_with?("Checks unsupported:") }.include?("reek:UnusedPrivateMethod"), "configured opt-in check did not run as a supported default")
+    File.write("#{DIRECTORY}/private.rb", "class ConfiguredPrivate\n  private\n  def hidden\n    1\n  end\nend\n")
+    run_default
+  end
+
+  def self.verify_configured_opt_in_status(result)
+    output = result[1]
+    checks = [result[0] == 1, output.include?("Checks run:"), !output.lines.find { |line| line.start_with?("Checks unsupported:") }.include?("reek:UnusedPrivateMethod")]
+    verify(checks.all?, "configured opt-in check did not run as a supported default")
+  end
+
+  def self.verify_configured_opt_in_finding(output)
+    verify(output.include?('Finding: check="reek:UnusedPrivateMethod"') && output.include?('name="hidden"'), "configured opt-in default omitted its private-method finding")
   end
 
   def self.verify_empty_default_scan
@@ -279,11 +297,10 @@ class DefaultInvocationContract
   end
 
   def self.cleanup_files
-    remove_if_present("#{DIRECTORY}/counter.rb")
-    remove_if_present("#{DIRECTORY}/.hidden/ignored.rb")
-    remove_if_present("#{DIRECTORY}/real/linked.rb")
-    remove_if_present("#{DIRECTORY}/alias")
-    remove_if_present("#{DIRECTORY}/.reek.yml")
+    ["#{DIRECTORY}/counter.rb", "#{DIRECTORY}/private.rb", "#{DIRECTORY}/.hidden/ignored.rb",
+     "#{DIRECTORY}/real/linked.rb", "#{DIRECTORY}/alias", "#{DIRECTORY}/.reek.yml"].each do |path|
+      remove_if_present(path)
+    end
   end
 
   # :reek:ControlParameter

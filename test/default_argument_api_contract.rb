@@ -109,10 +109,41 @@ class DefaultArgumentApiContract
   end
 
   def self.verify_unused_private_opt_in
+    verify_unused_private_visibility_cases
+    verify_unused_private_call_cases
+    verify_unused_private_disabled
+  end
+
+  def self.verify_unused_private_visibility_cases
     verify_unused_private_finding_parity
+    verify_unused_private_symbol_visibility
+    verify_unused_private_public_visibility
+  end
+
+  def self.verify_unused_private_call_cases
+    verify_unused_private_call_from_private
     verify_called_private_method_is_clean
     verify_dynamic_private_method_call_is_incomplete
-    verify_unused_private_disabled
+  end
+
+  def self.verify_unused_private_symbol_visibility
+    verify_unused_private_case("test/fixtures/unused_private_method_symbol_visibility.rb", 2)
+  end
+
+  def self.verify_unused_private_public_visibility
+    actual = verify_unused_private_case("test/fixtures/unused_private_method_public_visibility.rb", 2)
+    verify_unused_private_finding_names(actual[1], %w[hidden visible], "public visibility change")
+  end
+
+  def self.verify_unused_private_call_from_private
+    actual = verify_unused_private_case("test/fixtures/unused_private_method_called_from_private.rb", 2)
+    verify_unused_private_finding_names(actual[1], %w[caller helper], "call from another private method")
+  end
+
+  def self.verify_unused_private_finding_names(output, names, behavior)
+    required, excluded = names
+    checks = [output.include?("name=\"#{required}\""), !output.include?("name=\"#{excluded}\"")]
+    verify(checks.all?, "UnusedPrivateMethod ignored #{behavior}")
   end
 
   def self.verify_unused_private_finding_parity
