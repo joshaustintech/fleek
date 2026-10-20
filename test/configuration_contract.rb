@@ -130,6 +130,8 @@ inline_suppression = ConfigurationProcess.assert_reference(ConfigurationProcess:
 raise "inline class comment changed Reek behavior" unless inline_suppression[0] == 2
 namespaced_exclusion = ConfigurationProcess.assert_reference(ConfigurationProcess::Input.new(File.expand_path("test/fixtures/class_variable_namespaced.rb"), "test/fixtures/config_namespaced_exclusion.yml", "namespaced context exclusion", ""))
 raise "namespaced context exclusion did not remove the finding" unless namespaced_exclusion[0] == 0
+nested_namespaced_exclusion = ConfigurationProcess.assert_reference(ConfigurationProcess::Input.new(File.expand_path("test/fixtures/class_variable_nested_namespace.rb"), "test/fixtures/config_namespaced_exclusion.yml", "nested namespaced context exclusion", ""))
+raise "nested namespaced context exclusion did not remove the finding" unless nested_namespaced_exclusion[0] == 0
 bad_suppression = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(File.expand_path("test/fixtures/class_variable_suppression_bad.rb"), "", "bad suppression", "", "fleek"))
 raise "unsupported suppression setting was accepted" unless bad_suppression[0] == 1 && AnalysisRunner.warning_lines(bad_suppression[1]).empty? && bad_suppression[2].include?("unsupported Reek ClassVariable suppression")
 

@@ -1,7 +1,9 @@
 module ApplicationCable
   module Internal
-    class Connection
-      @@count = 0
+    module Nested
+      class Connection
+        @@count = 0
+      end
     end
   end
 end

@@ -189,6 +189,7 @@ class Fleek
     static int fleek_bad_suppression;
     static const pm_node_t *fleek_only_scope;
     static const pm_node_t *fleek_namespace_scope;
+    static const pm_node_t *fleek_inner_namespace_scope;
     static const uint8_t *fleek_source_start;
     static char fleek_scope_name[512];
 
@@ -415,6 +416,7 @@ class Fleek
       if (PM_NODE_TYPE_P(node, PM_MODULE_NODE)) {
         fleek_module_count++;
         if (fleek_module_count == 1) fleek_namespace_scope = node;
+        if (fleek_module_count == 2) fleek_inner_namespace_scope = node;
         fleek_only_scope = node;
       }
       return true;
@@ -2465,6 +2467,7 @@ class Fleek
       fleek_group_count = 0;
       fleek_only_scope = NULL;
       fleek_namespace_scope = NULL;
+      fleek_inner_namespace_scope = NULL;
       fleek_scope_name[0] = 0;
       if (memchr(source, 0, length) != NULL) return -2;
       fleek_source_start = (const uint8_t *) source;
@@ -2486,9 +2489,15 @@ class Fleek
       }
       bool simple_class = fleek_class_count == 1 && fleek_module_count == 0;
       bool simple_module = fleek_class_count == 0 && fleek_module_count == 1;
-      bool namespaced_scope = fleek_scope_contains(fleek_namespace_scope, fleek_only_scope) &&
+      bool one_level_namespace = fleek_scope_contains(fleek_namespace_scope, fleek_only_scope) &&
         fleek_module_has_direct_child(fleek_namespace_scope, fleek_only_scope) &&
         ((fleek_class_count == 1 && fleek_module_count == 1) || (fleek_class_count == 0 && fleek_module_count == 2));
+      bool nested_class_namespace = fleek_class_count == 1 && fleek_module_count == 2 &&
+        fleek_scope_contains(fleek_namespace_scope, fleek_inner_namespace_scope) &&
+        fleek_scope_contains(fleek_inner_namespace_scope, fleek_only_scope) &&
+        fleek_module_has_direct_child(fleek_namespace_scope, fleek_inner_namespace_scope) &&
+        fleek_module_has_direct_child(fleek_inner_namespace_scope, fleek_only_scope);
+      bool namespaced_scope = one_level_namespace || nested_class_namespace;
       if ((!simple_class && !simple_module && !namespaced_scope) || fleek_unsupported) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
@@ -2496,6 +2505,10 @@ class Fleek
         const pm_node_t *namespace_body = PM_NODE_TYPE_P(fleek_namespace_scope, PM_MODULE_NODE) ? ((const pm_module_node_t *) fleek_namespace_scope)->body : NULL;
         bool namespace_has_occurrences = false;
         if (namespace_body != NULL) pm_visit_node(namespace_body, fleek_namespace_has_class_variables, &namespace_has_occurrences);
+        if (nested_class_namespace) {
+          const pm_node_t *inner_body = ((const pm_module_node_t *) fleek_inner_namespace_scope)->body;
+          if (inner_body != NULL) pm_visit_node(inner_body, fleek_namespace_has_class_variables, &namespace_has_occurrences);
+        }
         if (namespace_has_occurrences) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
       }
       const pm_node_t *scope_node = fleek_only_scope;
@@ -2527,7 +2540,17 @@ class Fleek
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
         }
         pm_constant_t *namespace_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((pm_constant_read_node_t *) namespace_constant_path)->name);
-        int written = snprintf(fleek_scope_name, sizeof(fleek_scope_name), "%.*s::%.*s", (int) namespace_name->length, namespace_name->start, (int) class_name->length, class_name->start);
+        int written;
+        if (nested_class_namespace) {
+          const pm_node_t *inner_path = ((const pm_module_node_t *) fleek_inner_namespace_scope)->constant_path;
+          if (!PM_NODE_TYPE_P(inner_path, PM_CONSTANT_READ_NODE)) {
+            pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+          }
+          pm_constant_t *inner_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((pm_constant_read_node_t *) inner_path)->name);
+          written = snprintf(fleek_scope_name, sizeof(fleek_scope_name), "%.*s::%.*s::%.*s", (int) namespace_name->length, namespace_name->start, (int) inner_name->length, inner_name->start, (int) class_name->length, class_name->start);
+        } else {
+          written = snprintf(fleek_scope_name, sizeof(fleek_scope_name), "%.*s::%.*s", (int) namespace_name->length, namespace_name->start, (int) class_name->length, class_name->start);
+        }
         if (written < 0 || (size_t) written >= sizeof(fleek_scope_name)) {
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
         }

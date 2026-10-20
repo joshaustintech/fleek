@@ -21,6 +21,7 @@ class MutationCase
     "ClassVariable namespace context traversal" => "test/class_variable_contract.rb",
     "ClassVariable wrapped namespace child acceptance" => "test/class_variable_contract.rb",
     "qualified ClassVariable namespace context" => "test/class_variable_contract.rb",
+    "ClassVariable nested namespace class support" => "test/class_variable_contract.rb",
     "ClassVariable nested namespace boundary" => "test/class_variable_contract.rb",
     "ClassVariable namespace occurrence handling" => "test/class_variable_contract.rb",
     "missing ClassVariable finding" => "test/text_report_contract.rb",
@@ -903,8 +904,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "inherited ClassVariable class rejection",
   "inherited class status differs from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "bool namespaced_scope = fleek_scope_contains(fleek_namespace_scope, fleek_only_scope) &&",
-  "bool namespaced_scope = false &&",
+  "bool one_level_namespace = fleek_scope_contains(fleek_namespace_scope, fleek_only_scope) &&",
+  "bool one_level_namespace = false &&",
   "ClassVariable namespace context traversal",
   "namespaced class status differs from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -918,10 +919,15 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "qualified ClassVariable namespace context",
   "namespaced class findings differ from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "fleek_module_has_direct_child(fleek_namespace_scope, fleek_only_scope) &&\n        ((fleek_class_count == 1 && fleek_module_count == 1) || (fleek_class_count == 0 && fleek_module_count == 2))",
-  "true &&\n        ((fleek_class_count == 1 && fleek_module_count >= 1) || (fleek_class_count == 0 && fleek_module_count >= 2))",
+  "bool nested_class_namespace = fleek_class_count == 1 && fleek_module_count == 2 &&",
+  "bool nested_class_namespace = false &&",
+  "ClassVariable nested namespace class support",
+  "nested namespace ClassVariable status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "fleek_module_has_direct_child(fleek_inner_namespace_scope, fleek_only_scope);",
+  "true;",
   "ClassVariable nested namespace boundary",
-  "deep namespace was not reported incomplete")).run
+  "wrapped nested namespace class was not reported incomplete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (namespace_has_occurrences) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }",
   "if (false) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }",

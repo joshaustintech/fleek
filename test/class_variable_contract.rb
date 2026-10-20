@@ -52,6 +52,7 @@ namespaced_reference = AnalysisProcess.reek("test/fixtures/class_variable_namesp
 raise "namespaced class status differs from Reek" unless namespaced[0] == namespaced_reference[0]
 AnalysisRunner.assert_same_report(namespaced, namespaced_reference, "namespaced class")
 raise "qualified class context missing" unless namespaced[1].include?("context=\"ApplicationCable::Connection\"")
+raise "one-level namespace line aggregation missing" unless namespaced[1].include?("lines=\"3, 6\"")
 
 namespaced_module = AnalysisProcess.fleek("test/fixtures/class_variable_namespaced_module.rb")
 namespaced_module_reference = AnalysisProcess.reek("test/fixtures/class_variable_namespaced_module.rb")
@@ -64,8 +65,17 @@ namespaced_suppressed_reference = AnalysisProcess.reek("test/fixtures/class_vari
 raise "namespaced suppression status differs from Reek" unless namespaced_suppressed[0] == namespaced_suppressed_reference[0]
 AnalysisRunner.assert_same_report(namespaced_suppressed, namespaced_suppressed_reference, "namespaced suppression")
 
+nested_namespace = AnalysisProcess.fleek("test/fixtures/class_variable_nested_namespace.rb")
+nested_namespace_reference = AnalysisProcess.reek("test/fixtures/class_variable_nested_namespace.rb")
+AnalysisRunner.assert_same_report(nested_namespace, nested_namespace_reference, "nested namespace ClassVariable")
+raise "nested namespace context missing" unless nested_namespace[1].include?("context=\"ApplicationCable::Internal::Connection\"")
+raise "nested namespace line aggregation missing" unless nested_namespace[1].include?("lines=\"4, 6, 9\"")
+
 too_deep = AnalysisProcess.fleek("test/fixtures/class_variable_namespace_too_deep.rb")
-raise "deep namespace was not reported incomplete" unless too_deep[0] == 1 && too_deep[1].include?("Status: incomplete")
+raise "over-limit namespace was not reported incomplete" unless too_deep[0] == 1 && too_deep[1].include?("Status: incomplete")
+
+wrapped_nested = AnalysisProcess.fleek("test/fixtures/class_variable_nested_namespace_wrapped_child.rb")
+raise "wrapped nested namespace class was not reported incomplete" unless wrapped_nested[0] == 1 && wrapped_nested[1].include?("Status: incomplete")
 
 namespace_and_child = AnalysisProcess.fleek("test/fixtures/class_variable_namespace_and_child.rb")
 raise "unreported namespace occurrence implied complete analysis" unless namespace_and_child[0] == 1 && namespace_and_child[1].include?("Status: incomplete")
