@@ -6,7 +6,7 @@
 
 **Blocked by:** 42 — Generate Flay contracts for every supported descriptor.
 
-**Status:** open  
+**Status:** claimed
 **Type:** task  
 **Category:** enhancement  
 **Triage:** ready-for-agent

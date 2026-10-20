@@ -267,3 +267,118 @@
 - ADR 0156 adds bare no-argument call defaults for positional optional parameters at unchanged mass, with call-name-sensitive identity and focused mutations.
 - Issue 34 and ADR 0155 isolate each parallel mutation-contract compiler's Spinel temp files; all 40 contracts precompile at `JOBS=8` in about 30 seconds, retaining parallel mutation workers.
 - Issue 35 and ADR 0157 exclude disposable build/mutation-* outputs from isolated worker copies. A measured 108 MB build copy fell to 3.4 MB and 0.393 s; the pinned full gate passed in 6:33.24 with 285 mutants caught, Flay 0, and Reek 0.
+
+## Harness priority frontier — 2026-10-19
+
+Start **106**; execute one ticket per fresh Luna context, sequentially through **115**. New numbers preserve all published references; dependency edges, not renumbering, put harness work first.
+
+- [106: Measure reproducible harness phase costs](issues/106-measure-harness-phase-costs.md) — unblocked.
+- [107: Refill check slots when any worker finishes](issues/107-refill-finished-check-slots.md) — blocked by 106.
+- [108: Use the resolved worker budget for contract precompile](issues/108-inherit-precompile-worker-budget.md) — blocked by 107.
+- [109: Stage only required workspace inputs for isolated workers](issues/109-exclude-unused-worker-copy-inputs.md) — blocked by 108.
+- [110: Reuse one unchanged leaf contract across mutation runs](issues/110-cache-one-leaf-mutation-contract.md) — blocked by 109.
+- [111: Reuse a contract with shared source dependencies](issues/111-cache-contract-dependency-closure.md) — blocked by 110.
+- [112: Enable safe reuse for all mapped mutation contracts](issues/112-enable-safe-shared-contract-cache.md) — blocked by 111.
+- [113: Narrow the highest-cost remaining mutation contract](issues/113-focus-highest-cost-mutation-contract.md) — blocked by 112.
+- [114: Narrow the next costly independent mutation contract](issues/114-focus-next-cost-mutation-contract.md) — blocked by 113.
+- [115: Verify harness savings before resuming feature work](issues/115-verify-harness-savings-and-handoff.md) — blocked by 114.
+
+Tickets 48–105 all retain their former blockers and additionally wait for 115. Parent tickets 22/23/24/25/43 remain unchanged, with claims preserved; resume their implementation through their children only after 115. Existing closure rules still require all residual children; README parent 25 remains last. Newly discovered harness defects must block 115; newly added feature children must depend on 115 until it resolves. Do not resolve or reopen old parents merely to reorder work.
+
+This publication changes tracker documents only; performance claims require the measurements in these tickets.
+
+## Luna execution breakdown — 2026-10-19
+
+### Current state and scope
+
+Inspected HEAD `65203bccb2b774bbdcf3fc3502cc279115e77930`, local tracker, native dispatch/descriptors, contracts, and installed pinned reference source. This is a planning snapshot, not a fresh runtime or full-gate receipt. Existing uncommitted change claims ticket 43; it is preserved byte-for-byte. Parent issues are unchanged per the local to-tickets workflow. Tickets 22, 23 and 43 are claimed; 24 and 25 are open. All other existing issues across the three efforts are resolved, including 21, 42, 44–47, all default-check issues and parallel-check issue 01. Historical unresolved statements elsewhere in this map are superseded by current ticket status and this snapshot.
+
+Progress exists: descriptors for scalars/calls/collections/control flow/ranges/regex/parameters and generated per-descriptor contracts landed. Completion remains blocked by composition and translator-closure evidence, fuzzy/legacy/path controls, bounded Reek scope/settings, unsupported UnusedPrivateMethod and full Rails proof. Existing Rails contract explicitly expects Flay incomplete and checks only Reek ClassVariable. Passing it cannot prove ticket 24. Default selection completion is not full Reek grammar/configuration parity.
+
+### Start here
+
+Start harness ticket 106. Complete the linear harness chain 106–115 before resuming feature children 48–105; each now explicitly depends on 115 as well as its original blockers. After 115 resolves, resume child 48 for the ticket-43 stream; 49/50 and the other previously independent children become available under their original dependencies. Choose one child and one behavior per context. Do not start another agent or alter parent claims merely because several tasks are available. Check live status and existing child Answer before claiming; a claimed child belongs to its current worker until handed off.
+
+Every child is independently finishable. The suggested cases bound one behavior, not all grammar for that detector. Known unsupported assertions are starting evidence, not tests to delete blindly. First prove upstream accepts the case. When already green, retain existing proof and add only a missing boundary. One independent mismatch becomes one additional numbered child, linked to its parent and this map. Do not duplicate existing children. Completion/audit tickets below wait for those residual children as well as their static blockers.
+
+### Parent acceptance and dependency rules
+
+- **43 and 22:** 48–51 prove compositions, scope, pruning and ordering; 52 audits remaining shared-rule/adapter obligations and records closure evidence. Do not resolve either parent until its unchanged acceptance checklist and every residual translator child pass.
+- **23:** 53–58 cover fuzzy, legacy, ignore/path and option interactions; 59 verifies the entire control inventory. Fuzzy/legacy depend on 22; existing path work can start earlier. No reference-tool subprocess may replace native Fleek analysis.
+- **24:** 60–61 implement opt-in behavior; 62–89 give each of the 28 default detectors one narrow boundary; 90–95 cover remaining settings/config/selection/extension obligations. Census 96 publishes concrete residual gaps. Children 97–101 verify complete exact-manifest Flay and all 29 Reek detectors; 102 closes the full parity gate only after all original and newly discovered requirements pass.
+- **25:** 103–105 split install proof, human behavior docs and final command/link review. Start only after all non-README work, including future gap tickets, resolves. These children never depend on parent 25, avoiding the dynamic last-ticket dependency cycle. Resolve 25 last, after its children and every other ticket resolve. Release publication is not added to this effort.
+
+### Verified entry points and commands
+
+Paths below are repo-relative wayfinding; child prose uses symbols/behavior so implementation can move.
+
+- Native descriptors, candidate collection, Reek detector dispatch/settings, unsupported opt-in and source discovery: `bin/fleek.rb`.
+- Per-descriptor generated comparisons: `test/duplication_generated_descriptor_contract.rb`; shared CLI comparison helpers: `test/analysis_runner.rb`; existing focused method contracts: `test/duplication_method_*_contract.rb`.
+- Existing bounded Reek proof: `test/default_object_scope_contract.rb`, `test/default_argument_api_contract.rb`, `test/class_variable_contract.rb`, `test/class_variable_scope_contract.rb`; config/selection: `test/configuration_contract.rb`, `test/default_configuration_contract.rb`, `test/default_invocation_contract.rb`, `test/combined_contract.rb`.
+- Existing Rails manifest and pin: `test/rails_manifest_parity_contract.rb`, `docs/research/rails-project-parity.md`; extensions: `test/language_extensions_contract.rb`. Keep corpus revision `92ce7c470bc31952d7dc51cac15e577a948e479e`, exactly 25 tracked app Ruby files and unchanged reference inputs.
+- Compiler pin: `docs/agents/spinel.md`; execution rules: `AGENTS.md`; tracker rules: `docs/agents/issue-tracker.md`. Version tag object `00ce35bb96e489620358ffbc48791001a73778a5`, peeled source commit `112bae85c1a25fc5399009a849f805bfe691426b`.
+- Set `SPINEL=<pinned-build>/spinel`, `SPINEL_ROOT=<pinned-build>` and `BUNDLE_PATH=<preinstalled-bundle>` as environment variables for the local setup. Run `make ticket-check` for tracker validation. Run a selected existing contract with `$SPINEL -E <contract.rb>` after building `make all` when code changes. Use exact labels from `test/mutation_contract.rb` with `FLEEK_MUTATIONS='<label>' make mutation`; never guess labels. Before a code commit run `make check` and the upstream Spinel build/test requirements in AGENTS.md. For corpus completion also run `FLEEK_RAILS_CORPUS=<pinned-corpus> make rails-manifest-parity`; missing corpus must not count as a pass.
+- Docs-only breakdown: no implementation, runtime benchmarks, upstream tests or code tests. Tracker validation does not prove analyzer parity.
+
+### Child index
+
+Every feature child below additionally depends on harness handoff 115; original dependencies are retained.
+
+- [48: Compose method parameters with nested blocks](issues/48-composed-parameters-and-blocks.md) — parent 43 / 22; blocked by 42; 115.
+- [49: Compose collections inside branches and loops](issues/49-composed-collections-and-branches.md) — parent 43 / 22; blocked by 42; 115.
+- [50: Compose exception flow with interpolated values](issues/50-composed-exceptions-and-regexp.md) — parent 43 / 22; blocked by 42; 115.
+- [51: Verify composed groups across scopes and files](issues/51-composed-cross-file-pruning.md) — parent 43 / 22; blocked by 48; 49; 50; 115.
+- [52: Finish descriptor and composed-method evidence](issues/52-close-method-translator-evidence.md) — parent 43 / 22; blocked by 48; 49; 50; 51; 115.
+- [53: Match Flay fuzzy detection at default distance](issues/53-fuzzy-default-distance.md) — parent 23; blocked by 22; 115.
+- [54: Match explicit fuzzy distance and validation](issues/54-fuzzy-distance-controls.md) — parent 23; blocked by 53; 115.
+- [55: Match Flay legacy parser mode on shared syntax](issues/55-legacy-parser-semantics.md) — parent 23; blocked by 22; 115.
+- [56: Match .flayignore pattern semantics](issues/56-flayignore-pattern-semantics.md) — parent 23; blocked by 115.
+- [57: Match Flay path expansion and duplicate inputs](issues/57-flay-path-expansion-semantics.md) — parent 23; blocked by 56; 115.
+- [58: Verify Flay control precedence and routing](issues/58-flay-control-interactions.md) — parent 23; blocked by 54; 55; 57; 115.
+- [59: Close Flay control inventory with evidence](issues/59-close-flay-controls-evidence.md) — parent 23; blocked by 53; 54; 55; 56; 57; 58; 115.
+- [60: Analyze directly unused private methods](issues/60-unused-private-method-basics.md) — parent 24; blocked by 115.
+- [61: Honor private-method visibility and opt-in configuration](issues/61-unused-private-method-visibility-config.md) — parent 24; blocked by 60; 115.
+- [62: Match ClassVariable nested namespace contexts](issues/62-reek-class-variable-boundary.md) — parent 24; blocked by 115.
+- [63: Match Attribute nested class attribute declarations](issues/63-reek-attribute-boundary.md) — parent 24; blocked by 115.
+- [64: Match InstanceVariableAssumption nested class instance-variable use](issues/64-reek-instance-variable-assumption-boundary.md) — parent 24; blocked by 115.
+- [65: Match SubclassedFromCoreClass Class.new inheritance](issues/65-reek-subclassed-from-core-class-boundary.md) — parent 24; blocked by 115.
+- [66: Match ModuleInitialize nested module initialize methods](issues/66-reek-module-initialize-boundary.md) — parent 24; blocked by 115.
+- [67: Match IrresponsibleModule Class.new comments](issues/67-reek-irresponsible-module-boundary.md) — parent 24; blocked by 115.
+- [68: Match LongParameterList block parameters](issues/68-reek-long-parameter-list-boundary.md) — parent 24; blocked by 115.
+- [69: Match BooleanParameter singleton method boolean defaults](issues/69-reek-boolean-parameter-boundary.md) — parent 24; blocked by 115.
+- [70: Match LongYieldList nested block yields](issues/70-reek-long-yield-list-boundary.md) — parent 24; blocked by 115.
+- [71: Match ControlParameter nested conditional use](issues/71-reek-control-parameter-boundary.md) — parent 24; blocked by 115.
+- [72: Match UnusedParameters block-local shadowing](issues/72-reek-unused-parameters-boundary.md) — parent 24; blocked by 115.
+- [73: Match UtilityFunction public_methods_only setting](issues/73-reek-utility-function-boundary.md) — parent 24; blocked by 115.
+- [74: Match DuplicateMethodCall nested repeated receiver calls](issues/74-reek-duplicate-method-call-boundary.md) — parent 24; blocked by 115.
+- [75: Match ManualDispatch guarded dispatch inside a branch](issues/75-reek-manual-dispatch-boundary.md) — parent 24; blocked by 115.
+- [76: Match NilCheck nil checks inside blocks](issues/76-reek-nil-check-boundary.md) — parent 24; blocked by 115.
+- [77: Match MissingSafeMethod singleton bang method companions](issues/77-reek-missing-safe-method-boundary.md) — parent 24; blocked by 115.
+- [78: Match RepeatedConditional nested-class conditional isolation](issues/78-reek-repeated-conditional-boundary.md) — parent 24; blocked by 115.
+- [79: Match NestedIterators ignored nested iterator names](issues/79-reek-nested-iterators-boundary.md) — parent 24; blocked by 115.
+- [80: Match FeatureEnvy receiver calls inside blocks](issues/80-reek-feature-envy-boundary.md) — parent 24; blocked by 115.
+- [81: Match DataClump singleton method parameter groups](issues/81-reek-data-clump-boundary.md) — parent 24; blocked by 115.
+- [82: Match TooManyConstants nested namespace constant isolation](issues/82-reek-too-many-constants-boundary.md) — parent 24; blocked by 115.
+- [83: Match TooManyInstanceVariables nested class variable isolation](issues/83-reek-too-many-instance-variables-boundary.md) — parent 24; blocked by 115.
+- [84: Match TooManyMethods nested class method counts](issues/84-reek-too-many-methods-boundary.md) — parent 24; blocked by 115.
+- [85: Match TooManyStatements singleton-class method bodies](issues/85-reek-too-many-statements-boundary.md) — parent 24; blocked by 115.
+- [86: Match UncommunicativeMethodName nested singleton method names](issues/86-reek-uncommunicative-method-name-boundary.md) — parent 24; blocked by 115.
+- [87: Match UncommunicativeModuleName qualified namespace names](issues/87-reek-uncommunicative-module-name-boundary.md) — parent 24; blocked by 115.
+- [88: Match UncommunicativeParameterName block parameter names](issues/88-reek-uncommunicative-parameter-name-boundary.md) — parent 24; blocked by 115.
+- [89: Match UncommunicativeVariableName block-local names](issues/89-reek-uncommunicative-variable-name-boundary.md) — parent 24; blocked by 115.
+- [90: Inventory all Reek settings and remaining gaps](issues/90-reek-settings-coverage-inventory.md) — parent 24; blocked by 61; 115.
+- [91: Verify Reek discovery and directory precedence](issues/91-reek-configuration-precedence.md) — parent 24; blocked by 90; 115.
+- [92: Verify Reek comment suppression scope](issues/92-reek-suppression-parity.md) — parent 24; blocked by 90; 115.
+- [93: Validate Reek configuration before analysis](issues/93-reek-configuration-validation.md) — parent 24; blocked by 90; 115.
+- [94: Verify default, subset and combined outcomes](issues/94-combined-selection-and-outcomes.md) — parent 24; blocked by 59; 61; 90; 91; 92; 93; 115.
+- [95: Separate extension evidence and prove non-execution](issues/95-extension-and-nonexecution-evidence.md) — parent 24; blocked by 52; 115.
+- [96: Record exact gaps on the pinned Rails manifest](issues/96-rails-residual-gap-census.md) — parent 24; blocked by 115.
+- [97: Require complete Flay analysis of pinned Rails sources](issues/97-rails-flay-completion-gate.md) — parent 24; blocked by 96; 22; 23; 115.
+- [98: Verify Rails Reek object scopes results](issues/98-rails-reek-object-scopes.md) — parent 24; blocked by 96; 62; 63; 64; 65; 66; 67; 115.
+- [99: Verify Rails Reek method api results](issues/99-rails-reek-method-api.md) — parent 24; blocked by 96; 60; 61; 68; 69; 70; 71; 72; 73; 115.
+- [100: Verify Rails Reek calls and flow results](issues/100-rails-reek-calls-and-flow.md) — parent 24; blocked by 96; 74; 75; 76; 77; 78; 79; 80; 115.
+- [101: Verify Rails Reek data size and names results](issues/101-rails-reek-data-size-and-names.md) — parent 24; blocked by 96; 81; 82; 83; 84; 85; 86; 87; 88; 89; 115.
+- [102: Close shared-syntax parity only after every gap](issues/102-close-shared-syntax-parity.md) — parent 24; blocked by 22; 23; 43; 90; 91; 92; 93; 94; 95; 96; 97; 98; 99; 100; 101; 115.
+- [103: Document verified release installation and first run](issues/103-readme-release-installation.md) — parent 25; blocked by 102; 115.
+- [104: Explain Fleek checks, reports and limits](issues/104-readme-behavior-and-limits.md) — parent 25; blocked by 103; 115.
+- [105: Verify README commands, links and final claims](issues/105-readme-final-command-link-review.md) — parent 25; blocked by 104; 115.
