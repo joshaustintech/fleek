@@ -183,7 +183,7 @@ class MutationCase
     "Flay module group kind" => "test/duplication_contract.rb",
     "Flay multiple class method candidates" => "test/duplication_contract.rb",
     "Flay preserves independent candidate groups" => "test/duplication_contract.rb",
-    "Flay group ordering" => "test/duplication_contract.rb",
+    "Flay group ordering" => "test/duplication_group_order_contract.rb",
     "Flay grouped file score" => "test/duplication_contract.rb",
     "Flay required parameter candidates" => "test/duplication_method_parameter_contract.rb",
     "Flay required parameter identity" => "test/duplication_method_parameter_contract.rb",

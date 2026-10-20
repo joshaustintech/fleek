@@ -1061,17 +1061,6 @@ DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_m
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_local_write_names.rb", :local_write_names)
 DuplicationProcess.verify_class_method_parity("test/fixtures/duplication_class_methods_candidate_capacity.rb", :candidate_capacity)
 
-class_group_with_pair_path = "test/fixtures/duplication_class_methods_class_group_with_conditional_pair.rb"
-class_group_with_pair_actual = DuplicationProcess.run(DuplicationProcess::Input.new(class_group_with_pair_path, "fleek", ""))
-class_group_with_pair_reference = DuplicationProcess.run(DuplicationProcess::Input.new(class_group_with_pair_path, "flay", ""))
-class_group_with_pair_fields = ["node=\"defn\" kind=\"similar\" locations=\"#{class_group_with_pair_path}:20,#{class_group_with_pair_path}:32\" mass=62 score=62", "node=\"class\" kind=\"similar\" locations=\"#{class_group_with_pair_path}:1,#{class_group_with_pair_path}:10\" mass=50 score=50", "Total duplication score: 112", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
-DuplicationProcess.verify_output(class_group_with_pair_actual, DuplicationProcess::OutputExpectation.new(2, class_group_with_pair_fields, "Flay class and independent method groups differed"))
-class_method_group_position = class_group_with_pair_actual[1].index("node=\"defn\"")
-class_group_position = class_group_with_pair_actual[1].index("node=\"class\"")
-DuplicationProcess.verify(class_method_group_position < class_group_position, "Flay group ordering differed")
-class_group_with_pair_reference_fields = ["Similar code found in :defn (mass = 62)", "#{class_group_with_pair_path}:20", "#{class_group_with_pair_path}:32", "Similar code found in :class (mass = 50)", "#{class_group_with_pair_path}:1", "#{class_group_with_pair_path}:10", "Total score (lower is better) = 112"]
-DuplicationProcess.verify_output(class_group_with_pair_reference, DuplicationProcess::OutputExpectation.new(0, class_group_with_pair_reference_fields, "Flay groups with conditional class-method candidates changed"))
-
 topology_path = "test/fixtures/duplication_class_methods_topology.rb"
 DuplicationProcess.verify_class_method_no_group(topology_path, "different class method tree topology was grouped")
 
