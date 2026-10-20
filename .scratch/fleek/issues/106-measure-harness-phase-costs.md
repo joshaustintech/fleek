@@ -2,17 +2,23 @@
 
 **What to build:** A maintainer can reproduce cold and warm harness costs and choose fixes from measured compile, staging, scheduling and contract-execution work.
 
-**Status:** open
+**Status:** resolved
 **Type:** task
 **Category:** bug
 **Triage:** ready-for-agent
 
 ## Acceptance criteria
 
-- [ ] Record exact commands, pinned compiler/reference identities, CPU count, JOBS, input revision and dirty-input identity. Run one clean baseline, then three repetitions of the bounded probes; do not overlap unrelated gates.
-- [ ] Provide one small pinned-Spinel Ruby evidence command using existing helpers. Separate worker staging, contract precompile, mutant build and contract execution; report worker idle periods without adding timing assertions to ordinary contracts.
-- [ ] Rank at least three falsifiable causes: waiting for oldest worker, serial default precompile and repeated unchanged compilation. Change one variable per probe; include workspace-copy and mutation-contract fan-out measurements.
-- [ ] Record raw statuses and existing analyzer findings separately from timing. Publish up to two highest aggregate-cost mutation labels/contracts as ranked rows, excluding mappings already narrowed by resolved tickets; if fewer qualify, record that measured result. Record full-run and focused probe evidence without claiming a fix.
+- [x] Record exact commands, pinned compiler/reference identities, CPU count, JOBS, input revision and dirty-input identity. Run one clean baseline, then three repetitions of the bounded probes; do not overlap unrelated gates.
+- [x] Provide one small pinned-Spinel Ruby evidence command using existing helpers. Separate worker staging, contract precompile, mutant build and contract execution; report worker idle periods without adding timing assertions to ordinary contracts.
+- [x] Rank at least three falsifiable causes: waiting for oldest worker, serial default precompile and repeated unchanged compilation. Change one variable per probe; include workspace-copy and mutation-contract fan-out measurements.
+- [x] Record raw statuses and existing analyzer findings separately from timing. Publish up to two highest aggregate-cost mutation labels/contracts as ranked rows, excluding mappings already narrowed by resolved tickets; if fewer qualify, record that measured result. Record full-run and focused probe evidence without claiming a fix.
+
+## Answer
+
+Pinned Spinel build, Flay/Reek versions, host CPU count, `JOBS`, input revision, dirty claim-file identity, full-gate statuses, analyzer findings, copy bytes/timing, and ranked mutation probes are recorded in [ADR 0172](../../../docs/adr/0172-measure-harness-costs.md). Full `make check` passed 56 workers in 452.93s. Focused probes caught both mutations in all three repetitions. The two highest measured focused totals were `Flay group ordering` (median 40.97s, broad `duplication_contract.rb`) and `Flay generated descriptor support` (median 12.01s, generated descriptor contract). Per-phase probes are reported separately and are not presented as an additive decomposition. No optimization or speedup is claimed; ticket 115 remains the post-change handoff gate.
+
+Commands used: `make check JOBS=4`; `make mutation JOBS=1 FLEEK_MUTATIONS='Flay group ordering'` (three runs); `make mutation JOBS=1 FLEEK_MUTATIONS='Flay generated descriptor support'` (three runs); `SPINEL -E test/mutation_contract.rb` with `FLEEK_PRECOMPILE_MUTATION_CONTRACTS=1`; direct pinned `spinel -O 0` compile; direct execution of the precompiled public duplication contract; and `rsync -a --stats --exclude=/build/mutation-*` (three runs). The initial stale compiler failure was fixed by rebuilding from the exact pinned tag; no project code changed.
 
 ## Execution boundary
 
