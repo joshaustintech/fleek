@@ -1,5 +1,12 @@
 # frozen_string_literal: true
 
+if ARGV[0] == "-E" && ARGV[1] == "test/mutation_contract.rb"
+  if ENV["FLEEK_PRECOMPILE_MUTATION_CONTRACTS"] == "1"
+    runner_root = ENV.fetch("FLEEK_RUNNER_BUDGET_ROOT")
+    File.write("#{runner_root}/child-jobs", ENV.fetch("JOBS", "unset"))
+  end
+  exit 0
+end
 root = ENV.fetch("FLEEK_PRECOMPILE_PROBE_ROOT")
 process_id = Process.pid
 File.write("#{root}/started-#{process_id}", ENV.fetch("TMPDIR"))

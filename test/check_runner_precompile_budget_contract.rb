@@ -15,11 +15,44 @@ class CheckRunnerPrecompileBudgetContract
   def self.run
     fake_compiler = compile_fake_compiler
     cpu_count = available_cpus
+    verify_runner_budget_scenario(fake_compiler, "default", nil, cpu_count)
+    verify_runner_budget_scenario(fake_compiler, "single", 1, 1)
+    verify_runner_budget_scenario(fake_compiler, "explicit", 3, 3)
+    verify_runner_budget_scenario(fake_compiler, "over-cpu", 100, cpu_count)
     verify_scenario(fake_compiler, "default", cpu_count, cpu_count)
     verify_scenario(fake_compiler, "single", 1, cpu_count)
     verify_scenario(fake_compiler, "explicit", 3, cpu_count)
     verify_scenario(fake_compiler, "over-cpu-resolved", cpu_count, cpu_count)
     puts "Check runner precompile budget contract: pass"
+  end
+
+  def self.verify_runner_budget_scenario(fake_compiler, name, requested_jobs, expected_jobs)
+    root = "#{ENV.fetch('FLEEK_TEMP_ROOT')}/runner-budget-#{Process.pid}-#{name}"
+    Dir.mkdir(root)
+    output = "#{root}/runner.out"
+    error = "#{root}/runner.err"
+    process_id = launch_runner_budget_probe(fake_compiler, root, output, error, requested_jobs)
+    _, status = Process.waitpid2(process_id)
+    stderr = File.read(error)
+    expect(status.success?, "runner budget probe failed (#{status.exitstatus}): #{stderr}")
+    expect(File.read("#{root}/child-jobs").strip == expected_jobs.to_s,
+      "#{name} runner forwarded JOBS=#{File.read("#{root}/child-jobs")}, expected #{expected_jobs}")
+  ensure
+    File.write("#{root}/release", "release") if root && Dir.exist?(root)
+  end
+
+  def self.launch_runner_budget_probe(fake_compiler, root, output, error, requested_jobs)
+    if requested_jobs
+      Process.spawn("env", "SPINEL=#{fake_compiler}", "FLEEK_RUNNER_BUDGET_ROOT=#{root}",
+        "FLEEK_MUTATION_CONTRACT_CACHE_ROOT=#{root}/cache", "FLEEK_MUTATIONS=Flay group ordering",
+        "FLEEK_DISABLE_MUTATION_CONTRACT_CACHE=true", "JOBS=#{requested_jobs}", ENV.fetch("SPINEL"), "-E",
+        "bin/check_runner.rb", "mutation", out: output, err: error)
+    else
+      Process.spawn("env", "-u", "JOBS", "SPINEL=#{fake_compiler}", "FLEEK_RUNNER_BUDGET_ROOT=#{root}",
+        "FLEEK_MUTATION_CONTRACT_CACHE_ROOT=#{root}/cache", "FLEEK_MUTATIONS=Flay group ordering",
+        "FLEEK_DISABLE_MUTATION_CONTRACT_CACHE=true", ENV.fetch("SPINEL"), "-E", "bin/check_runner.rb", "mutation",
+        out: output, err: error)
+    end
   end
 
   def self.compile_fake_compiler
