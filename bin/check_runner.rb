@@ -15,6 +15,7 @@ require_relative "workspace_stager"
 # :reek:UtilityFunction
 class CheckRunner
   TESTS = %w[
+    test/mutation_contract_cache_contract.rb
     test/check_runner_precompile_budget_contract.rb
     test/check_runner_staging_contract.rb
     test/check_runner_scheduler_contract.rb

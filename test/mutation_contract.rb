@@ -1,4 +1,6 @@
 # Proves public checks reject deliberately broken parser, CLI, and analyzer behaviors.
+require_relative "mutation_contract_cache"
+
 MUTATION_SHARD = nil
 MUTATION_SHARDS = nil
 
@@ -451,10 +453,31 @@ class MutationCase
     end
     contract_count = contracts.length
     jobs = [Integer(ENV.fetch("JOBS", "1"), 10), contract_count].min
-    contracts.each_slice(jobs) { |batch| compile_contract_batch(batch, directory, source_directory) }
-    puts "Mutation contracts: #{contract_count} shared binaries compiled"
+    cache_result = prepare_cached_native_parser_contract(contracts, dependency_paths, directory, source_directory)
+    if cache_result
+      puts "Mutation contract cache: #{cache_result}"
+      puts "Mutation contracts: 1 shared binary #{cache_result == :hit ? 'restored' : 'compiled'}"
+    else
+      contracts.each_slice(jobs) { |batch| compile_contract_batch(batch, directory, source_directory) }
+      puts "Mutation contracts: #{contract_count} shared binaries compiled"
+    end
     if ENV["FLEEK_PRECOMPILE_BUDGET_REPORT"] == "true"
       puts "Mutation precompile budget: JOBS=#{jobs}; max batch=#{[jobs, contract_count].min}; contracts=#{contracts.join(',')}; dependencies=#{dependency_paths.join(',')}"
+    end
+  end
+
+  # :reek:LongParameterList
+  # :reek:TooManyStatements
+  def self.prepare_cached_native_parser_contract(contracts, dependencies, directory, source_directory)
+    return unless ENV["FLEEK_CACHE_NATIVE_PARSER_CONTRACT"] == "true"
+    return unless contracts == ["test/native_parser_contract.rb"] && dependencies.empty?
+
+    spinel = ENV["SPINEL"] || "spinel"
+    root = ENV["SPINEL_ROOT"] || "#{File.dirname(spinel)}/.."
+    executable = File.expand_path("#{directory}/native_parser_contract")
+    cache = MutationContractCache.new("build/mutation-contract-cache/native-parser")
+    cache.prepare(source_directory, executable, spinel, root, ["-O", "1"]) do
+      compile_contract_batch(contracts, directory, source_directory)
     end
   end
 
