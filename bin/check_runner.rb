@@ -13,6 +13,7 @@
 # :reek:UtilityFunction
 class CheckRunner
   TESTS = %w[
+    test/check_runner_scheduler_contract.rb
     test/cli_contract.rb
     test/commit_identity_contract.rb
     test/text_report_contract.rb
@@ -77,6 +78,7 @@ class CheckRunner
   end
 
   def run
+    File.write("#{ENV.fetch('FLEEK_RUNNER_PROBE_ROOT')}/runner-pid", Process.pid.to_s) if @mode == "runner-probe"
     tasks.each do |task|
       wait_for_capacity
       if task[0] == :mutation && !@mutation_contract_directory
@@ -102,6 +104,9 @@ class CheckRunner
     case @mode
     when "test" then test_paths.map { |path| [:spinel, path] }
     when "mutation" then mutations
+    when "runner-probe"
+      second = ENV["FLEEK_RUNNER_PROBE_FAILURE"] ? "fail" : "fast"
+      [[:probe, "slow"], [:probe, second], [:probe, "third"]]
     when "check"
       test_paths.map { |path| [:spinel, path] } + mutations + [[:command, "reference"], [:command, "flay"], [:command, "reek"]]
     else raise "usage: check_runner.rb test|mutation|check"
@@ -138,11 +143,19 @@ class CheckRunner
   end
 
   def wait_for_capacity
-    finish(@workers.first) while @workers && @workers.length >= @jobs
+    finish_next_worker while @workers && @workers.length >= @jobs
   end
 
   def drain_workers
-    finish(@workers.first) until @workers.empty?
+    finish_next_worker until @workers.empty?
+  end
+
+  def finish_next_worker
+    process_id, status = Process.waitpid2(-1)
+    worker = @workers.find { |candidate| candidate[:id] == process_id }
+    raise "completed check worker not found" unless worker
+
+    finish(worker, status)
   end
 
   def launch(task)
@@ -224,6 +237,10 @@ class CheckRunner
         "FLEEK_EXPECTED_TEMP_ROOT=#{temporary_root}",
         "SPINEL=#{@spinel}", "SPINEL_ROOT=#{@spinel_root}", @spinel, "-E", "test/mutation_contract.rb",
         chdir: directory, out: output, err: error)
+    when :probe
+      Process.spawn("env", "SPINEL=#{@spinel}", "FLEEK_RUNNER_PROBE_ROOT=#{ENV.fetch('FLEEK_RUNNER_PROBE_ROOT')}",
+        "FLEEK_RUNNER_PROBE_TASK=#{value}", @spinel, "-E", "test/check_runner_probe_child.rb",
+        chdir: directory, out: output, err: error)
     when :command then spawn_check(value, directory, output, error)
     end
   end
@@ -236,10 +253,10 @@ class CheckRunner
     end
   end
 
-  def finish(worker)
+  def finish(worker, status = nil)
     return unless worker
 
-    _, status = Process.waitpid2(worker.fetch(:id))
+    _, status = Process.waitpid2(worker.fetch(:id)) unless status
     result = [worker[:task], status.success?, File.read(worker[:output]), File.read(worker[:error])]
     @failures << result unless result[1]
     puts "Check #{task_name(worker[:task])}: #{result[1] ? 'pass' : 'FAIL'}"
