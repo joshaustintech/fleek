@@ -16,6 +16,7 @@
 - Ticket 54 extends bounded fuzzy matching to explicit Flay distances, optional/repeated-value parsing, and zero/negative validation. See [issue 54](issues/54-fuzzy-distance-controls.md) and [ADR 0192](../../docs/adr/0192-match-explicit-flay-fuzzy-distance.md).
 - Ticket 55 accepts Flay legacy mode on shared syntax, records the RubyParser 3.22.0 reference dependency, and fails incomplete for tested line-leading `&&`, `||`, `and`, and `or` parser mismatches. See [issue 55](issues/55-legacy-parser-semantics.md) and [ADR 0193](../../docs/adr/0193-bound-flay-legacy-parser-mode.md).
 - Ticket 56 matches pinned PathExpander `.flayignore` path selection and fails on an existing unreadable ignore path. See [issue 56](issues/56-flayignore-pattern-semantics.md) and [ADR 0194](../../docs/adr/0194-match-flayignore-path-expansion.md).
+- Ticket 58 matches repeated `--mass` precedence and fuzzy-plus-liberal source routing. Flay timeout remains an analysis-control gap; summary, diff, numbering, and verbose flags remain presentation gaps. See [ADR 0196](../../docs/adr/0196-flay-control-precedence-and-boundaries.md), [issue 120](issues/120-flay-timeout-control.md), and [issue 121](issues/121-flay-presentation-controls.md).
 - Ticket 52 completed the accepted-descriptor and adapter audit; ticket 119 moved Range/regexp value identity into the node descriptor and passed the full gate and both review axes. With generated/composed evidence from tickets 42, 43, and 118, parent ticket 22 is resolved. See [ADR 0190](../../docs/adr/0190-describe-range-and-regexp-identity.md).
 
 - Ticket 51 matches Flay's composed begin/rescue/ensure pruning across source paths: top-level candidates select `:ensure`, class candidates retain method groups, reversed file inputs keep canonical location order, and supported groups survive beside an unsupported sibling with incomplete coverage. See [ADR 0189](../../docs/adr/0189-preserve-composed-cross-file-pruning.md); ticket 119 and parent 22 are resolved.
@@ -359,7 +360,7 @@ Every feature child below additionally depends on harness handoff 115; original 
 - [55: Match Flay legacy parser mode on shared syntax](issues/55-legacy-parser-semantics.md) — parent 23; blocked by 22; 115.
 - [56: Match .flayignore pattern semantics](issues/56-flayignore-pattern-semantics.md) — parent 23; blocked by 115.
 - [57: Match Flay path expansion and duplicate inputs](issues/57-flay-path-expansion-semantics.md) — parent 23; blocked by 115.
-- [58: Verify Flay control precedence and routing](issues/58-flay-control-interactions.md) — parent 23; blocked by 54; 55; 57; 115.
+- [58: Verify Flay control precedence and routing](issues/58-flay-control-interactions.md) — parent 23.
 - [59: Close Flay control inventory with evidence](issues/59-close-flay-controls-evidence.md) — parent 23; blocked by 53; 54; 55; 56; 57; 58; 115.
 - [60: Analyze directly unused private methods](issues/60-unused-private-method-basics.md) — parent 24; blocked by 115.
 - [61: Honor private-method visibility and opt-in configuration](issues/61-unused-private-method-visibility-config.md) — parent 24; blocked by 60; 115.

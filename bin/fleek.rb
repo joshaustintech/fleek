@@ -4927,12 +4927,12 @@ class Fleek
     node
   end
 
+  # :reek:TooManyStatements
   def self.duplication_mass_error(inputs)
-    return "--mass may be specified only once." if inputs.count("--mass") > 1
-    mass_index = duplication_mass_index(inputs)
-    return "" if mass_index == inputs.length
-    return "" if valid_duplication_mass?(inputs[mass_index + 1])
-    "--mass requires an integer from 3 through 2147483647 for the supported syntax."
+    mass_indices = inputs.each_index.select { |index| inputs[index] == "--mass" }
+    return "" if mass_indices.empty?
+    return "--mass requires an integer from 3 through 2147483647 for the supported syntax." if mass_indices.any? { |index| !valid_duplication_mass?(inputs[index + 1]) }
+    ""
   end
 
   def self.valid_duplication_mass?(mass_value)
@@ -4986,7 +4986,7 @@ class Fleek
       input = inputs[index]
       next_input = inputs[index + 1]
       if input == option
-        index += next_input && !next_input.start_with?("-") ? 2 : 1
+        index += next_input && next_input.match?(/\A[0-9]+\z/) ? 2 : 1
       elsif input.start_with?("#{option}=")
         index += 1
       else
@@ -5002,7 +5002,7 @@ class Fleek
   end
 
   def self.duplication_mass_index(inputs)
-    inputs.index("--mass") || inputs.length
+    inputs.rindex("--mass") || inputs.length
   end
 
   def self.duplication_mass_threshold(inputs)
