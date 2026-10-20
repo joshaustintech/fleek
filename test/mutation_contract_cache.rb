@@ -16,10 +16,10 @@ class MutationContractCache
   FORMAT = "fleek-public-contract-cache-v3"
   REWRITE_FORMAT = "public-contract-temp-root-rewrite-v1"
   ENVIRONMENT = %w[PATH CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH LIBRARY_PATH SDKROOT DEVELOPER_DIR CC CFLAGS CPPFLAGS LDFLAGS ARCHFLAGS MACOSX_DEPLOYMENT_TARGET].freeze
-  TEMPORARY_SERIAL = [0]
 
   def initialize(root)
     @root = root
+    @temporary_serial = 0
   end
 
   def self.supports_contract_set?(contracts, dependencies, mapped_contracts, dependency_map)
@@ -151,8 +151,8 @@ class MutationContractCache
   end
 
   def unique_path(prefix)
-    TEMPORARY_SERIAL[0] += 1
-    "#{prefix}-#{Process.pid}-#{TEMPORARY_SERIAL[0]}"
+    @temporary_serial += 1
+    "#{prefix}-#{Process.pid}-#{object_id}-#{@temporary_serial}"
   end
 
   def add_compiler(digest, compiler, files)

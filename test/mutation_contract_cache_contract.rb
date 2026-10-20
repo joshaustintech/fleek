@@ -12,6 +12,7 @@ class MutationContractCacheContract
   def self.run
     root = "#{ENV.fetch('FLEEK_TEMP_ROOT')}/mutation-contract-cache-#{Process.pid}"
     create_inputs(root)
+    verify_unique_temporary_paths
     verify_supported_contract_sets
     verify_prepare_many(root)
     verify_miss_and_hit(root)
@@ -22,6 +23,14 @@ class MutationContractCacheContract
     puts "Mutation contract cache contract: pass"
   ensure
     ContractSupport.cleanup(root, "mutation cache contract") if root
+  end
+
+  def self.verify_unique_temporary_paths
+    first_cache = MutationContractCache.new("unused-first-cache")
+    second_cache = MutationContractCache.new("unused-second-cache")
+    paths = [first_cache.unique_path("/tmp/cache-temp"), first_cache.unique_path("/tmp/cache-temp"),
+      second_cache.unique_path("/tmp/cache-temp")]
+    expect(paths.uniq.length == paths.length, "cache temp paths overlapped across instances")
   end
 
   def self.verify_supported_contract_sets
