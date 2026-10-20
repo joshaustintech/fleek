@@ -2,9 +2,9 @@
 
 **What to build:** Luna resumes existing feature tickets only after harness changes have reproducible savings and unchanged required correctness evidence.
 
-**Blocked by:** 114.
+**Blocked by:** 114; 116; 117.
 
-**Status:** open
+**Status:** claimed
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
