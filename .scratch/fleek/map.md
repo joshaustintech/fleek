@@ -12,6 +12,8 @@
 
 ## Decisions-so-far
 
+- Ticket 43 composes parameter-shape selection with method candidate groups: differing optional defaults select independently grouped `:iter` subtrees across method candidates, including subset matches and multiple groups per method; identical parameter shapes retain `:defn`. See [ADR 0186](../../docs/adr/0186-group-composed-methods-by-flay-subtree.md).
+
 - Ticket 118 preserves Flay's nested `:iter` group for matching parameterized blocks when composed method parameter values differ, while identical signatures retain the enclosing-method choice. Generated contracts compare both shapes against Flay and catch a focused group-selection mutation; the cold full gate passes. See [ticket 118](issues/118-composed-block-subtree-selection.md) and [ADR 0185](../../docs/adr/0185-select-nested-block-group-for-renamed-composed-methods.md).
 - Ticket 48 composes optional method parameters with nested optional block parameters by subtracting the wrapper point Flay does not count in this combination. The identical case matches mass/score 44/88 and the arity boundary matches Flay's clean result. Similar renamed/default methods expose a separate nested-group selection mismatch tracked in [ticket 118](issues/118-composed-block-subtree-selection.md); parent ticket 43 remains open. See [ADR 0184](../../docs/adr/0184-compose-optional-method-and-block-mass.md).
 - Issue 107 fixes runner head-of-line blocking: reap any child, attribute result by PID, then clean that worker's isolated roots. The gated test covers fast-success and fast-failure ordering while slow worker remains alive. Full check passes; see [ADR 0173](../../docs/adr/0173-reap-any-completed-check-worker.md). Ticket 108 is next; ticket 115 remains the post-change correctness handoff.

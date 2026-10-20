@@ -5,15 +5,18 @@ require_relative "analysis_runner"
 # :reek:DuplicateMethodCall
 # :reek:LongParameterList
 # :reek:NestedIterators
+# :reek:RepeatedConditional
 # :reek:TooManyStatements
 class FlayGeneratedDescriptorContract
   # Carries the Prism node and parameter forms for one generated candidate pair.
-  Case = Struct.new(:node_types, :parameter_types, :name, :first_body, :second_body, :first_parameters, :second_parameters)
+  Case = Struct.new(:node_types, :parameter_types, :name, :first_body, :second_body, :first_parameters, :second_parameters, :expected_node, :scope, :third_body, :third_parameters, :expected_candidates)
   # Carries the parsed Flay result fields compared by the public contract.
   Group = Struct.new(:kind, :mass, :score, :locations)
   # Carries isolated paths and expected locations for one contract run.
   Run = Struct.new(:id, :root, :directory, :paths, :expected_locations, :output_paths, :reference_output_paths, :evidence_path)
   MAX_NESTED_WORKERS = 2
+  COMPOSED_NODE_TYPES = %w[PM_CALL_NODE PM_BLOCK_NODE PM_BLOCK_PARAMETERS_NODE PM_INTEGER_NODE PM_PARAMETERS_NODE PM_REQUIRED_PARAMETER_NODE PM_OPTIONAL_PARAMETER_NODE].freeze
+  COMPOSED_PARAMETER_TYPES = %w[PM_REQUIRED_PARAMETER_NODE PM_OPTIONAL_PARAMETER_NODE PM_REQUIRED_KEYWORD_PARAMETER_NODE PM_OPTIONAL_KEYWORD_PARAMETER_NODE PM_REST_PARAMETER_NODE PM_KEYWORD_REST_PARAMETER_NODE PM_BLOCK_PARAMETER_NODE].freeze
   NODE_CASES = [
     Case.new(%w[PM_MULTI_WRITE_NODE PM_LOCAL_VARIABLE_TARGET_NODE], [], "multi-write", "first, second = [1, 2]", "third, fourth = [3, 4]", "", ""),
     Case.new(%w[PM_LOCAL_VARIABLE_READ_NODE], [], "local-read", "process(value)", "process(other)", "", ""),
@@ -71,7 +74,43 @@ class FlayGeneratedDescriptorContract
     Case.new(%w[PM_BEGIN_NODE PM_ENSURE_NODE], [], "ensure", "begin; process(value); ensure; finish(value); end", "begin; render(other); ensure; complete(other); end", "", ""),
     Case.new(%w[PM_NEXT_NODE], [], "next", "items.each do |item|; next item if item; item; end", "items.each do |item|; next item if item; item; end", "", ""),
     Case.new(%w[PM_IF_NODE PM_ELSE_NODE], [], "if-else", "if ready then process(value) else finish(value) end", "if active then render(other) else complete(other) end", "", ""),
-    Case.new(%w[PM_UNLESS_NODE], [], "unless", "unless ready then process(value) else finish(value) end", "unless active then render(other) else complete(other) end", "", "")
+    Case.new(%w[PM_UNLESS_NODE], [], "unless", "unless ready then process(value) else finish(value) end", "unless active then render(other) else complete(other) end", "", ""),
+    Case.new(%w[PM_LOCAL_VARIABLE_WRITE_NODE PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE PM_IF_NODE PM_ELSE_NODE PM_CALL_NODE PM_BLOCK_NODE PM_BLOCK_PARAMETERS_NODE PM_INTEGER_NODE PM_PARAMETERS_NODE PM_REQUIRED_PARAMETER_NODE PM_OPTIONAL_PARAMETER_NODE],
+      %w[PM_REQUIRED_PARAMETER_NODE PM_OPTIONAL_PARAMETER_NODE PM_REQUIRED_KEYWORD_PARAMETER_NODE PM_BLOCK_PARAMETER_NODE], "composed-method",
+      "current = process(required, mode); current += 1; if optional; items.map { |value, entry = 2| callback.call(process(value, current)) }; else; process(current, optional); end",
+      "total = render(source, state); total += 2; if fallback; rows.map { |item, alternate = 4| handler.call(convert(item, total)) }; else; render(total, fallback); end",
+      "(required, optional = 1, mode:, &callback)", "(source, fallback = 3, state:, &handler)", "defn"),
+    Case.new(%w[PM_LOCAL_VARIABLE_WRITE_NODE PM_LOCAL_VARIABLE_OPERATOR_WRITE_NODE PM_IF_NODE PM_ELSE_NODE PM_CALL_NODE PM_BLOCK_NODE PM_BLOCK_PARAMETERS_NODE PM_INTEGER_NODE PM_PARAMETERS_NODE PM_REQUIRED_PARAMETER_NODE PM_OPTIONAL_PARAMETER_NODE],
+      %w[PM_REQUIRED_PARAMETER_NODE PM_OPTIONAL_PARAMETER_NODE PM_REQUIRED_KEYWORD_PARAMETER_NODE PM_BLOCK_PARAMETER_NODE], "composed-class-method",
+      "current = process(required, mode); current += 1; if optional; items.map { |value, entry = 2| callback.call(process(value, current)) }; else; process(current, optional); end",
+      "total = render(source, state); total += 2; if fallback; rows.map { |item, alternate = 4| handler.call(convert(item, total)) }; else; render(total, fallback); end",
+      "(required, optional = 1, mode:, &callback)", "(source, fallback = 3, state:, &handler)", "defn", "class"),
+    Case.new(COMPOSED_NODE_TYPES, COMPOSED_PARAMETER_TYPES, "composed-class-signature-block",
+      "rows.map { |value, fallback = 2| callback.call(process(value, optional)) }",
+      "records.map { |item, alternate = 4| handler.call(process(item, fallback)) }",
+      "(required, optional = 1, *rest, mode:, strict: false, **options, &callback)",
+      "(source, fallback = 3, *tail, state:, safe: true, **settings, &handler)", "iter", "class"),
+    Case.new(COMPOSED_NODE_TYPES, COMPOSED_PARAMETER_TYPES, "composed-class-three-signatures",
+      "rows.map { |value, fallback = 2| callback.call(process(value, optional)) }",
+      "records.map { |item, alternate = 4| handler.call(process(item, fallback)) }",
+      "(required, optional = 1, *rest, mode:, strict: false, **options, &callback)",
+      "(source, fallback = 3, *tail, state:, safe: true, **settings, &handler)", "iter", "class",
+      "entries.map { |entry, backup = 6| receiver.call(process(entry, default)) }",
+      "(input, default = 5, *extra, context:, enabled: nil, **keywords, &receiver)"),
+    Case.new(COMPOSED_NODE_TYPES, COMPOSED_PARAMETER_TYPES, "composed-class-identical-block-trio",
+      "rows.map { |value, fallback = 2| callback.call(process(value, optional)) }",
+      "rows.map { |value, fallback = 2| callback.call(process(value, optional)) }",
+      "(required, optional = 1, *rest, mode:, strict: false, **options, &callback)",
+      "(required, optional = 1, *rest, mode:, safe: true, **options, &callback)", "iter", "class",
+      "rows.map { |value, fallback = 2| callback.call(process(value, optional)) }",
+      "(required, optional = 1, *rest, mode:, enabled: nil, **options, &callback)"),
+    Case.new(COMPOSED_NODE_TYPES, COMPOSED_PARAMETER_TYPES, "composed-class-subset-block",
+      "rows.map { |value, fallback = 2| callback.call(process(value, optional)) }",
+      "records.map { |item, alternate = 4| handler.call(process(item, fallback)) }",
+      "(required, optional = 1, *rest, mode:, strict: false, **options, &callback)",
+      "(source, fallback = 3, *tail, state:, safe: true, **settings, &handler)", "iter", "class",
+      "entries.each { |entry| receiver.process(entry, default) }",
+      "(input, default = 5, *extra, context:, enabled: nil, **keywords, &receiver)", 2)
   ].freeze
   def self.verify
     root = ENV["FLEEK_TEMP_ROOT"] || "/tmp"
@@ -126,6 +165,7 @@ class FlayGeneratedDescriptorContract
       reference_results = run_cases(run, "reference", :flay)
       verify_generated_reports(native_results, reference_results, run)
       verify_generated_boundaries(run)
+      verify_multiple_block_groups(run)
     ensure
       cleanup_run(run)
     end
@@ -138,9 +178,13 @@ class FlayGeneratedDescriptorContract
       path = "#{run.directory}/#{item.name}.rb"
       source = "def transform#{item.first_parameters}\n  #{item.first_body}\nend\n\n"
       source << "def transform#{item.second_parameters}\n  #{item.second_body}\nend\n\n"
+      source << "def transform#{item.third_parameters}\n  #{item.third_body}\nend\n\n" if item.third_body
+      if item.scope == "class"
+        source = "class ComposedMethods\n#{source.lines.map { |line| "  #{line}" }.join}end\n"
+      end
       File.write(path, source)
       paths << path
-      run.expected_locations << [path + ":1", path + ":5"]
+      run.expected_locations << candidate_lines(path, item)
     end
     File.write(run.evidence_path, NODE_CASES.map do |item|
       "#{item.name}: nodes=#{item.node_types.join(',')} parameters=#{item.parameter_types.join(',')}"
@@ -148,13 +192,83 @@ class FlayGeneratedDescriptorContract
     paths
   end
 
+  def self.class_scoped?(item)
+    item.scope == "class"
+  end
+
+  def self.iter_group?(item)
+    item.expected_node == "iter"
+  end
+
+  def self.first_candidate_line(item)
+    return 1 unless class_scoped?(item)
+
+    iter_group?(item) ? 3 : 2
+  end
+
+  def self.second_candidate_line(item)
+    return 5 unless class_scoped?(item)
+
+    iter_group?(item) ? 7 : 6
+  end
+
+  def self.candidate_lines(path, item)
+    count = item.expected_candidates || (item.third_body ? 3 : 2)
+    first = class_scoped?(item) && iter_group?(item) ? 3 : first_candidate_line(item)
+    (0...count).map { |index| "#{path}:#{first + index * 4}" }
+  end
+
   def self.verify_generated_boundaries(run)
     clean = "#{run.directory}/clean.rb"
+    class_clean = "#{run.directory}/class-clean.rb"
     boundary = "#{run.directory}/unsupported.rb"
+    class_boundary = "#{run.directory}/class-unsupported.rb"
     File.write(clean, "def transform\n  process(value)\nend\n\ndef transform\n  return\nend\n")
+    File.write(class_clean, "class ComposedMethods\n  def transform\n    process(value)\n  end\n\n  def transform\n    return\n  end\nend\n")
     File.write(boundary, "def transform(value = [])\n  process(value)\nend\n\ndef transform(value = [])\n  process(value)\nend\n")
+    File.write(class_boundary, "class ComposedMethods\n  def transform(value = [])\n    process(value)\n  end\n\n  def transform(value = [])\n    process(value)\n  end\nend\n")
     FlayMethodCandidateContract.verify_no_group(clean, "generated-descriptor-#{run.id}-clean")
+    FlayMethodCandidateContract.verify_no_group(class_clean, "generated-descriptor-#{run.id}-class-clean")
     FlayMethodCandidateContract.verify_unsupported(boundary, "generated-descriptor-#{run.id}-boundary", 24)
+    FlayMethodCandidateContract.verify_unsupported(class_boundary, "generated-descriptor-#{run.id}-class-boundary", 24, "defn", [2, 6])
+  end
+
+  def self.verify_multiple_block_groups(run)
+    path = "#{run.directory}/multiple-block-groups.rb"
+    source = <<~RUBY
+      class ComposedMethods
+        def transform(strict: false)
+          rows.map { |value, fallback = 1| value }
+          records.select { |item, fallback = 1| process(item) }
+        end
+
+        def transform(safe: true)
+          rows.map { |value, fallback = 1| value }
+          records.select { |item, fallback = 1| process(item) }
+        end
+      end
+    RUBY
+    File.write(path, source)
+    native = run_single_case(run, path, "multi-block-native", :fleek)
+    reference = run_single_case(run, path, "multi-block-reference", :flay)
+    native_groups = parse_native_groups(native[1], path, "iter")
+    reference_groups = parse_reference_groups(reference[1], path, "iter")
+    expected = [["#{path}:3", "#{path}:8"], ["#{path}:4", "#{path}:9"]]
+    unless native[0] == 2 && native[2].empty? && reference[0].zero? && native_groups == reference_groups &&
+        native_groups.map(&:locations).sort_by(&:first) == expected.sort_by(&:first) && native_groups.length == 2 &&
+        native[1].include?("Status: findings") && native[1].include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded")
+      raise "composed class multiple-block groups differed: Flay status=#{reference[0]} groups=#{reference_groups.inspect} #{reference[1]} Fleek status=#{native[0]} groups=#{native_groups.inspect} #{native[1]}"
+    end
+    puts "generated-descriptor-#{run.id}-multiple-block-groups contract: pass"
+  end
+
+  def self.run_single_case(run, path, prefix, kind)
+    output, error = worker_paths(run, prefix, 0)
+    paths = reference_run?(kind) ? run.reference_output_paths : run.output_paths
+    paths.concat([output, error])
+    process_id = spawn_case(kind, path, output, error)
+    _, status = Process.waitpid2(process_id)
+    [status.exitstatus, File.read(output), File.read(error)]
   end
 
   def self.run_cases(run, prefix, kind)
@@ -164,7 +278,7 @@ class FlayGeneratedDescriptorContract
     pending = run.paths.each_with_index.to_a
     running = []
     results = Array.new(run.paths.length)
-    output_paths = kind == :flay ? run.reference_output_paths : run.output_paths
+    output_paths = reference_run?(kind) ? run.reference_output_paths : run.output_paths
     while !pending.empty? || !running.empty?
       while running.length < jobs && !pending.empty?
         path, index = pending.shift
@@ -189,9 +303,13 @@ class FlayGeneratedDescriptorContract
   end
 
   def self.spawn_case(kind, path, output, error)
-    return FlayMethodCandidateContract.spawn_flay(path, output, error) if kind == :flay
+    return FlayMethodCandidateContract.spawn_flay(path, output, error) if reference_run?(kind)
 
     FlayMethodCandidateContract.spawn_fleek(path, output, error)
+  end
+
+  def self.reference_run?(kind)
+    kind == :flay
   end
 
   def self.verify_generated_reports(native_results, reference_results, run)
@@ -200,7 +318,8 @@ class FlayGeneratedDescriptorContract
     native_total = 0
     native_results.each_with_index do |result, index|
       status, output, error = result
-      groups = parse_native_groups(output, run.paths[index])
+      expected_node = NODE_CASES[index].expected_node || "defn"
+      groups = parse_native_groups(output, run.paths[index], expected_node)
       verify_single_group(status, 2, error, groups, NODE_CASES[index].name, output)
       coverage = "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded"
       unless output.include?(coverage) && output.include?("Status: findings")
@@ -212,7 +331,8 @@ class FlayGeneratedDescriptorContract
     reference_total = 0
     reference_results.each_with_index do |result, index|
       status, output, error = result
-      groups = parse_reference_groups(output, run.paths[index])
+      expected_node = NODE_CASES[index].expected_node || "defn"
+      groups = parse_reference_groups(output, run.paths[index], expected_node)
       verify_single_group(status, 0, error, groups, NODE_CASES[index].name, output)
       reported_total = capture(output, /Total score \(lower is better\) = (\d+)/, 1)
       unless reported_total && reported_total.to_i == groups[0].score
@@ -267,15 +387,16 @@ class FlayGeneratedDescriptorContract
     File.delete(run.evidence_path) if !ENV.key?("FLEEK_TEMP_ROOT") && File.file?(run.evidence_path)
   end
 
-  def self.parse_reference_groups(output, directory)
+  def self.parse_reference_groups(output, directory, node)
     groups = []
     current = nil
     output.lines.each do |line|
-      header = line.match(/^\d+\) (Similar|IDENTICAL) code found in :(?:defn|class) \(mass(\*2)? = (\d+)\)$/)
+      header = line.match(/^\d+\) (Similar|IDENTICAL) code found in :#{node} \(mass(\*(\d+))? = (\d+)\)$/)
       if header
-        mass = header[3].to_i
-        mass /= 2 if header[2]
-        current = Group.new(header[1] == "IDENTICAL" ? "identical" : "similar", mass, header[2] ? mass * 2 : mass, [])
+        mass = header[4].to_i
+        multiplier = header[3] ? header[3].to_i : 1
+        mass /= multiplier
+        current = Group.new(header[1] == "IDENTICAL" ? "identical" : "similar", mass, mass * multiplier, [])
         groups << current
       elsif current && line.strip.start_with?("#{directory}:")
         current.locations << line.strip
@@ -284,10 +405,10 @@ class FlayGeneratedDescriptorContract
     groups
   end
 
-  def self.parse_native_groups(output, path)
+  def self.parse_native_groups(output, path, node)
     groups = []
     output.lines.each do |line|
-      next unless line.include?('node="defn"')
+      next unless line.include?("node=\"#{node}\"")
       locations = capture(line, /locations="([^"]+)"/, 1)
       next unless locations
       lines = []

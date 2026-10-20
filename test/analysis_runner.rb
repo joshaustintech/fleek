@@ -122,7 +122,8 @@ end
 # Compares one compiled Flay method-candidate report with pinned Flay.
 class FlayMethodCandidateContract
   # :reek:TooManyStatements
-  def self.verify_unsupported(path, label, reference_score)
+  # :reek:LongParameterList
+  def self.verify_unsupported(path, label, reference_score, reference_node = "defn", reference_lines = [1, 5])
     root = ENV["FLEEK_TEMP_ROOT"] || "/tmp"
     actual_output_path = "#{root}/#{label}-actual.out"
     actual_error_path = "#{root}/#{label}-actual.err"
@@ -132,8 +133,12 @@ class FlayMethodCandidateContract
     reference_status = run_flay(path, reference_output_path, reference_error_path)
     actual_output = File.read(actual_output_path)
     reference_output = File.read(reference_output_path)
-    actual_valid = actual_status == 1 && actual_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded") && actual_output.include?("Status: incomplete") && File.read(actual_error_path).include?("unsupported Flay candidate syntax")
-    reference_valid = reference_status.success? && reference_output.include?("code found in :defn") && reference_output.include?("#{path}:1") && reference_output.include?("#{path}:5") && reference_output.include?("Total score (lower is better) = #{reference_score}")
+    actual_diagnostic = actual_output + File.read(actual_error_path)
+    partial_boundary = actual_diagnostic.include?("unsupported Flay candidate syntax") || actual_output.include?("scope=partial")
+    actual_valid = actual_status == 1 && actual_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded") && actual_output.include?("Status: incomplete") && partial_boundary
+    reference_valid = reference_status.success? && reference_output.include?("code found in :#{reference_node}") &&
+      reference_lines.all? { |line| reference_output.include?("#{path}:#{line}") } &&
+      reference_output.include?("Total score (lower is better) = #{reference_score}")
     raise "#{label} unsupported result differed from Flay: #{actual_output} #{reference_output}" unless actual_valid && reference_valid
     puts "#{label} contract: pass"
   ensure

@@ -2586,7 +2586,6 @@ class Fleek
       bool compares_name;
       bool optional_name;
       bool has_default;
-      bool counts_as_optional;
       bool block_optional_mass;
       bool allow_integer_call_argument;
       size_t name_offset;
@@ -2597,12 +2596,12 @@ class Fleek
     static const fleek_duplication_parameter_rule_t fleek_duplication_parameter_rules[PM_SCOPE_NODE + 1] = {
       [PM_BLOCK_PARAMETERS_NODE] = { .supported = true, .block_optional_mass = true, .mass_adjustment = 1 },
       [PM_REQUIRED_PARAMETER_NODE] = { .supported = true, .compares_name = true, .name_offset = offsetof(pm_required_parameter_node_t, name) },
-      [PM_OPTIONAL_PARAMETER_NODE] = { .supported = true, .compares_name = true, .has_default = true, .counts_as_optional = true,
+      [PM_OPTIONAL_PARAMETER_NODE] = { .supported = true, .compares_name = true, .has_default = true,
         .allow_integer_call_argument = true, .name_offset = offsetof(pm_optional_parameter_node_t, name),
         .default_offset = offsetof(pm_optional_parameter_node_t, value), .mass_adjustment = 2 },
       [PM_REQUIRED_KEYWORD_PARAMETER_NODE] = { .supported = true, .compares_name = true,
         .name_offset = offsetof(pm_required_keyword_parameter_node_t, name), .mass_adjustment = 1 },
-      [PM_OPTIONAL_KEYWORD_PARAMETER_NODE] = { .supported = true, .compares_name = true, .has_default = true, .counts_as_optional = true,
+      [PM_OPTIONAL_KEYWORD_PARAMETER_NODE] = { .supported = true, .compares_name = true, .has_default = true,
         .name_offset = offsetof(pm_optional_keyword_parameter_node_t, name),
         .default_offset = offsetof(pm_optional_keyword_parameter_node_t, value), .mass_adjustment = 2 },
       [PM_REST_PARAMETER_NODE] = { .supported = true, .compares_name = true, .optional_name = true,
@@ -2839,9 +2838,9 @@ class Fleek
       size_t group_mass;
       size_t multiplier;
       if (weight == FLEEK_DUPLICATION_GROUP_ITER) {
-        if (node_mass > SIZE_MAX / 2) return false;
-        group_mass = node_mass * 2;
-        multiplier = identical ? 2 : 1;
+        if (node_mass != 0 && count > SIZE_MAX / node_mass) return false;
+        group_mass = node_mass * count;
+        multiplier = identical ? count : 1;
       } else {
         if (node_mass != 0 && count > SIZE_MAX / node_mass) return false;
         group_mass = node_mass * count;
@@ -2887,26 +2886,6 @@ class Fleek
       }
       return PM_NODE_TYPE_P(left, PM_TRUE_NODE) || PM_NODE_TYPE_P(left, PM_FALSE_NODE) || PM_NODE_TYPE_P(left, PM_NIL_NODE);
     }
-    static size_t fleek_duplication_optional_parameter_count(const pm_def_node_t *method) {
-      if (method->parameters == NULL) return 0;
-      const pm_parameters_node_t *parameters = (const pm_parameters_node_t *) method->parameters;
-      size_t count = 0;
-      for (size_t index = 0; index < parameters->optionals.size; index++) {
-        const fleek_duplication_parameter_rule_t *rule = fleek_duplication_parameter_rule(parameters->optionals.nodes[index]->type);
-        if (rule != NULL && rule->counts_as_optional) {
-          if (count == SIZE_MAX) return SIZE_MAX;
-          count++;
-        }
-      }
-      for (size_t index = 0; index < parameters->keywords.size; index++) {
-        const fleek_duplication_parameter_rule_t *rule = fleek_duplication_parameter_rule(parameters->keywords.nodes[index]->type);
-        if (rule != NULL && rule->counts_as_optional) {
-          if (count == SIZE_MAX) return SIZE_MAX;
-          count++;
-        }
-      }
-      return count;
-    }
     static bool fleek_duplication_optional_parameter_name_equal(pm_parser_t *parser, pm_constant_id_t left, pm_constant_id_t right) {
       return (left == 0 || right == 0) ? left == right : fleek_constants_equal(parser, left, right);
     }
@@ -2933,6 +2912,66 @@ class Fleek
         if (!fleek_duplication_parameter_nodes_equal(parser, left->nodes[index], right->nodes[index], compare_default)) return false;
       }
       return true;
+    }
+    static bool fleek_duplication_parameter_node_shapes_equal(const pm_node_t *left, const pm_node_t *right) {
+      if (left->type != right->type) return false;
+      const fleek_duplication_parameter_rule_t *rule = fleek_duplication_parameter_rule(left->type);
+      if (rule == NULL || !rule->has_default) return true;
+      const pm_node_t *left_default = *(const pm_node_t *const *) ((const uint8_t *) left + rule->default_offset);
+      const pm_node_t *right_default = *(const pm_node_t *const *) ((const uint8_t *) right + rule->default_offset);
+      if (left_default->type != right_default->type) return false;
+      if (PM_NODE_TYPE_P(left_default, PM_CALL_NODE)) {
+        const pm_call_node_t *left_call = (const pm_call_node_t *) left_default;
+        const pm_call_node_t *right_call = (const pm_call_node_t *) right_default;
+        size_t left_count = left_call->arguments == NULL ? 0 : left_call->arguments->arguments.size;
+        size_t right_count = right_call->arguments == NULL ? 0 : right_call->arguments->arguments.size;
+        if (left_count != right_count) return false;
+        for (size_t index = 0; index < left_count; index++) {
+          if (left_call->arguments->arguments.nodes[index]->type != right_call->arguments->arguments.nodes[index]->type) return false;
+        }
+      }
+      return true;
+    }
+    static bool fleek_duplication_parameter_array_shapes_equal(const pm_node_list_t *left, const pm_node_list_t *right) {
+      if (left->size != right->size) return false;
+      for (size_t index = 0; index < left->size; index++) {
+        if (!fleek_duplication_parameter_node_shapes_equal(left->nodes[index], right->nodes[index])) return false;
+      }
+      return true;
+    }
+    static bool fleek_duplication_optional_keyword_shapes_equal(const pm_node_list_t *left, const pm_node_list_t *right) {
+      size_t left_count = 0;
+      size_t right_count = 0;
+      for (size_t index = 0; index < left->size; index++) if (PM_NODE_TYPE_P(left->nodes[index], PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) left_count++;
+      for (size_t index = 0; index < right->size; index++) if (PM_NODE_TYPE_P(right->nodes[index], PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) right_count++;
+      if (left_count != right_count) return false;
+      size_t left_index = 0;
+      size_t right_index = 0;
+      while (left_count > 0) {
+        while (!PM_NODE_TYPE_P(left->nodes[left_index], PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) left_index++;
+        while (!PM_NODE_TYPE_P(right->nodes[right_index], PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) right_index++;
+        if (!fleek_duplication_parameter_node_shapes_equal(left->nodes[left_index], right->nodes[right_index])) return false;
+        left_index++;
+        right_index++;
+        left_count--;
+      }
+      return true;
+    }
+    static bool fleek_duplication_method_parameter_shapes_equal(const pm_def_node_t *left, const pm_def_node_t *right) {
+      if (left->parameters == NULL || right->parameters == NULL) return left->parameters == right->parameters;
+      const pm_parameters_node_t *left_parameters = (const pm_parameters_node_t *) left->parameters;
+      const pm_parameters_node_t *right_parameters = (const pm_parameters_node_t *) right->parameters;
+      return fleek_duplication_parameter_array_shapes_equal(&left_parameters->optionals, &right_parameters->optionals) &&
+        fleek_duplication_optional_keyword_shapes_equal(&left_parameters->keywords, &right_parameters->keywords);
+    }
+    static size_t fleek_duplication_optional_parameter_count(const pm_def_node_t *method) {
+      if (method->parameters == NULL) return 0;
+      const pm_parameters_node_t *parameters = (const pm_parameters_node_t *) method->parameters;
+      size_t count = parameters->optionals.size;
+      for (size_t index = 0; index < parameters->keywords.size; index++) {
+        if (PM_NODE_TYPE_P(parameters->keywords.nodes[index], PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) count++;
+      }
+      return count;
     }
     static bool fleek_duplication_method_parameters_equal(pm_parser_t *parser, const pm_def_node_t *left, const pm_def_node_t *right) {
       if (left->parameters == NULL || right->parameters == NULL) return left->parameters == right->parameters;
@@ -3469,26 +3508,86 @@ class Fleek
       }
       return mass;
     }
+    typedef struct { bool identical; size_t mass; size_t count; int *lines; } fleek_duplication_iter_group_t;
     static int fleek_duplication_emit_matching_iter_group(pm_parser_t *parser, const uint8_t *source,
-        const fleek_duplication_method_t *left, const fleek_duplication_method_t *right, int mass_threshold) {
-      for (size_t left_node = 0; left_node < left->shape_count; left_node++) {
-        if (!PM_NODE_TYPE_P(left->data.ast.nodes[left_node], PM_BLOCK_NODE)) continue;
-        for (size_t right_node = 0; right_node < right->shape_count; right_node++) {
-          if (!PM_NODE_TYPE_P(right->data.ast.nodes[right_node], PM_BLOCK_NODE) ||
-              !fleek_duplication_class_subtrees_equal(left, left_node, right, right_node)) continue;
-          bool identical = fleek_duplication_class_subtree_values_equal(parser, left, left_node, right, right_node);
-          size_t left_mass = fleek_duplication_class_block_mass(left, left_node);
-          size_t right_mass = fleek_duplication_class_block_mass(right, right_node);
-          if (left_mass < (size_t) mass_threshold || left_mass != right_mass) continue;
-          int lines[2] = {
-            fleek_source_line(source, left->data.ast.nodes[left_node]->location.start),
-            fleek_source_line(source, right->data.ast.nodes[right_node]->location.start)
-          };
-          return fleek_duplication_append_group("iter", identical, left_mass, lines, 2,
-            FLEEK_DUPLICATION_GROUP_ITER) ? 1 : -1;
+        const fleek_duplication_method_t *const *methods, size_t count, int mass_threshold) {
+      size_t *offsets = malloc((count + 1) * sizeof(size_t));
+      if (offsets == NULL) return -1;
+      offsets[0] = 0;
+      for (size_t method = 0; method < count; method++) {
+        if (methods[method]->shape_count > SIZE_MAX - offsets[method]) { free(offsets); return -1; }
+        offsets[method + 1] = offsets[method] + methods[method]->shape_count;
+      }
+      size_t capacity = offsets[count];
+      int *lines = malloc(capacity * sizeof(int));
+      size_t *member_methods = malloc(capacity * sizeof(size_t));
+      size_t *member_nodes = malloc(capacity * sizeof(size_t));
+      bool *grouped = calloc(capacity, sizeof(bool));
+      fleek_duplication_iter_group_t *iter_groups = calloc(capacity, sizeof(*iter_groups));
+      if (lines == NULL || member_methods == NULL || member_nodes == NULL || grouped == NULL || iter_groups == NULL) {
+        free(offsets); free(lines); free(member_methods); free(member_nodes); free(grouped); free(iter_groups); return -1;
+      }
+      size_t groups = 0;
+      for (size_t first_member = 0; first_member < count; first_member++) {
+        const fleek_duplication_method_t *first = methods[first_member];
+        for (size_t first_node = 0; first_node < first->shape_count; first_node++) {
+          if (grouped[offsets[first_member] + first_node]) continue;
+          if (!PM_NODE_TYPE_P(first->data.ast.nodes[first_node], PM_BLOCK_NODE)) continue;
+          size_t first_mass = fleek_duplication_class_block_mass(first, first_node);
+          if (first_mass < (size_t) mass_threshold) continue;
+          size_t member_count = 0;
+          bool identical = true;
+          for (size_t candidate_index = 0; candidate_index < count; candidate_index++) {
+            const fleek_duplication_method_t *candidate = methods[candidate_index];
+            size_t candidate_node = candidate_index == first_member ? first_node : 0;
+            for (; candidate_node < candidate->shape_count; candidate_node++) {
+              if (grouped[offsets[candidate_index] + candidate_node] ||
+                  !PM_NODE_TYPE_P(candidate->data.ast.nodes[candidate_node], PM_BLOCK_NODE) ||
+                  !fleek_duplication_class_subtrees_equal(first, first_node, candidate, candidate_node) ||
+                  fleek_duplication_class_block_mass(candidate, candidate_node) != first_mass) continue;
+              member_methods[member_count] = candidate_index;
+              member_nodes[member_count] = candidate_node;
+              lines[member_count++] = fleek_source_line(source, candidate->data.ast.nodes[candidate_node]->location.start);
+              if (!fleek_duplication_class_subtree_values_equal(parser, first, first_node, candidate, candidate_node)) identical = false;
+            }
+          }
+          if (member_count < 2) continue;
+          iter_groups[groups].lines = malloc(member_count * sizeof(int));
+          if (iter_groups[groups].lines == NULL) { groups = SIZE_MAX; break; }
+          memcpy(iter_groups[groups].lines, lines, member_count * sizeof(int));
+          iter_groups[groups].identical = identical;
+          iter_groups[groups].mass = first_mass;
+          iter_groups[groups].count = member_count;
+          for (size_t member = 0; member < member_count; member++) grouped[offsets[member_methods[member]] + member_nodes[member]] = true;
+          groups++;
+        }
+        if (groups == SIZE_MAX) break;
+      }
+      if (groups != SIZE_MAX) {
+        for (size_t index = 1; index < groups; index++) {
+          fleek_duplication_iter_group_t current = iter_groups[index];
+          size_t prior = index;
+          while (prior > 0 && iter_groups[prior - 1].mass < current.mass) {
+            iter_groups[prior] = iter_groups[prior - 1];
+            prior--;
+          }
+          iter_groups[prior] = current;
+        }
+        for (size_t index = 0; index < groups; index++) {
+          if (!fleek_duplication_append_group("iter", iter_groups[index].identical, iter_groups[index].mass,
+              iter_groups[index].lines, iter_groups[index].count, FLEEK_DUPLICATION_GROUP_ITER)) { groups = SIZE_MAX; break; }
         }
       }
-      return 0;
+      size_t allocated_groups = groups == SIZE_MAX ? capacity : groups;
+      if (allocated_groups > capacity) allocated_groups = capacity;
+      for (size_t index = 0; index < allocated_groups; index++) free(iter_groups[index].lines);
+      free(offsets);
+      free(lines);
+      free(member_methods);
+      free(member_nodes);
+      free(grouped);
+      free(iter_groups);
+      return groups == SIZE_MAX ? -1 : (int) groups;
     }
     static bool fleek_duplication_candidate_shapes_equal(const fleek_duplication_class_candidates_t *set, size_t left, size_t right) {
       return fleek_duplication_class_shapes_equal(&set->candidates[left], &set->candidates[right]) &&
@@ -3620,7 +3719,8 @@ class Fleek
       free(lines);
       return complete;
     }
-    static bool fleek_duplication_emit_method_groups(pm_parser_t *parser, const fleek_duplication_class_candidates_t *set, int mass_threshold, const bool *covered, bool liberal) {
+    static bool fleek_duplication_emit_method_groups(pm_parser_t *parser, const uint8_t *source,
+        const fleek_duplication_class_candidates_t *set, int mass_threshold, const bool *covered, bool liberal) {
       bool *grouped = calloc(set->count, sizeof(bool));
       size_t *members = malloc(set->count * sizeof(size_t));
       int *lines = malloc(set->count * sizeof(int));
@@ -3634,6 +3734,20 @@ class Fleek
           if (!grouped[candidate] && fleek_duplication_candidate_shapes_equal(set, first, candidate)) members[count++] = candidate;
         }
         if (count < 2) continue;
+        bool parameter_shapes_equal = true;
+        for (size_t index = 1; index < count; index++) {
+          if (!fleek_duplication_method_parameter_shapes_equal(set->methods[members[0]], set->methods[members[index]])) parameter_shapes_equal = false;
+        }
+        if (!parameter_shapes_equal) {
+          for (size_t index = 0; index < count; index++) grouped[members[index]] = true;
+          const fleek_duplication_method_t **iter_methods = malloc(count * sizeof(*iter_methods));
+          if (iter_methods == NULL) { complete = false; break; }
+          for (size_t index = 0; index < count; index++) iter_methods[index] = &set->candidates[members[index]];
+          int iter_group = fleek_duplication_emit_matching_iter_group(parser, source, iter_methods, count, mass_threshold);
+          free(iter_methods);
+          if (iter_group < 0) { complete = false; break; }
+          continue;
+        }
         for (size_t index = 0; index < count; index++) grouped[members[index]] = true;
         bool pruned = false;
         bool identical = true;
@@ -3675,12 +3789,13 @@ class Fleek
       set->scope_lines = NULL;
       set->capacity = 0;
     }
-    static bool fleek_duplication_analyze_scoped_candidates(pm_parser_t *parser, const fleek_duplication_class_candidates_t *set, int mass_threshold, bool liberal) {
+    static bool fleek_duplication_analyze_scoped_candidates(pm_parser_t *parser, const uint8_t *source,
+        const fleek_duplication_class_candidates_t *set, int mass_threshold, bool liberal) {
       if (fleek_duplication_has_partial_subtree(set, mass_threshold)) return false;
       bool *covered = calloc(set->count, sizeof(bool));
       if (covered == NULL) return false;
       bool complete = fleek_duplication_emit_scope_groups(parser, set, mass_threshold, covered) &&
-        fleek_duplication_emit_method_groups(parser, set, mass_threshold, covered, liberal);
+        fleek_duplication_emit_method_groups(parser, source, set, mass_threshold, covered, liberal);
       free(covered);
       return complete;
     }
@@ -3801,7 +3916,7 @@ class Fleek
           fleek_duplication_free_candidate_scope_names(&class_candidates);
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
         }
-        if (!fleek_duplication_analyze_scoped_candidates(&parser, &class_candidates, mass_threshold, liberal)) {
+        if (!fleek_duplication_analyze_scoped_candidates(&parser, (const uint8_t *) source, &class_candidates, mass_threshold, liberal)) {
           fleek_duplication_free_candidate_scope_names(&class_candidates);
           pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return FLEEK_DUPLICATION_UNSUPPORTED_SOURCE;
         }
@@ -3824,11 +3939,13 @@ class Fleek
       const pm_def_node_t *second = methods[1];
       size_t mass = fleek_duplication_class_method_mass(&first_method);
       bool same_shape = fleek_duplication_class_shapes_equal(&first_method, &second_method) &&
-        fleek_duplication_optional_parameter_count(first) == fleek_duplication_optional_parameter_count(second);
+        fleek_duplication_optional_parameter_count(first) == fleek_duplication_optional_parameter_count(second) &&
+        fleek_duplication_method_parameter_shapes_equal(first, second);
       bool identical = same_shape && fleek_duplication_methods_identical(&parser, first, second, &first_method, &second_method);
-      int iter_group = fleek_duplication_method_parameters_equal(&parser, first, second) ? 0 :
+      const fleek_duplication_method_t *iter_methods[2] = { &first_method, &second_method };
+      int iter_group = same_shape ? 0 :
         fleek_duplication_emit_matching_iter_group(&parser, (const uint8_t *) source,
-          &first_method, &second_method, mass_threshold);
+          iter_methods, 2, mass_threshold);
       if (iter_group < 0) {
         fleek_duplication_free_candidate_ast(&first_method);
         fleek_duplication_free_candidate_ast(&second_method);

@@ -30,7 +30,7 @@ class SimilarComposedBlockContract
     File.write(path, source(item))
     actual_process = Process.spawn("build/fleek", "--checks", "flay:StructuralDuplication", "--mass", "3", path,
       out: actual_output, err: actual_error)
-    reference_process = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "flay", "--mass", "3", path,
+    reference_process = Process.spawn(ENV.fetch("BUNDLE", "bundle"), "exec", "flay", "--mass", "3", path,
       out: reference_output, err: reference_error)
     actual_status = run(actual_process)
     reference_status = run(reference_process)
