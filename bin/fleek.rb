@@ -1078,8 +1078,35 @@ class Fleek
       if (parser.error_list.head != NULL) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1;
       }
-      if (fleek_has_class_new(&parser, root)) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
       pm_visit_node(root, fleek_collect_classes, NULL);
+      fleek_class_new_search_t class_new = fleek_find_class_new_assignment(&parser, root);
+      if (class_new.unsupported) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+      }
+      if (class_new.call != NULL) {
+        bool supported_class_new = class_new.assignment != NULL && class_new.call->block == NULL && class_new.call->arguments != NULL &&
+          class_new.call->arguments->arguments.size == 1 && fleek_class_count == 0 && fleek_module_count == 0 &&
+          PM_NODE_TYPE_P(class_new.call->arguments->arguments.nodes[0], PM_CONSTANT_READ_NODE);
+        if (!supported_class_new) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        const pm_constant_write_node_t *assignment = (const pm_constant_write_node_t *) class_new.assignment;
+        pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, assignment->name);
+        int comment_status = fleek_scope_descriptively_commented(&parser, assignment->name_loc.start);
+        if (comment_status < 0) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        int result = 0;
+        if (comment_status == 0) {
+          int line = fleek_source_line((const uint8_t *) source, assignment->name_loc.start);
+          int written = snprintf(fleek_irresponsible_module_buffer, sizeof(fleek_irresponsible_module_buffer), "%d\\t%.*s\\t\\n", line, (int) class_name->length, class_name->start);
+          result = written < 0 || (size_t) written >= sizeof(fleek_irresponsible_module_buffer) ? -4 : 1;
+        }
+        pm_node_destroy(&parser, root);
+        pm_parser_free(&parser);
+        pm_options_free(&options);
+        return result;
+      }
       if (fleek_class_count + fleek_module_count == 0) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
       }
@@ -5689,7 +5716,7 @@ class Fleek
     "InstanceVariableAssumption" => ["direct instance methods in one simple class, including one direct nested class", "%s assumes too much for instance variable '%s'"],
     "SubclassedFromCoreClass" => ["one simple class inheriting directly from Array, Hash, or String", "%s inherits from core class '%s'"],
     "ModuleInitialize" => ["one simple module or one direct nested module with direct instance methods", "%s has initialize method"],
-    "IrresponsibleModule" => ["one simple class or module", "%s has no descriptive comment"],
+    "IrresponsibleModule" => ["one simple class or module, or one direct Class.new assignment", "%s has no descriptive comment"],
     "LongParameterList" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has %s parameters"],
     "BooleanParameter" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has boolean parameter '%s'"],
     "LongYieldList" => ["one simple class or module with direct instance methods", "%s yields %s parameters"],

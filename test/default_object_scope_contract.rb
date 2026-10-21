@@ -78,8 +78,51 @@ class DefaultObjectScopeContract
 
   def self.verify_unsupported_shapes
     verify_subclassed_class_new_assignment
-    verify_unsupported_detector("IrresponsibleModule", "test/fixtures/class_new_assignment.rb", "has no descriptive comment")
+    verify_irresponsible_class_new_assignment
     verify_class_new_method_call
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_irresponsible_class_new_assignment
+    source = "test/fixtures/class_new_assignment.rb"
+    reference = run_reek_for("IrresponsibleModule", source)
+    actual = run_fleek_check("IrresponsibleModule", source)
+    verify(reference[0] == 2 && reference[1].include?("[1]:IrresponsibleModule: RecordSet has no descriptive comment"), "pinned undocumented Class.new finding changed")
+    AnalysisRunner.assert_status(actual, reference, "undocumented Class.new")
+    AnalysisRunner.assert_detector_findings(actual, reference, "undocumented Class.new")
+    verify_described_class_new_assignment
+    verify_class_new_irresponsible_exclusion(source)
+    verify_dynamic_class_new_irresponsible_incomplete
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_described_class_new_assignment
+    source = "test/fixtures/class_new_described_assignment.rb"
+    reference = run_reek_for("IrresponsibleModule", source)
+    actual = run_fleek_check("IrresponsibleModule", source)
+    output = actual[1]
+    verify(reference[0] == 0, "pinned descriptive Class.new control changed")
+    verify(actual[0] == 0 && actual[2].empty? && output.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && output.include?("Status: complete"), "described Class.new was not analyzed cleanly")
+    AnalysisRunner.assert_detector_findings(actual, reference, "described Class.new")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_class_new_irresponsible_exclusion(source)
+    config = "test/fixtures/config_irresponsible_class_new_exclusion.yml"
+    reference = run_reek_config_for("IrresponsibleModule", source, config)
+    actual = run_fleek_check_config("IrresponsibleModule", source, config)
+    output = actual[1]
+    verify(reference[0] == 0, "pinned Class.new exclusion changed")
+    verify(actual[0] == 0 && actual[2].empty? && output.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && output.include?("Status: complete"), "Class.new exclusion did not stay complete")
+    AnalysisRunner.assert_detector_findings(actual, reference, "Class.new exclusion")
+  end
+
+  def self.verify_dynamic_class_new_irresponsible_incomplete
+    source = "test/fixtures/class_new_dynamic_superclass_assignment.rb"
+    reference = run_reek_for("IrresponsibleModule", source)
+    actual = run_fleek_check("IrresponsibleModule", source)
+    verify(reference[0] == 2, "pinned dynamic Class.new IrresponsibleModule result changed")
+    AnalysisRunner.assert_unsupported(actual, "dynamic Class.new IrresponsibleModule")
   end
 
   # :reek:TooManyStatements
