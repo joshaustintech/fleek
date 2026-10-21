@@ -102,7 +102,9 @@ ConfigurationProcess.assert_rejected_by_both("test/fixtures/config_malformed.yml
   ["test/fixtures/config_unknown_setting.yml", "unsupported detector setting", "unknown setting"],
   ["test/fixtures/config_wrong_scalar_type.yml", "unsupported detector setting", "wrong scalar type"],
   ["test/fixtures/config_wrong_list_type.yml", "unsupported ClassVariable setting", "wrong list type"],
-  ["test/fixtures/config_invalid_threshold.yml", "unsupported detector setting", "invalid threshold"]
+  ["test/fixtures/config_invalid_threshold.yml", "unsupported detector setting", "invalid threshold"],
+  ["test/fixtures/config_long_parameter_list_unknown_override.yml", "unsupported LongParameterList override context", "unsupported method override context"],
+  ["test/fixtures/config_long_parameter_list_invalid_override.yml", "unsupported LongParameterList override setting", "invalid method override threshold"]
 ].each { |path, diagnostic, label| ConfigurationProcess.assert_rejected_by_both(path, diagnostic, label) }
 bad_mapping = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(source, "test/fixtures/config_bad_mapping.yml", "bad mapping", "", "fleek"))
 ConfigurationProcess.assert_rejected(bad_mapping, "malformed YAML mapping", "malformed YAML mapping")

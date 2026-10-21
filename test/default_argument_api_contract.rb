@@ -115,6 +115,8 @@ class DefaultArgumentApiContract
       verify_long_parameter_list_comment_suppression
     when "LongParameterList block body support"
       verify_long_parameter_block_limit
+    when "LongParameterList initializer override threshold"
+      verify_initializer_override
     when "missing BooleanParameter finding"
       verify_boolean_parameter
     when "missing LongYieldList finding", "missing LongYieldList block finding"
@@ -1101,7 +1103,21 @@ class DefaultArgumentApiContract
     source = "test/fixtures/initialize_parameter_list.rb"
     reference = run_reek(source)
     actual = run_fleek(source)
+    verify(AnalysisRunner.detector_warnings(reference, "LongParameterList").empty?,
+      "pinned default LongParameterList initializer threshold changed")
     AnalysisRunner.assert_detector_findings(actual, reference, "LongParameterList")
+    config = "test/fixtures/config_long_parameter_list_initializer_override.yml"
+    configured_reference = run_reek(source, "LongParameterList", config)
+    configured_actual = run_fleek(source, config, "reek:LongParameterList")
+    reference_output = configured_reference[1]
+    actual_output = configured_actual[1]
+    verify(configured_reference[0] == 2 && reference_output.include?("[2]:LongParameterList: Parcel#initialize has 5 parameters"),
+      "pinned LongParameterList initializer override changed")
+    verify(configured_reference[2].empty? && configured_actual[0] == 2 && configured_actual[2].empty? &&
+      actual_output.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") &&
+      actual_output.include?("Status: findings"), "LongParameterList initializer override outcome changed")
+    AnalysisRunner.assert_same_report(configured_actual, configured_reference, "LongParameterList initializer override")
+    AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "LongParameterList initializer override")
   end
 
   # :reek:TooManyStatements

@@ -1,5 +1,6 @@
 detectors:
   LongParameterList:
+    max_params: 6
     overrides:
       initialize:
         max_params: 4

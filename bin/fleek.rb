@@ -1182,7 +1182,7 @@ class Fleek
     }
 
     typedef int (*fleek_method_analyzer_t)(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
-    typedef struct { size_t maximum; const pm_node_t *scope; } fleek_long_parameter_state_t;
+    typedef struct { size_t maximum; size_t initialize_maximum; const pm_node_t *scope; } fleek_long_parameter_state_t;
     static int fleek_long_parameter_list_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     typedef struct { bool public_methods_only; bool method_is_public; bool unsupported_visibility; } fleek_utility_scan_t;
     typedef struct { size_t maximum; bool singleton_seen; } fleek_too_many_statements_scan_t;
@@ -1525,7 +1525,7 @@ class Fleek
       bool class_method = method->receiver != NULL;
       if ((class_method && !PM_NODE_TYPE_P(method->receiver, PM_SELF_NODE)) || (method->parameters != NULL && !PM_NODE_TYPE_P((const pm_node_t *) method->parameters, PM_PARAMETERS_NODE))) return -1;
       size_t count = fleek_parameter_count((const pm_parameters_node_t *) method->parameters);
-      size_t method_maximum = fleek_name_is(parser, method->name, "initialize") ? 5 : state->maximum;
+      size_t method_maximum = fleek_name_is(parser, method->name, "initialize") ? state->initialize_maximum : state->maximum;
       if (count <= method_maximum) return 0;
       pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
       int line = fleek_source_line(source, method->def_keyword_loc.start);
@@ -1538,10 +1538,10 @@ class Fleek
       return 1;
     }
 
-    int fleek_long_parameter_list(const char *source, size_t length, size_t maximum) {
+    int fleek_long_parameter_list(const char *source, size_t length, size_t maximum, size_t initialize_maximum) {
       fleek_long_parameter_list_buffer[0] = 0;
       fleek_long_parameter_list_used = 0;
-      fleek_long_parameter_state_t state = { maximum, NULL };
+      fleek_long_parameter_state_t state = { maximum, initialize_maximum, NULL };
       return fleek_scan_method_scope(source, length, fleek_long_parameter_list_method, &state, &state.scope);
     }
 
@@ -5127,7 +5127,7 @@ class Fleek
     ffi_func :fleek_module_initialize_finding, [], :str
     ffi_func :fleek_irresponsible_module, [:str, :size_t], :int
     ffi_func :fleek_irresponsible_module_finding, [], :str
-    ffi_func :fleek_long_parameter_list, [:str, :size_t, :size_t], :int
+    ffi_func :fleek_long_parameter_list, [:str, :size_t, :size_t, :size_t], :int
     ffi_func :fleek_long_parameter_list_finding, [], :str
     ffi_func :fleek_boolean_parameter, [:str, :size_t], :int
     ffi_func :fleek_boolean_parameter_finding, [], :str
@@ -5205,10 +5205,17 @@ class Fleek
       @scope_detector_enabled = []
       @detector_settings = []
       @scope_detector_settings = []
+      @override_markers = []
       @detector_excludes = []
       @scope_detector_excludes = []
       @list_detector = ""
       @list_setting = ""
+      @override_detector = ""
+      @override_context = ""
+      @override_start_line = 0
+      @override_context_indentation = 0
+      @override_setting_indentation = 0
+      @override_scope_index = -1
     end
 
     def self.load(explicit_path)
@@ -5249,7 +5256,9 @@ class Fleek
       @scope_detector = ""
       @scope_index = -1
       @list_target = ""
-      source.lines.each_with_index { |line, index| parse_line(line, index + 1) }
+      lines = source.lines
+      lines.each_with_index { |line, index| parse_line(line, index + 1) }
+      finish_detector_override(lines.length + 1) unless @override_detector.empty?
     end
 
     def parse_line(line, number)
@@ -5263,6 +5272,11 @@ class Fleek
 
       key, value = mapping_entry(content, number)
       return if key.empty?
+      unless @override_detector.empty?
+        return parse_detector_override(key, value, indentation, number) if indentation >= @override_context_indentation
+        finish_detector_override(number)
+        return if @error.length.positive?
+      end
       @list_target = ""
       return parse_root(key, value, number) if indentation == 0
       return parse_detector_field(key, value, number) if @section == "detectors"
@@ -5287,6 +5301,8 @@ class Fleek
       if detector_mapping?(indentation, key, value, 2)
         @global_detector = key
         @list_target = ""
+      elsif indentation == 4 && detector == "LongParameterList" && key == "overrides" && value.empty?
+        start_detector_override(detector, false, number)
       elsif indentation == 2
         fail_config(number, "unsupported enabled detector #{key}")
       elsif !detector.empty? && indentation == 4
@@ -5308,6 +5324,8 @@ class Fleek
         @scope_detector = ""
       elsif detector_mapping?(indentation, key, value, 4) && @scope_index >= 0
         @scope_detector = key
+      elsif indentation == 6 && @scope_detector == "LongParameterList" && key == "overrides" && value.empty?
+        start_detector_override(@scope_detector, true, number)
       elsif indentation == 4
         fail_config(number, "unsupported enabled directory detector #{key}")
       elsif indentation == 6 && !@scope_detector.empty?
@@ -5383,6 +5401,57 @@ class Fleek
       else
         fail_config(number, "unsupported detector setting #{key}")
       end
+    end
+
+    def start_detector_override(detector, scoped, number)
+      scope = scoped ? @scope_index : -1
+      marker = "#{scope}:#{detector}"
+      if @override_markers.include?(marker)
+        fail_config(number, "duplicate #{detector} overrides")
+        return
+      end
+      @override_markers << marker
+      @override_detector = detector
+      @override_context = ""
+      @override_start_line = number
+      @override_context_indentation = scoped ? 8 : 6
+      @override_setting_indentation = @override_context_indentation + 2
+      @override_scope_index = scope
+    end
+
+    def parse_detector_override(key, value, indentation, number)
+      if indentation == @override_context_indentation && @override_context.empty?
+        unless key == "initialize" && value.empty?
+          fail_config(number, "unsupported #{@override_detector} override context #{key}")
+          return
+        end
+        @override_context = key
+      elsif indentation == @override_setting_indentation && !@override_context.empty?
+        unless key == "max_params" && value.match?(/\A[0-9]+\z/)
+          fail_config(number, "unsupported #{@override_detector} override setting #{key}")
+          return
+        end
+        settings = @override_scope_index >= 0 ? @scope_detector_settings : @detector_settings
+        settings << [@override_scope_index, @override_detector, "overrides.#{@override_context}.#{key}", value]
+      else
+        fail_config(number, "unsupported #{@override_detector} overrides mapping")
+      end
+    end
+
+    def finish_detector_override(number)
+      settings = @override_scope_index >= 0 ? @scope_detector_settings : @detector_settings
+      found = settings.any? do |entry|
+        entry[0] == @override_scope_index && entry[1] == @override_detector && entry[2] == "overrides.#{@override_context}.max_params"
+      end
+      unless !@override_context.empty? && found
+        fail_config(@override_start_line, "incomplete #{@override_detector} overrides mapping")
+      end
+      @override_detector = ""
+      @override_context = ""
+      @override_start_line = 0
+      @override_context_indentation = 0
+      @override_setting_indentation = 0
+      @override_scope_index = -1
     end
 
     def list_detector_setting?(detector, key)
@@ -6416,6 +6485,9 @@ class Fleek
   def self.analyze_reek_detector(path, detector, configuration)
     source = File.binread(path)
     settings = native_detector_settings(configuration, detector, path)
+    if detector == "LongParameterList"
+      settings << Integer(configuration.detector_setting(detector, "overrides.initialize.max_params", path) || "5", 10)
+    end
     utility_function = detector == "UtilityFunction"
     visibility_setting = utility_function && configuration.detector_setting(detector, "public_methods_only", path) == "true"
     settings << visibility_setting if utility_function
@@ -6461,6 +6533,7 @@ class Fleek
     maximum = settings[0]
     option = settings[1]
     accepted_names = settings[2]
+    detector_option = settings[3]
     minimum = Integer(option, 10) if detector == "DataClump"
     case detector
     when "Attribute" then NativePrism.fleek_attribute(source, length)
@@ -6468,13 +6541,13 @@ class Fleek
     when "SubclassedFromCoreClass" then NativePrism.fleek_subclassed_from_core_class(source, length)
     when "ModuleInitialize" then NativePrism.fleek_module_initialize(source, length)
     when "IrresponsibleModule" then NativePrism.fleek_irresponsible_module(source, length)
-    when "LongParameterList" then NativePrism.fleek_long_parameter_list(source, length, maximum)
+    when "LongParameterList" then NativePrism.fleek_long_parameter_list(source, length, maximum, detector_option)
     when "BooleanParameter" then NativePrism.fleek_boolean_parameter(source, length)
     when "LongYieldList" then NativePrism.fleek_long_yield_list(source, length, maximum)
     when "ControlParameter" then NativePrism.fleek_control_parameter(source, length)
     when "UnusedParameters" then NativePrism.fleek_unused_parameters(source, length)
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method(source, length)
-    when "UtilityFunction" then NativePrism.fleek_utility_function(source, length, settings[3] ? 1 : 0)
+    when "UtilityFunction" then NativePrism.fleek_utility_function(source, length, detector_option ? 1 : 0)
     when "DuplicateMethodCall"
       NativePrism.fleek_duplicate_method_call(source, length, maximum, option)
     when "ManualDispatch" then NativePrism.fleek_manual_dispatch(source, length)

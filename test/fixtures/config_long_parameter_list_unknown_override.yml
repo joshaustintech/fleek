@@ -1,0 +1,5 @@
+detectors:
+  LongParameterList:
+    overrides:
+      deliver:
+        max_params: 4
