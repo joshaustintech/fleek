@@ -19,6 +19,24 @@ class AnalysisProcess
     [status.exitstatus, File.read("/tmp/fleek-analysis-reference-out"), File.read("/tmp/fleek-analysis-reference-err")]
   end
 
+  def self.assert_incomplete_namespace(path, expected_findings)
+    assert_namespace_reference(reek(path), expected_findings, path)
+    assert_namespace_incomplete(fleek(path), path)
+  end
+
+  def self.assert_namespace_reference(reference, expected_findings, path)
+    status, output = reference
+    matches = expected_findings.all? { |finding| output.include?(finding) }
+    raise "pinned Reek namespace result changed for #{path}" unless status == 2 && matches
+  end
+
+  def self.assert_namespace_incomplete(actual, path)
+    status, output = actual
+    coverage = "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded"
+    incomplete = output.include?(coverage) && output.include?("Status: incomplete")
+    raise "unsupported ClassVariable namespace was not reported incomplete for #{path}" unless status == 1 && incomplete
+  end
+
   def self.bundle_executable
     ENV["BUNDLE"] || "bundle"
   end
@@ -71,17 +89,18 @@ AnalysisRunner.assert_same_report(nested_namespace, nested_namespace_reference, 
 raise "nested namespace context missing" unless nested_namespace[1].include?("context=\"ApplicationCable::Internal::Connection\"")
 raise "nested namespace line aggregation missing" unless nested_namespace[1].include?("lines=\"4, 6, 9\"")
 
-too_deep = AnalysisProcess.fleek("test/fixtures/class_variable_namespace_too_deep.rb")
-raise "over-limit namespace was not reported incomplete" unless too_deep[0] == 1 && too_deep[1].include?("Status: incomplete")
+AnalysisProcess.assert_incomplete_namespace("test/fixtures/class_variable_namespace_too_deep.rb",
+  ["[5]:ClassVariable: ApplicationCable::Internal::Nested::Connection declares the class variable '@@count'"])
 
-wrapped_nested = AnalysisProcess.fleek("test/fixtures/class_variable_nested_namespace_wrapped_child.rb")
-raise "wrapped nested namespace class was not reported incomplete" unless wrapped_nested[0] == 1 && wrapped_nested[1].include?("Status: incomplete")
+AnalysisProcess.assert_incomplete_namespace("test/fixtures/class_variable_nested_namespace_wrapped_child.rb",
+  ["[5]:ClassVariable: ApplicationCable::Internal::Connection declares the class variable '@@count'"])
 
-namespace_and_child = AnalysisProcess.fleek("test/fixtures/class_variable_namespace_and_child.rb")
-raise "unreported namespace occurrence implied complete analysis" unless namespace_and_child[0] == 1 && namespace_and_child[1].include?("Status: incomplete")
+AnalysisProcess.assert_incomplete_namespace("test/fixtures/class_variable_namespace_and_child.rb",
+  ["[2]:ClassVariable: ApplicationCable declares the class variable '@@shared_count'",
+    "[5]:ClassVariable: ApplicationCable::Connection declares the class variable '@@connection_count'"])
 
-wrapped_namespace_child = AnalysisProcess.fleek("test/fixtures/class_variable_namespace_wrapped_child.rb")
-raise "wrapped namespace child was accepted" unless wrapped_namespace_child[0] == 1 && wrapped_namespace_child[1].include?("Status: incomplete")
+AnalysisProcess.assert_incomplete_namespace("test/fixtures/class_variable_namespace_wrapped_child.rb",
+  ["[4]:ClassVariable: ApplicationCable::Connection declares the class variable '@@connection_count'"])
 
 unselected = AnalysisProcess.unselected("test/fixtures/class_variable.rb")
 raise "omitted check selection was accepted" unless unselected[0] == 1 && unselected[2].include?("unsupported")

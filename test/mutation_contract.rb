@@ -1119,7 +1119,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "fleek_module_has_direct_child(fleek_namespace_scope, fleek_only_scope) &&",
   "true &&",
   "ClassVariable wrapped namespace child acceptance",
-  "wrapped namespace child was accepted")).run
+  "unsupported ClassVariable namespace was not reported incomplete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "\"%.*s::%.*s\"",
   "\"%.*s/%.*s\"",
@@ -1134,12 +1134,12 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "fleek_module_has_direct_child(fleek_inner_namespace_scope, fleek_only_scope);",
   "true;",
   "ClassVariable nested namespace boundary",
-  "wrapped nested namespace class was not reported incomplete")).run
+  "unsupported ClassVariable namespace was not reported incomplete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (namespace_has_occurrences) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }",
   "if (false) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }",
   "ClassVariable namespace occurrence handling",
-  "unreported namespace occurrence implied complete analysis")).run
+  "unsupported ClassVariable namespace was not reported incomplete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'return run_class_variable_with_stdin(source_inputs, configuration) if source_inputs[0] == "--stdin"',
   'return 0 if inputs[0] == "--stdin"',
