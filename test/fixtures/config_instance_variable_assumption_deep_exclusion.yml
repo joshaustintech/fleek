@@ -1,0 +1,5 @@
+detectors:
+  InstanceVariableAssumption:
+    exclude:
+      - Profile::Account::Credentials
+      - Profiles::Credentials

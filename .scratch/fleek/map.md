@@ -34,6 +34,7 @@
 - Ticket 122 records inherited and reflective `UnusedPrivateMethod` call graphs as explicit incomplete coverage until Fleek can match pinned Reek behavior. See [ADR 0238](../../docs/adr/0238-keep-call-graph-residuals-incomplete.md).
 - Ticket 123 keeps deep and wrapped `ClassVariable` namespaces incomplete until Fleek can preserve Reek's qualified scope attribution. See [ADR 0239](../../docs/adr/0239-keep-deep-class-variable-namespaces-incomplete.md).
 - Ticket 124 keeps deeper and wrapped `Attribute` scopes incomplete until Fleek can preserve per-class visibility and scope ownership. See [ADR 0240](../../docs/adr/0240-keep-deep-attribute-scopes-incomplete.md).
+- Ticket 125 keeps deeper and module-wrapped `InstanceVariableAssumption` scopes incomplete until Fleek can verify all nested initialization and exclusion contexts. See [ADR 0241](../../docs/adr/0241-keep-deep-instance-variable-assumption-incomplete.md).
 - Ticket 80 extends FeatureEnvy receiver counting through one supported method block; multiple blocks stay incomplete. See [ADR 0217](../../docs/adr/0217-analyze-feature-envy-inside-one-block.md).
 - Ticket 79 confirms configured ignored iterator names reduce NestedIterators depth; three-level chain at line 5 becomes depth two when `map` is ignored. See [ADR 0216](../../docs/adr/0216-verify-nested-iterator-ignore-depth.md).
 - Ticket 78 analyzes RepeatedConditional separately in each direct top-level class; thresholds and findings stay class-local. See [ADR 0215](../../docs/adr/0215-isolate-repeated-conditional-class-scopes.md).

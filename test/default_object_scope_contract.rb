@@ -21,6 +21,7 @@ class DefaultObjectScopeContract
     verify_attribute_nested_class
     verify_attribute_deeper_and_wrapped_scopes
     verify_nested_instance_variable_assumption
+    verify_deeper_instance_variable_assumption
     verify_unsupported_shapes
     verify_nested_module_initialize
     verify_comment_overflow
@@ -263,6 +264,46 @@ class DefaultObjectScopeContract
     status = actual[0]
     verify(status == reference[0] && status == 0 && actual[2].empty? && output.include?("Status: complete"), "#{label} status or streams changed")
     AnalysisRunner.assert_detector_findings(actual, reference, "InstanceVariableAssumption")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_deeper_instance_variable_assumption
+    verify_instance_variable_incomplete_scope("test/fixtures/instance_variable_assumption_deeper_nested.rb",
+      "[3]:InstanceVariableAssumption: Profile::Account::Credentials assumes too much for instance variable '@name'")
+    verify_instance_variable_incomplete_scope("test/fixtures/instance_variable_assumption_wrapped_class.rb",
+      "[2]:InstanceVariableAssumption: Profiles::Credentials assumes too much for instance variable '@name'")
+    verify_instance_variable_clean_reference("test/fixtures/instance_variable_assumption_deeper_initialized.rb")
+    verify_instance_variable_excluded_scope("test/fixtures/instance_variable_assumption_deeper_nested.rb")
+    verify_instance_variable_excluded_scope("test/fixtures/instance_variable_assumption_wrapped_class.rb")
+  end
+
+  def self.verify_instance_variable_incomplete_scope(source, expected_finding)
+    reference = run_reek_for("InstanceVariableAssumption", source)
+    actual = run_fleek_check("InstanceVariableAssumption", source)
+    verify(reference[0] == 2 && reference[1].include?(expected_finding), "pinned deeper InstanceVariableAssumption finding changed for #{source}")
+    verify_instance_variable_incomplete_report(actual, source)
+  end
+
+  def self.verify_instance_variable_clean_reference(source)
+    reference = run_reek_for("InstanceVariableAssumption", source)
+    actual = run_fleek_check("InstanceVariableAssumption", source)
+    verify(reference[0] == 0 && reference[1].empty?, "pinned initialized InstanceVariableAssumption control changed")
+    verify_instance_variable_incomplete_report(actual, source)
+  end
+
+  def self.verify_instance_variable_excluded_scope(source)
+    config = "test/fixtures/config_instance_variable_assumption_deep_exclusion.yml"
+    reference = run_reek_config_for("InstanceVariableAssumption", source, config)
+    actual = run_fleek_check_config("InstanceVariableAssumption", source, config)
+    verify(reference[0] == 0 && reference[1].empty?, "pinned deeper InstanceVariableAssumption exclusion changed for #{source}")
+    verify_instance_variable_incomplete_report(actual, source)
+  end
+
+  def self.verify_instance_variable_incomplete_report(actual, source)
+    status, output, = actual
+    coverage = "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded"
+    verify(status == 1 && output.include?(coverage) && output.include?("Status: incomplete"),
+      "unsupported InstanceVariableAssumption scope was not reported incomplete for #{source}")
   end
 
   def self.verify_expected_finding(detector, source, line)
