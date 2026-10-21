@@ -48,6 +48,7 @@ class DefaultArgumentApiContract
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump_multiple_groups.rb")
     verify_data_clump_preserves_supported_findings
     verify_supported_default_detector("TooManyConstants", "test/fixtures/too_many_constants.rb")
+    verify_too_many_constants_nested_modules
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variable_operator_writes.rb")
     verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
@@ -111,6 +112,33 @@ class DefaultArgumentApiContract
     actual = run_fleek(source, config, "reek:BooleanParameter")
     verify(reference[0] == 0 && AnalysisRunner.warning_lines(reference[1]).empty?, "pinned BooleanParameter disablement changed")
     verify(actual[0] == 1 && actual[2].include?("BooleanParameter is disabled by configuration"), "explicit BooleanParameter disablement was ignored")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_too_many_constants_nested_modules
+    source = "test/fixtures/too_many_constants_nested_modules.rb"
+    reference = run_reek(source, "TooManyConstants")
+    actual = run_fleek(source, "", "reek:TooManyConstants")
+    findings = AnalysisRunner.detector_warnings(reference, "TooManyConstants")
+    verify(reference[0] == 2 && findings.size == 1 && findings.first.include?("Fleet::Shipment has 6 constants"),
+      "pinned TooManyConstants nested module isolation changed")
+    AnalysisRunner.assert_status(actual, reference, "nested TooManyConstants default threshold")
+    AnalysisRunner.assert_detector_findings(actual, reference, "nested TooManyConstants default threshold")
+    unsupported = run_fleek("test/fixtures/too_many_constants_deep_modules.rb", "", "reek:TooManyConstants")
+    unsupported_output = unsupported[1]
+    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
+      unsupported_output.include?("Scope limits:") && unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
+      "unsupported nested TooManyConstants scope was not reported incomplete")
+
+    config = "test/fixtures/config_too_many_constants_nested_threshold.yml"
+    configured_reference = run_reek(source, "TooManyConstants", config)
+    configured_actual = run_fleek(source, config, "reek:TooManyConstants")
+    configured_output = configured_actual[1]
+    verify(configured_reference[0] == 0 && configured_actual[0] == 0 &&
+      AnalysisRunner.warning_lines(configured_reference[1]).empty? && AnalysisRunner.warning_lines(configured_output).empty? &&
+      configured_output.include?("Status: complete"),
+      "pinned configured TooManyConstants nested threshold changed")
+    AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "nested TooManyConstants configured threshold")
   end
 
   def self.verify_long_yield_list
