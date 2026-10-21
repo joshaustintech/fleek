@@ -49,3 +49,5 @@ Issue 132 is resolved: direct constant and constant-path `include` declarations 
 Issue 133 resolves the empty class method gap: the pinned `static_pages_controller.rb` is now complete alone, and cross-class class-group mass matches Flay. [ADR 0247](../../../docs/adr/0247-bound-rails-flay-empty-method-bodies.md) records the empty-tree and mass rules. The combined 25-file manifest remains incomplete at 0/25 analyzed; further source shapes remain.
 
 The next residual is the direct `primary_abstract_class` call in pinned `ApplicationRecord`. [Issue 134](134-rails-flay-primary-abstract-class.md) bounds that one no-argument Rails declaration; [ADR 0248](../../../docs/adr/0248-bound-rails-flay-primary-abstract-class.md) records its fail-closed boundary.
+
+Issue 134 resolves the pinned `ApplicationRecord` gap. Calls with arguments, receivers, blocks, and unrecognized names remain incomplete. The combined Rails manifest still fails its full Flay completeness gate; remaining gaps are in `UsersHelper`, `ApplicationMailer`, and models `Micropost`, `Relationship`, and `User`.

@@ -14,4 +14,4 @@ Accept only a receiver-free `primary_abstract_class` call with no arguments and 
 
 ## Consequences
 
-Issue 134 owns the public fixture, exact Flay assertion, pinned Rails check, and mutation boundary. This does not authorize arbitrary Rails macros or execute source code. Issue 97 remains open until all remaining manifest shapes resolve.
+Issue 134 implements the public fixture and pinned Rails check. `ApplicationRecord` now matches Flay's clean result; focused mutations preserve the no-args, no-receiver, no-block, exact-name boundary. This does not authorize arbitrary Rails macros or execute source code. Issue 97 remains open until all remaining manifest shapes resolve.

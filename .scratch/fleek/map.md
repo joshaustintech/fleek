@@ -39,7 +39,7 @@
 - Ticket 127 treats a null class body as an empty supported scope in `UnusedPrivateMethod`, preventing the framework-subclass crash while keeping unsupported non-null shapes incomplete. See [ADR 0243](../../docs/adr/0243-handle-empty-class-in-unused-private-method.md).
 - Ticket 132 supports direct constant and constant-path `include` declarations for Rails Flay analysis; the pinned `ApplicationController` is complete alone, while the 25-file gate stays explicitly incomplete. See [issue 132](issues/132-rails-flay-include-declarations.md) and [ADR 0246](../../docs/adr/0246-bound-rails-flay-include-declarations.md).
 - Ticket 133 models empty class method bodies in class candidates without method-level groups; paired class-group mass and locations match Flay. See [issue 133](issues/133-rails-flay-empty-method-bodies.md) and [ADR 0247](../../docs/adr/0247-bound-rails-flay-empty-method-bodies.md).
-- Ticket 134 is the next issue 97 child: accept only the pinned Rails `primary_abstract_class` no-argument declaration. See [issue 134](issues/134-rails-flay-primary-abstract-class.md) and [ADR 0248](../../docs/adr/0248-bound-rails-flay-primary-abstract-class.md).
+- Ticket 134 accepts only the pinned Rails `primary_abstract_class` no-argument declaration; other macros remain partial. See [issue 134](issues/134-rails-flay-primary-abstract-class.md) and [ADR 0248](../../docs/adr/0248-bound-rails-flay-primary-abstract-class.md).
 - Ticket 80 extends FeatureEnvy receiver counting through one supported method block; multiple blocks stay incomplete. See [ADR 0217](../../docs/adr/0217-analyze-feature-envy-inside-one-block.md).
 - Ticket 79 confirms configured ignored iterator names reduce NestedIterators depth; three-level chain at line 5 becomes depth two when `map` is ignored. See [ADR 0216](../../docs/adr/0216-verify-nested-iterator-ignore-depth.md).
 - Ticket 78 analyzes RepeatedConditional separately in each direct top-level class; thresholds and findings stay class-local. See [ADR 0215](../../docs/adr/0215-isolate-repeated-conditional-class-scopes.md).
@@ -469,7 +469,7 @@ Every feature child below additionally depends on harness handoff 115; original 
 - [131: Analyze Rails Flay visibility declarations](issues/131-rails-flay-visibility-declarations.md) — resolved; parent 97; blocked by 115 (resolved).
 - [132: Analyze Rails Flay include declarations](issues/132-rails-flay-include-declarations.md) — resolved; parent 97; blocked by 115 (resolved).
 - [133: Analyze empty Rails class methods for Flay](issues/133-rails-flay-empty-method-bodies.md) — parent 97; blocked by 115 (resolved).
-- [134: Analyze Rails primary_abstract_class declarations for Flay](issues/134-rails-flay-primary-abstract-class.md) — parent 97; blocked by 115 (resolved).
+- [134: Analyze Rails primary_abstract_class declarations for Flay](issues/134-rails-flay-primary-abstract-class.md) — resolved; parent 97; blocked by 115 (resolved).
 - [128: Preserve per-file results after Flay timeout](issues/128-flay-per-file-timeout-continuation.md) — resolved; parent 23; blocked by 120; 115.
 - [129: Avoid timeout supervisor overhead on untimed Flay runs](issues/129-flay-timeout-supervisor-overhead.md) — parent 23; resolved.
 - [121: Inventory and support Flay presentation controls](issues/121-flay-presentation-controls.md) — resolved; parent 23; blocked by 58 (resolved); 115 (resolved).

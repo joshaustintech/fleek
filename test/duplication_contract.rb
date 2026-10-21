@@ -1066,6 +1066,39 @@ DuplicationProcess.verify_output(empty_class_group_reference, DuplicationProcess
   ["Similar code found in :class (mass = 56)", "#{empty_class_group_path}:1", "#{empty_class_group_path}:12", "Total score (lower is better) = 56"],
   "Flay empty class-group result changed"))
 
+abstract_class_path = "test/fixtures/duplication_class_methods_primary_abstract_class.rb"
+abstract_class_actual = DuplicationProcess.run(DuplicationProcess::Input.new(abstract_class_path, "fleek", ""))
+abstract_class_reference = DuplicationProcess.run(DuplicationProcess::Input.new(abstract_class_path, "flay", ""))
+DuplicationProcess.verify_output(abstract_class_actual, DuplicationProcess::OutputExpectation.new(0,
+  ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+  "primary_abstract_class declaration made a supported source incomplete"))
+DuplicationProcess.verify_output(abstract_class_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay primary_abstract_class result changed"))
+
+abstract_class_arguments_path = "test/fixtures/duplication_class_methods_primary_abstract_class_arguments.rb"
+abstract_class_arguments_actual = DuplicationProcess.run(DuplicationProcess::Input.new(abstract_class_arguments_path, "fleek", ""))
+DuplicationProcess.verify_output(abstract_class_arguments_actual, DuplicationProcess::OutputExpectation.new(1,
+  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
+  "primary_abstract_class arguments were accepted"))
+
+abstract_class_receiver_path = "test/fixtures/duplication_class_methods_primary_abstract_class_receiver.rb"
+abstract_class_receiver_actual = DuplicationProcess.run(DuplicationProcess::Input.new(abstract_class_receiver_path, "fleek", ""))
+DuplicationProcess.verify_output(abstract_class_receiver_actual, DuplicationProcess::OutputExpectation.new(1,
+  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
+  "receiver-qualified primary_abstract_class was accepted"))
+
+abstract_class_block_path = "test/fixtures/duplication_class_methods_primary_abstract_class_block.rb"
+abstract_class_block_actual = DuplicationProcess.run(DuplicationProcess::Input.new(abstract_class_block_path, "fleek", ""))
+DuplicationProcess.verify_output(abstract_class_block_actual, DuplicationProcess::OutputExpectation.new(1,
+  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
+  "primary_abstract_class block was accepted"))
+
+other_class_macro_path = "test/fixtures/duplication_class_methods_other_macro.rb"
+other_class_macro_actual = DuplicationProcess.run(DuplicationProcess::Input.new(other_class_macro_path, "fleek", ""))
+DuplicationProcess.verify_output(other_class_macro_actual, DuplicationProcess::OutputExpectation.new(1,
+  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
+  "unrecognized class macro was accepted"))
+
 rails_corpus_root = ENV["FLEEK_RAILS_CORPUS"]
 if ENV["FLEEK_REQUIRE_RAILS_CORPUS"] == "1" && (!rails_corpus_root || rails_corpus_root.empty?)
   raise "FLEEK_RAILS_CORPUS is required for the pinned Rails controller contract"
@@ -1104,6 +1137,11 @@ if rails_corpus_root && !rails_corpus_root.empty?
   rails_static_pages_reference = DuplicationProcess.run(DuplicationProcess::Input.new(rails_static_pages_controller, "flay", ""))
   DuplicationProcess.verify_output(rails_static_pages_reference, DuplicationProcess::OutputExpectation.new(0,
     ["Total score (lower is better) = 0"], "Flay empty actions result changed"))
+  rails_application_record = File.join(rails_corpus_root, "app/models/application_record.rb")
+  rails_application_record_actual = DuplicationProcess.run(DuplicationProcess::Input.new(rails_application_record, "fleek", ""))
+  DuplicationProcess.verify_output(rails_application_record_actual, DuplicationProcess::OutputExpectation.new(0,
+    ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+    "pinned Rails ApplicationRecord primary_abstract_class result was incomplete"))
 end
 
 include_dynamic_path = "test/fixtures/duplication_class_methods_include_dynamic.rb"
