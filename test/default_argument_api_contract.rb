@@ -13,6 +13,7 @@ class DefaultArgumentApiContract
     AnalysisRunner.assert_detector_findings(actual, reference, "LongParameterList")
     verify_initializer_override
     verify_boolean_parameter
+    verify_boolean_parameter_singleton
     verify_long_yield_list
     verify_default_detector("ControlParameter", "test/fixtures/control_parameter.rb")
     verify_default_detector("UnusedParameters", "test/fixtures/unused_parameters.rb")
@@ -81,6 +82,25 @@ class DefaultArgumentApiContract
 
   def self.verify_boolean_parameter
     verify_default_detector("BooleanParameter", "test/fixtures/boolean_parameter.rb")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_boolean_parameter_singleton
+    source = "test/fixtures/boolean_parameter_singleton_positional.rb"
+    reference = run_reek(source, "BooleanParameter")
+    actual = run_fleek(source, "", "reek:BooleanParameter")
+    verify(reference[0] == 2 && reference[1].include?("[2]:BooleanParameter: Parcel#self.requeue has boolean parameter 'force'"), "pinned singleton BooleanParameter finding changed")
+    AnalysisRunner.assert_status(actual, reference, "singleton BooleanParameter")
+    AnalysisRunner.assert_detector_findings(actual, reference, "singleton BooleanParameter")
+    verify_boolean_parameter_singleton_disabled(source)
+  end
+
+  def self.verify_boolean_parameter_singleton_disabled(source)
+    config = "test/fixtures/config_boolean_parameter_disabled.yml"
+    reference = run_reek(source, "BooleanParameter", config)
+    actual = run_fleek(source, config, "reek:BooleanParameter")
+    verify(reference[0] == 0 && AnalysisRunner.warning_lines(reference[1]).empty?, "pinned BooleanParameter disablement changed")
+    verify(actual[0] == 1 && actual[2].include?("BooleanParameter is disabled by configuration"), "explicit BooleanParameter disablement was ignored")
   end
 
   def self.verify_long_yield_list
