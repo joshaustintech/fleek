@@ -6,7 +6,7 @@
 
 **Blocked by:** 96; 22; 23; 115 — Verify harness savings before resuming feature work.
 
-**Status:** open
+**Status:** claimed
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
@@ -33,3 +33,7 @@ Claim this child before implementation; parent claims remain unchanged. Use the 
 Keep one focused regression and relevant non-equivalent mutations for changed behavior. Use `FLEEK_MUTATIONS` with exact registered labels for focused runs; full mutation coverage remains mandatory before a code commit. Run repository-required build/tests, Flay, Reek, mutation and standards/spec review gates before landing code. Docs/evidence-only work gets tracker/link/diff checks; do not invent implementation proof. Record commands, tool identities, RED/GREEN evidence where code changed, gate results and limitations in `## Answer`.
 
 If cases already pass, add only missing meaningful evidence and finish; do not refactor for activity. If a second independent defect appears, publish a separate minimal child with expected pinned behavior and blockers. This child may finish its stated behavior while those gaps remain open, but the parent completion gate must wait for every residual child. Never turn incomplete coverage into clean output, skip a selected source or weaken a reference expectation to pass.
+
+## Answer
+
+Reproduced the existing baseline with pinned Spinel `2026.09.12`, Flay `2.14.4`, and Reek `6.6.0`: `FLEEK_RAILS_CORPUS=/private/tmp/fleek-rails-corpus-92ce make rails-manifest-parity` passes the partial-result contract. Flay preserves score 48 at `UsersController:51,58`, but coverage remains 0 analyzed and 25 partial. The direct `before_action` declarations mixed with methods are a concrete class-body gap; [issue 130](130-rails-flay-class-callback-declarations.md) owns the first bounded follow-up. [ADR 0244](../../../docs/adr/0244-bound-rails-flay-callback-declarations.md) records why only direct reference-verified declarations are candidates for support, while unknown forms stay incomplete. This completion gate remains open pending issue 130 and all other residual gaps.
