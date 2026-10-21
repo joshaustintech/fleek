@@ -4,7 +4,7 @@
 
 **Part of:** Ticket 24.
 
-**Blocked by:** 90; 115 — Verify harness savings before resuming feature work.
+**Blocked by:** 90 (resolved); 115 — Verify harness savings before resuming feature work (resolved).
 
 **Status:** open
 **Type:** task

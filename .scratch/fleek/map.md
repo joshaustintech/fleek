@@ -21,6 +21,7 @@
 - Ticket 87 matches UncommunicativeModuleName for one-level qualified class/module names and applies patterns to the terminal constant; deeper qualified paths stay incomplete. See [ADR 0224](../../docs/adr/0224-match-qualified-module-name-paths.md).
 - Ticket 88 confirms Reek 6.6.0 ignores block parameters for UncommunicativeParameterName, including configured patterns; Fleek keeps the selected source clean and complete. See [ADR 0225](../../docs/adr/0225-preserve-reek-block-parameter-boundary.md).
 - Ticket 89 supports simple required block parameters and local assignments in direct methods for UncommunicativeVariableName, preserving method context and marking other block parameter shapes incomplete. See [ADR 0226](../../docs/adr/0226-match-uncommunicative-block-variable-names.md).
+- Ticket 90 inventories all 29 pinned Reek detector defaults and bounded settings; custom `LongParameterList.overrides` remains an explicit gap in [issue 126](issues/126-reek-long-parameter-overrides.md), while directory precedence, suppression, and config validation remain in issues 91–93. See [ADR 0227](../../docs/adr/0227-inventory-pinned-reek-settings.md).
 - Ticket 80 extends FeatureEnvy receiver counting through one supported method block; multiple blocks stay incomplete. See [ADR 0217](../../docs/adr/0217-analyze-feature-envy-inside-one-block.md).
 - Ticket 79 confirms configured ignored iterator names reduce NestedIterators depth; three-level chain at line 5 becomes depth two when `map` is ignored. See [ADR 0216](../../docs/adr/0216-verify-nested-iterator-ignore-depth.md).
 - Ticket 78 analyzes RepeatedConditional separately in each direct top-level class; thresholds and findings stay class-local. See [ADR 0215](../../docs/adr/0215-isolate-repeated-conditional-class-scopes.md).
@@ -444,3 +445,4 @@ Every feature child below additionally depends on harness handoff 115; original 
 - [122: Complete UnusedPrivateMethod inherited and dynamic-call parity](issues/122-unused-private-method-call-graph-residuals.md) — parent 24; blocked by 61; 115.
 - [123: Match deeper and wrapped ClassVariable namespace contexts](issues/123-class-variable-deeper-and-wrapped-namespaces.md) — parent 24; blocked by 62; 115.
 - [124: Match Attribute in deeper and wrapped class scopes](issues/124-attribute-deeper-and-wrapped-class-scopes.md) — parent 24; blocked by 63; 115.
+- [126: Support LongParameterList context overrides](issues/126-reek-long-parameter-overrides.md) — parent 24; blocked by 90 (resolved); 115 (resolved).
