@@ -70,6 +70,7 @@ class DefaultArgumentApiContract
     verify_control_parameter_suppression
     verify_control_parameter_logical_condition
     verify_control_parameter_branch_logical_body
+    verify_nested_control_parameter_loop
     verify_utility_instance_call
     verify_long_parameter_block_limit
     verify_discovered_unused_private_disable
@@ -261,6 +262,30 @@ class DefaultArgumentApiContract
 
   def self.verify_control_parameter_branch_logical_body
     verify_default_detector("ControlParameter", "test/fixtures/control_parameter_branch_logical.rb")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_nested_control_parameter_loop
+    source = "test/fixtures/control_parameter_nested_loop.rb"
+    reference = run_reek(source, "ControlParameter")
+    actual = run_fleek(source, "", "reek:ControlParameter")
+    reference_output = reference[1]
+    verify(reference[0] == 2 && reference_output.include?("[4]:ControlParameter: Parcel#choose is controlled by argument 'flag'") && !reference_output.include?("choose_with_data"), "pinned nested ControlParameter finding or suppression changed")
+    verify(actual[1].include?("Scope limits: simple methods with direct conditionals and one iterator block"), "ControlParameter scope limit was not reported")
+    AnalysisRunner.assert_status(actual, reference, "nested ControlParameter loop")
+    AnalysisRunner.assert_detector_findings(actual, reference, "nested ControlParameter loop")
+    verify_nested_control_parameter_exclusion(source)
+    AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/control_parameter_multiple_blocks.rb", "", "reek:ControlParameter"), "multiple iterator blocks")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_nested_control_parameter_exclusion(source)
+    config = "test/fixtures/config_control_parameter_nested_exclusion.yml"
+    reference = run_reek(source, "ControlParameter", config)
+    actual = run_fleek(source, config, "reek:ControlParameter")
+    reference_output = reference[1]
+    verify(reference[0] == 0 && !reference_output.include?("ControlParameter:"), "pinned nested ControlParameter exclusion changed")
+    verify_configuration_parity(actual, reference, "ControlParameter")
   end
 
   def self.verify_utility_instance_call

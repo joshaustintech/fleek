@@ -1,0 +1,4 @@
+detectors:
+  ControlParameter:
+    exclude:
+      - "Parcel#choose"

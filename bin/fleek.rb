@@ -1539,6 +1539,26 @@ class Fleek
       pm_visit_node(body, fleek_method_body_node_supported, &supported);
       return supported;
     }
+    typedef struct { bool supported; size_t blocks; } fleek_control_body_state_t;
+    static bool fleek_control_body_node_supported(const pm_node_t *node, void *data) {
+      fleek_control_body_state_t *state = (fleek_control_body_state_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) {
+        state->blocks++;
+        if (state->blocks > 1) { state->supported = false; return false; }
+        return true;
+      }
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE) ||
+          PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE) || PM_NODE_TYPE_P(node, PM_REQUIRED_PARAMETER_NODE) ||
+          PM_NODE_TYPE_P(node, PM_OPTIONAL_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_REQUIRED_KEYWORD_PARAMETER_NODE) ||
+          PM_NODE_TYPE_P(node, PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) return true;
+      return fleek_method_body_node_supported(node, &state->supported);
+    }
+    static bool fleek_control_body_supported(const pm_node_t *body) {
+      if (body == NULL) return true;
+      fleek_control_body_state_t state = { true, 0 };
+      pm_visit_node(body, fleek_control_body_node_supported, &state);
+      return state.supported;
+    }
     static bool fleek_find_implicit_super(const pm_node_t *node, void *data) {
       bool *found = (bool *) data;
       if (PM_NODE_TYPE_P(node, PM_DEF_NODE) || PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return false;
@@ -1588,6 +1608,11 @@ class Fleek
         const pm_statements_node_t *items = (const pm_statements_node_t *) node;
         for (size_t index = 0; index < items->body.size; index++) if (fleek_control_condition(items->body.nodes[index], name, parser, conditional)) return true;
         return false;
+      }
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return fleek_control_condition(((const pm_block_node_t *) node)->body, name, parser, conditional);
+      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
+        const pm_call_node_t *call = (const pm_call_node_t *) node;
+        return call->block != NULL && fleek_control_condition((const pm_node_t *) call->block, name, parser, conditional);
       }
       if (PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE)) return conditional && fleek_constants_equal(parser, ((const pm_local_variable_read_node_t *) node)->name, name);
       if (PM_NODE_TYPE_P(node, PM_AND_NODE)) {
@@ -1650,6 +1675,11 @@ class Fleek
         for (size_t index = 0; index < items->body.size; index++) if (!fleek_control_condition_lines(items->body.nodes[index], name, parser, source, lines, count)) return false;
         return true;
       }
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return fleek_control_condition_lines(((const pm_block_node_t *) node)->body, name, parser, source, lines, count);
+      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
+        const pm_call_node_t *call = (const pm_call_node_t *) node;
+        return call->block == NULL || fleek_control_condition_lines((const pm_node_t *) call->block, name, parser, source, lines, count);
+      }
       if ((PM_NODE_TYPE_P(node, PM_AND_NODE) || PM_NODE_TYPE_P(node, PM_OR_NODE)) &&
           fleek_control_condition(node, name, parser, true)) return fleek_record_control_line(source, node, lines, count);
       return true;
@@ -1681,6 +1711,12 @@ class Fleek
         for (size_t index = 0; index < items->body.size; index++) if (fleek_parameter_used_outside_condition(parser, items->body.nodes[index], name)) return true;
         return false;
       }
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return fleek_parameter_used_outside_condition(parser, ((const pm_block_node_t *) node)->body, name);
+      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
+        const pm_call_node_t *call = (const pm_call_node_t *) node;
+        return fleek_body_uses_name(parser, (const pm_node_t *) call->arguments, name) ||
+          (call->block != NULL && fleek_parameter_used_outside_condition(parser, (const pm_node_t *) call->block, name));
+      }
       return fleek_body_uses_name(parser, node, name);
     }
     static bool fleek_any_parameter_used(pm_parser_t *parser, const pm_node_t *body, const pm_parameters_node_t *parameters) {
@@ -1694,10 +1730,9 @@ class Fleek
     }
     static int fleek_method_api_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
         size_t class_name_length, const pm_node_t *node, void *data) {
-      (void) data;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       if (method->receiver != NULL) return -1;
-      if (!fleek_method_body_supported(method->body)) return -1;
+      if (data != NULL ? !fleek_control_body_supported(method->body) : !fleek_method_body_supported(method->body)) return -1;
       if (method->parameters == NULL) return 0;
       if (!PM_NODE_TYPE_P((const pm_node_t *) method->parameters, PM_PARAMETERS_NODE)) return -1;
       const pm_parameters_node_t *parameters = method->parameters;
@@ -1757,7 +1792,8 @@ class Fleek
     }
     int fleek_control_parameter(const char *source, size_t length) {
       fleek_control_parameter_buffer[0] = 0; fleek_control_parameter_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_method_api_method, NULL);
+      int control_parameter_mode = 1;
+      return fleek_scan_method_scope(source, length, fleek_method_api_method, &control_parameter_mode);
     }
     const char *fleek_control_parameter_finding(void) { return fleek_control_parameter_buffer; }
     int fleek_unused_parameters(const char *source, size_t length) {
@@ -5712,7 +5748,7 @@ class Fleek
     "LongParameterList" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has %s parameters"],
     "BooleanParameter" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has boolean parameter '%s'"],
     "LongYieldList" => ["one simple class or module with direct instance methods", "%s yields %s parameters"],
-    "ControlParameter" => ["simple methods with direct conditionals", "%s is controlled by argument '%s'"],
+    "ControlParameter" => ["simple methods with direct conditionals and one iterator block", "%s is controlled by argument '%s'"],
     "UnusedParameters" => ["simple method parameter lists and supported method bodies", "%s has unused parameter '%s'"],
     "UnusedPrivateMethod" => ["one simple class with direct instance methods and bare private/public/protected visibility", "%s has the unused private instance method '%s'"],
     "UtilityFunction" => ["direct instance methods without inherited overrides", "%s doesn't depend on instance state (maybe move it to another class?)"],
