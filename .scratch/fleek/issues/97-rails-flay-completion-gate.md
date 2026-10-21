@@ -46,4 +46,4 @@ The next residual is `ApplicationController`'s direct `include SessionsHelper` d
 
 Issue 132 is resolved: direct constant and constant-path `include` declarations are accepted, and the pinned `ApplicationController` analyzes completely by itself. The 25-file manifest gate still reports Flay incomplete at 0/25 fully analyzed; further class-body and method shapes remain.
 
-The next concrete gap is empty class method bodies. [Issue 133](133-rails-flay-empty-method-bodies.md) tracks the pinned Rails controllers' empty `new`, `edit`, and action methods; Flay reports score zero while Fleek currently marks those sources partial. [ADR 0247](../../../docs/adr/0247-bound-rails-flay-empty-method-bodies.md) records the proposed zero-candidate boundary.
+Issue 133 resolves the empty class method gap: the pinned `static_pages_controller.rb` is now complete alone, and cross-class class-group mass matches Flay. [ADR 0247](../../../docs/adr/0247-bound-rails-flay-empty-method-bodies.md) records the empty-tree and mass rules. The combined 25-file manifest remains incomplete at 0/25 analyzed; further source shapes remain.

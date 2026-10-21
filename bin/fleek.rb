@@ -3632,9 +3632,17 @@ class Fleek
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       result->parameter_mass = 0;
       result->has_optional_method_parameters = false;
-      if (method->receiver != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result) || method->body == NULL || method->equal_loc.start != NULL || !PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
-      result->body_statement_count = ((const pm_statements_node_t *) method->body)->body.size;
+      if (method->receiver != NULL || !fleek_duplication_method_parameters((const pm_node_t *) method->parameters, result) || method->equal_loc.start != NULL) return false;
       result->has_optional_method_parameters = fleek_duplication_has_optional_method_parameters((const pm_node_t *) method->parameters);
+      if (method->body == NULL) {
+        result->body_statement_count = 0;
+        result->line = 1;
+        result->source_offset = (size_t) (method->def_keyword_loc.start - source);
+        for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') result->line++;
+        return true;
+      }
+      if (!PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return false;
+      result->body_statement_count = ((const pm_statements_node_t *) method->body)->body.size;
       fleek_duplication_ast_t ast = { result, false, NULL };
       fleek_duplication_collect_class_node(method->body, &ast);
       if (ast.overflow || result->shape_count == 0) { fleek_duplication_free_candidate_ast(result); return false; }
@@ -4440,6 +4448,7 @@ class Fleek
 
     static size_t fleek_duplication_class_method_mass(const fleek_duplication_method_t *method) {
       size_t mass = 2 + method->shape_count + method->parameter_mass;
+      if (method->body_statement_count == 0) mass++;
       for (size_t index = 0; index < method->shape_count; index++) {
         if (PM_NODE_TYPE_P(method->data.ast.nodes[index], PM_INTERPOLATED_STRING_NODE)) mass--;
       }

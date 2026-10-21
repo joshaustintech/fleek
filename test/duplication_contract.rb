@@ -1046,6 +1046,26 @@ include_fields = ["kind=\"similar\"", "locations=\"#{include_path}:5,#{include_p
 DuplicationProcess.verify_output(include_actual, DuplicationProcess::OutputExpectation.new(2, include_fields, "direct include declarations made supported methods incomplete"))
 DuplicationProcess.verify_output(include_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :defn (mass = 48)", "#{include_path}:5", "#{include_path}:12", "Total score (lower is better) = 48"], "Flay direct include result changed"))
 
+empty_methods_path = "test/fixtures/duplication_class_methods_empty.rb"
+empty_methods_actual = DuplicationProcess.run(DuplicationProcess::Input.new(empty_methods_path, "fleek", ""))
+empty_methods_reference = DuplicationProcess.run(DuplicationProcess::Input.new(empty_methods_path, "flay", ""))
+DuplicationProcess.verify_output(empty_methods_actual, DuplicationProcess::OutputExpectation.new(0,
+  ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+  "empty class methods made an otherwise valid source incomplete"))
+DuplicationProcess.verify_output(empty_methods_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay empty method result changed"))
+
+empty_class_group_path = "test/fixtures/duplication_class_methods_empty_class_group.rb"
+empty_class_group_actual = DuplicationProcess.run(DuplicationProcess::Input.new(empty_class_group_path, "fleek", ""))
+empty_class_group_reference = DuplicationProcess.run(DuplicationProcess::Input.new(empty_class_group_path, "flay", ""))
+empty_class_group_fields = ["kind=\"similar\"", "locations=\"#{empty_class_group_path}:1,#{empty_class_group_path}:12\"", "mass=56 score=56",
+  "Total duplication score: 56", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(empty_class_group_actual, DuplicationProcess::OutputExpectation.new(2,
+  empty_class_group_fields, "empty methods changed class-group parity"))
+DuplicationProcess.verify_output(empty_class_group_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Similar code found in :class (mass = 56)", "#{empty_class_group_path}:1", "#{empty_class_group_path}:12", "Total score (lower is better) = 56"],
+  "Flay empty class-group result changed"))
+
 rails_corpus_root = ENV["FLEEK_RAILS_CORPUS"]
 if ENV["FLEEK_REQUIRE_RAILS_CORPUS"] == "1" && (!rails_corpus_root || rails_corpus_root.empty?)
   raise "FLEEK_RAILS_CORPUS is required for the pinned Rails controller contract"
@@ -1076,6 +1096,14 @@ if rails_corpus_root && !rails_corpus_root.empty?
     "pinned Rails ApplicationController include result was incomplete"))
   DuplicationProcess.verify_output(rails_application_reference, DuplicationProcess::OutputExpectation.new(0,
     ["Total score (lower is better) = 0"], "pinned Rails ApplicationController Flay result changed"))
+  rails_static_pages_controller = File.join(rails_corpus_root, "app/controllers/static_pages_controller.rb")
+  rails_static_pages_actual = DuplicationProcess.run(DuplicationProcess::Input.new(rails_static_pages_controller, "fleek", ""))
+  DuplicationProcess.verify_output(rails_static_pages_actual, DuplicationProcess::OutputExpectation.new(0,
+    ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+    "pinned Rails empty actions remained incomplete"))
+  rails_static_pages_reference = DuplicationProcess.run(DuplicationProcess::Input.new(rails_static_pages_controller, "flay", ""))
+  DuplicationProcess.verify_output(rails_static_pages_reference, DuplicationProcess::OutputExpectation.new(0,
+    ["Total score (lower is better) = 0"], "Flay empty actions result changed"))
 end
 
 include_dynamic_path = "test/fixtures/duplication_class_methods_include_dynamic.rb"
