@@ -106,6 +106,30 @@ class DefaultArgumentApiContract
   def self.verify_long_yield_list
     verify_default_detector("LongYieldList", "test/fixtures/long_yield_list.rb")
     verify_default_detector("LongYieldList", "test/fixtures/yield_inside_block.rb")
+    verify_nested_long_yield_boundaries
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_nested_long_yield_boundaries
+    source = "test/fixtures/long_yield_nested_blocks.rb"
+    reference = run_reek(source, "LongYieldList")
+    actual = run_fleek(source, "", "reek:LongYieldList")
+    reference_output = reference[1]
+    verify(reference[0] == 2 && reference_output.include?("[7]:LongYieldList: Parcel#over_default_limit yields 4 parameters") && reference_output.include?("[11]:LongYieldList: Parcel#over_configured_limit yields 5 parameters"), "pinned nested LongYieldList boundaries changed")
+    AnalysisRunner.assert_status(actual, reference, "nested LongYieldList default threshold")
+    AnalysisRunner.assert_detector_findings(actual, reference, "nested LongYieldList default threshold")
+    verify_configured_nested_long_yield_boundary(source)
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_configured_nested_long_yield_boundary(source)
+    config = "test/fixtures/config_long_yield_list.yml"
+    reference = run_reek(source, "LongYieldList", config)
+    actual = run_fleek(source, config, "reek:LongYieldList")
+    reference_output = reference[1]
+    verify(reference[0] == 2 && !reference_output.include?("over_default_limit yields 4 parameters") && reference_output.include?("[11]:LongYieldList: Parcel#over_configured_limit yields 5 parameters"), "pinned configured nested LongYieldList threshold changed")
+    AnalysisRunner.assert_status(actual, reference, "nested LongYieldList configured threshold")
+    AnalysisRunner.assert_detector_findings(actual, reference, "nested LongYieldList configured threshold")
   end
 
   def self.verify_long_yield_configuration
