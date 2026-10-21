@@ -19,6 +19,7 @@ class DefaultObjectScopeContract
     verify_attribute_settings
     verify_attribute_alias
     verify_attribute_nested_class
+    verify_attribute_deeper_and_wrapped_scopes
     verify_nested_instance_variable_assumption
     verify_unsupported_shapes
     verify_nested_module_initialize
@@ -175,6 +176,39 @@ class DefaultObjectScopeContract
     excluded_reference = run_reek_config_for("Attribute", source, config)
     excluded_actual = run_fleek_check_config("Attribute", source, config)
     verify_nested_attribute_exclusion(excluded_reference, excluded_actual)
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_attribute_deeper_and_wrapped_scopes
+    verify_attribute_incomplete_scope("test/fixtures/attribute_deep_nested_class.rb",
+      ["[5]:Attribute: Profile::Credentials#secret is a writable attribute",
+        "[6]:Attribute: Profile::Credentials#token is a writable attribute",
+        "[13]:Attribute: Profile::Credentials::Secrets#visible is a writable attribute"])
+    verify_attribute_incomplete_scope("test/fixtures/attribute_wrapped_namespace.rb",
+      ["[9]:Attribute: Profile::Credentials#secret is a writable attribute"])
+  end
+
+  def self.verify_attribute_incomplete_scope(source, expected_findings)
+    verify_attribute_reference_incomplete(run_reek_for("Attribute", source), expected_findings, source)
+    verify_attribute_report_incomplete(run_fleek_check("Attribute", source), source)
+  end
+
+  def self.verify_attribute_reference_incomplete(reference, expected_findings, source)
+    reference_output = reference[1]
+    verify(reference[0] == 2 && attribute_reference_matches(reference_output, expected_findings), "pinned Reek nested/wrapped Attribute findings changed for #{source}")
+  end
+
+  def self.attribute_reference_matches(output, expected_findings)
+    matches = expected_findings.all? { |finding| output.include?(finding) }
+    finding_count = output.lines.count { |line| line.include?(":Attribute:") }
+    matches && finding_count == expected_findings.length
+  end
+
+  def self.verify_attribute_report_incomplete(actual, source)
+    output = actual[1]
+    coverage = output.include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded")
+    incomplete = output.include?("Status: incomplete")
+    verify(actual[0] == 1 && coverage && incomplete && actual[2].include?("Attribute supports"), "unsupported Attribute scope was not reported incomplete for #{source}")
   end
 
   def self.verify_nested_attribute_findings(reference, actual)
