@@ -1152,6 +1152,8 @@ class Fleek
     }
 
     typedef int (*fleek_method_analyzer_t)(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
+    typedef struct { bool public_methods_only; bool method_is_public; bool unsupported_visibility; } fleek_utility_scan_t;
+    static int fleek_utility_function_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
 
     static int fleek_scan_method_scope(const char *source, size_t length, fleek_method_analyzer_t analyze, void *state) {
       fleek_class_count = fleek_module_count = 0;
@@ -1197,14 +1199,36 @@ class Fleek
       if (body != NULL && !PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) findings = -1;
       if (findings >= 0 && body != NULL) {
         const pm_statements_node_t *statements = (const pm_statements_node_t *) body;
+        bool utility_scan = analyze == fleek_utility_function_method;
+        bool current_method_public = true;
+        if (utility_scan && ((fleek_utility_scan_t *) state)->public_methods_only && fleek_class_count + fleek_module_count == 0)
+          ((fleek_utility_scan_t *) state)->unsupported_visibility = true;
         if (statements->body.size > 128) findings = -1;
         for (size_t index = 0; findings >= 0 && index < statements->body.size; index++) {
-          if (!PM_NODE_TYPE_P(statements->body.nodes[index], PM_DEF_NODE)) continue;
+          const pm_node_t *statement = statements->body.nodes[index];
+          if (utility_scan && PM_NODE_TYPE_P(statement, PM_CALL_NODE)) {
+            const pm_call_node_t *call = (const pm_call_node_t *) statement;
+            bool no_arguments = call->arguments == NULL || call->arguments->arguments.size == 0;
+            bool visibility = call->receiver == NULL && no_arguments && call->block == NULL &&
+              (fleek_name_is(&parser, call->name, "public") || fleek_name_is(&parser, call->name, "private") || fleek_name_is(&parser, call->name, "protected"));
+            if (visibility) {
+              current_method_public = fleek_name_is(&parser, call->name, "public");
+              continue;
+            }
+            if (((fleek_utility_scan_t *) state)->public_methods_only) ((fleek_utility_scan_t *) state)->unsupported_visibility = true;
+          }
+          if (!PM_NODE_TYPE_P(statement, PM_DEF_NODE)) continue;
+          if (utility_scan) {
+            fleek_utility_scan_t *utility = (fleek_utility_scan_t *) state;
+            utility->method_is_public = current_method_public;
+            if (utility->public_methods_only && !current_method_public) continue;
+          }
           int result = analyze(&parser, (const uint8_t *) source, class_name_text,
-            class_name_length, statements->body.nodes[index], state);
+            class_name_length, statement, state);
           if (result < 0) findings = -1;
           else findings += result;
         }
+        if (utility_scan && ((fleek_utility_scan_t *) state)->unsupported_visibility) findings = -1;
       }
       pm_node_destroy(&parser, root);
       pm_parser_free(&parser);
@@ -1832,7 +1856,8 @@ class Fleek
     }
     static int fleek_utility_function_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
         size_t class_name_length, const pm_node_t *node, void *data) {
-      (void) data;
+      fleek_utility_scan_t *options = (fleek_utility_scan_t *) data;
+      if (options->public_methods_only && !options->method_is_public) return 0;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       if (method->body == NULL) return 0;
       if (!fleek_method_body_supported(method->body)) return -1;
@@ -1848,9 +1873,10 @@ class Fleek
       fleek_utility_function_used += (size_t) written;
       return 1;
     }
-    int fleek_utility_function(const char *source, size_t length) {
+    int fleek_utility_function(const char *source, size_t length, size_t public_methods_only) {
       fleek_utility_function_buffer[0] = 0; fleek_utility_function_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_utility_function_method, NULL);
+      fleek_utility_scan_t options = { public_methods_only != 0, true, false };
+      return fleek_scan_method_scope(source, length, fleek_utility_function_method, &options);
     }
     const char *fleek_utility_function_finding(void) { return fleek_utility_function_buffer; }
     typedef struct { const uint8_t *start; size_t length; } fleek_duplicate_call_t;
@@ -4656,7 +4682,7 @@ class Fleek
     ffi_func :fleek_unused_parameters_finding, [], :str
     ffi_func :fleek_unused_private_method, [:str, :size_t], :int
     ffi_func :fleek_unused_private_method_finding, [], :str
-    ffi_func :fleek_utility_function, [:str, :size_t], :int
+    ffi_func :fleek_utility_function, [:str, :size_t, :size_t], :int
     ffi_func :fleek_utility_function_finding, [], :str
     ffi_func :fleek_duplicate_method_call, [:str, :size_t, :size_t, :str], :int
     ffi_func :fleek_duplicate_method_call_finding, [], :str
@@ -5902,8 +5928,10 @@ class Fleek
   def self.analyze_reek_detector(path, detector, configuration)
     source = File.binread(path)
     settings = native_detector_settings(configuration, detector, path)
-    visibility_setting = detector == "UtilityFunction" && configuration.detector_setting(detector, "public_methods_only", path) == "true"
-    result = visibility_setting ? -4 : run_native_reek_detector(detector, source, settings)
+    utility_function = detector == "UtilityFunction"
+    visibility_setting = utility_function && configuration.detector_setting(detector, "public_methods_only", path) == "true"
+    settings << visibility_setting if utility_function
+    result = run_native_reek_detector(detector, source, settings)
     report_reek_detector_result(path, detector, result, configuration)
   rescue SystemCallError
     warn "ERROR: Cannot read source file: #{quote_text(path)}"
@@ -5958,7 +5986,7 @@ class Fleek
     when "ControlParameter" then NativePrism.fleek_control_parameter(source, length)
     when "UnusedParameters" then NativePrism.fleek_unused_parameters(source, length)
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method(source, length)
-    when "UtilityFunction" then NativePrism.fleek_utility_function(source, length)
+    when "UtilityFunction" then NativePrism.fleek_utility_function(source, length, settings[3] ? 1 : 0)
     when "DuplicateMethodCall"
       NativePrism.fleek_duplicate_method_call(source, length, maximum, option)
     when "ManualDispatch" then NativePrism.fleek_manual_dispatch(source, length)

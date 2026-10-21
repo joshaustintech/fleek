@@ -149,9 +149,40 @@ class DefaultArgumentApiContract
   end
 
   def self.verify_utility_configuration_limit
-    actual = run_fleek("test/fixtures/utility_function.rb", "test/fixtures/config_utility_public_methods.yml")
-    verify(actual[0] == 1, "UtilityFunction visibility configuration did not remain incomplete")
-    verify(actual[2].include?("UtilityFunction supports"), "UtilityFunction configuration limit was not reported")
+    source = "test/fixtures/utility_function_visibility.rb"
+    verify_utility_public_method_boundary(source)
+    verify_utility_public_method_configuration(source, "test/fixtures/config_utility_public_methods.yml", "true", [
+      "[2]:UtilityFunction: Parcel#public_normalize doesn't depend on instance state"])
+    verify_utility_public_method_configuration(source, "test/fixtures/config_utility_public_methods_false.yml", "false", [
+      "[2]:UtilityFunction: Parcel#public_normalize doesn't depend on instance state",
+      "[8]:UtilityFunction: Parcel#private_normalize doesn't depend on instance state"])
+    AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/utility_function_top_level.rb",
+      "test/fixtures/config_utility_public_methods.yml", "reek:UtilityFunction"), "top-level public_methods_only visibility")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_utility_public_method_boundary(source)
+    reference = run_reek(source, "UtilityFunction")
+    actual = run_fleek(source, "", "reek:UtilityFunction")
+    findings = AnalysisRunner.detector_warnings(reference, "UtilityFunction")
+    findings_text = findings.join("\n")
+    verify(findings.size == 2 && findings_text.include?("Parcel#public_normalize") && findings_text.include?("Parcel#private_normalize"), "pinned UtilityFunction visibility default changed")
+    AnalysisRunner.assert_status(actual, reference, "UtilityFunction default visibility")
+    AnalysisRunner.assert_detector_findings(actual, reference, "UtilityFunction default visibility")
+  end
+
+  # :reek:TooManyStatements
+  # :reek:LongParameterList
+  # :reek:NestedIterators
+  def self.verify_utility_public_method_configuration(source, config, setting, expected_findings)
+    reference = run_reek(source, "UtilityFunction", config)
+    actual = run_fleek(source, config, "reek:UtilityFunction")
+    findings = AnalysisRunner.detector_warnings(reference, "UtilityFunction")
+    actual_findings_text = findings.join("\n")
+    verify(reference[0] == 2 && expected_findings.all? { |expected| actual_findings_text.include?(expected) } && findings.size == expected_findings.size,
+      "pinned UtilityFunction public_methods_only=#{setting} behavior changed")
+    AnalysisRunner.assert_status(actual, reference, "UtilityFunction public_methods_only=#{setting}")
+    AnalysisRunner.assert_detector_findings(actual, reference, "UtilityFunction")
   end
 
   def self.verify_unused_private_opt_in
