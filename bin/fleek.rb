@@ -5604,9 +5604,9 @@ class Fleek
   def self.print_analysis_usage
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
     puts "       fleek --checks reek:ClassVariable[,flay:StructuralDuplication] [--reek-config FILE] SOURCE"
-    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--timeout SECONDS] [--liberal] [--fuzzy [DIFF]] [--legacy] [--reek-config FILE] SOURCE..."
+    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--timeout SECONDS] [--liberal] [--fuzzy [DIFF]] [--legacy] [-#] [--reek-config FILE] SOURCE..."
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
-    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--timeout SECONDS] [--liberal] [--fuzzy [DIFF]] [--legacy] [--only NODE] SOURCE"
+    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--timeout SECONDS] [--liberal] [--fuzzy [DIFF]] [--legacy] [-#] [--only NODE] SOURCE"
   end
 
   def self.help_requested?(arguments)
@@ -5662,7 +5662,7 @@ class Fleek
 
   def self.print_usage_error(message)
     warn message
-    warn "Use long options: --checks, --mass, --timeout, --liberal, --fuzzy, --legacy, and --reek-config."
+    warn "Use long options: --checks, --mass, --timeout, --liberal, --fuzzy, --legacy, and --reek-config; -# suppresses group numbering."
     warn "Usage: fleek [--help | --version]"
     1
   end
@@ -5849,13 +5849,14 @@ class Fleek
   def self.duplication_unsupported_option(inputs)
     unsupported_index = inputs.each_index.find do |index|
       input = inputs[index]
-      input.start_with?("-") && !(index.positive? && inputs[index - 1] == "--timeout") && input != "--mass" && input != "--only" && input != "--liberal" && input != "--fuzzy" && input != "--legacy" && input != "--timeout" && !input.start_with?("--fuzzy=")
+      input.start_with?("-") && !(index.positive? && inputs[index - 1] == "--timeout") && input != "--mass" && input != "--only" && input != "--liberal" && input != "--fuzzy" && input != "--legacy" && input != "--timeout" && input != "-#" && !input.start_with?("--fuzzy=")
     end
     inputs[unsupported_index] if unsupported_index
   end
 
   def self.duplication_source_paths(inputs)
     paths = without_option_pairs(without_option(without_optional_integer_option(without_option(without_option_pairs(without_option_pairs(inputs, "--mass"), "--only"), "--liberal"), "--fuzzy"), "--legacy"), "--timeout")
+    paths = without_option(paths, "-#")
     paths.map { |path| normalize_duplication_source_path(path) }.uniq
   end
 
@@ -6662,7 +6663,7 @@ class Fleek
   # :reek:TooManyStatements
   def self.prepare_combined_analysis(inputs)
     flay_inputs = without_option_pairs(inputs, "--reek-config")
-    reek_inputs = without_option_pairs(without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy"), "--timeout")
+    reek_inputs = without_option(without_option_pairs(without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy"), "--timeout"), "-#")
     flay_error = structural_duplication_input_error(flay_inputs)
     configuration, reek_sources, config_error = combined_reek_configuration(reek_inputs)
     return CombinedAnalysis.new(flay_inputs, reek_inputs, nil, config_error, []) unless config_error.empty?
@@ -7469,7 +7470,7 @@ class Fleek
   end
 
   def self.without_flay_options(inputs)
-    without_option_pairs(without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy"), "--timeout")
+    without_option(without_option_pairs(without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy"), "--timeout"), "-#")
   end
 
   # :reek:TooManyStatements
@@ -7499,7 +7500,7 @@ class Fleek
   end
 
   def self.selected_check_option_error(check, inputs)
-    reek_option = inputs.find { |argument| ["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout"].include?(argument) || argument.start_with?("--fuzzy=") } if check.start_with?("reek:") && !check.include?(FLAY_CHECK)
+    reek_option = inputs.find { |argument| ["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout", "-#"].include?(argument) || argument.start_with?("--fuzzy=") } if check.start_with?("reek:") && !check.include?(FLAY_CHECK)
     return "#{reek_option} applies only to flay:StructuralDuplication." if reek_option
     check == FLAY_CHECK && inputs.include?("--reek-config") ? "--reek-config applies only to Reek checks." : ""
   end

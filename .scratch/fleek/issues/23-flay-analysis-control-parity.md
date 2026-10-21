@@ -2,8 +2,6 @@
 
 **What to build:** Flay-specific settings and analysis-affecting controls produce the same structural duplication result and selected source set as pinned Flay 2.14.4.
 
-**Blocked by:** 121.
-
 **Status:** claimed
 **Type:** task  
 **Category:** enhancement  
@@ -17,4 +15,4 @@
 
 ## Answer
 
-Inventory confirms Flay 2.14.4 controls: analysis-affecting `--mass`, `--fuzzy [DIFF]`, `--liberal`, `--legacy`, and `--only NODE`; presentation/runtime controls include `--summary`, `--diff`, `-#`, `--verbose`, and `--timeout`. Fleek supports bounded `--mass`, `.flayignore`, recursive `**/*.rb` path expansion, `--only NODE` filtering, and `--liberal` pruning, with full total score and last-value behavior preserved for repeated `--only`. Reek-only selections reject `--mass`, `--only`, and `--liberal`; Flay-only selections reject `--reek-config`. ADRs 0106, 0107, and 0109 record these rules. Ticket 59 reconciles this inventory with evidence from tickets 10 and 53–58. Ticket 120 adds process-isolated timeout handling; ticket 128 now preserves completed per-file results after timeout (see [ADR 0236](../../../docs/adr/0236-continue-flay-analysis-after-per-file-timeout.md)). Presentation controls remain in issue 121. This parent remains open until the residuals and full acceptance checklist are resolved.
+Inventory confirms Flay 2.14.4 controls: analysis-affecting `--mass`, `--fuzzy [DIFF]`, `--liberal`, `--legacy`, and `--only NODE`; presentation/runtime controls include `--summary`, `--diff`, `-#`, `--verbose`, and `--timeout`. Fleek supports bounded `--mass`, `.flayignore`, recursive `**/*.rb` path expansion, `--only NODE` filtering, and `--liberal` pruning, with full total score and last-value behavior preserved for repeated `--only`. Reek-only selections reject Flay-specific controls. ADRs 0106, 0107, and 0109 record these rules. Ticket 59 reconciles this inventory with evidence from tickets 10 and 53–58. Tickets 120 and 128 resolve timeout behavior (see [ADR 0233](../../../docs/adr/0233-isolate-flay-timeout-analysis.md) and [ADR 0236](../../../docs/adr/0236-continue-flay-analysis-after-per-file-timeout.md)). Ticket 121 accepts `-#` as an unnumbered-report no-op and leaves alternate summary/diff/verbose output unsupported (see [ADR 0237](../../../docs/adr/0237-keep-flay-presentation-options-out-of-report-v1.md)).

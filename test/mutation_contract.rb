@@ -125,6 +125,7 @@ class MutationCase
     "Flay negative timeout incomplete outcome" => "test/duplication_timeout_contract.rb",
     "Flay timeout interrupts native worker" => "test/duplication_timeout_contract.rb",
     "Flay per-file timeout retains completed source" => "test/duplication_timeout_contract.rb",
+    "Flay numbering no-op support" => "test/duplication_presentation_contract.rb",
     "Flay mass boundary" => "test/duplication_contract.rb",
     "Flay identical multiplier" => "test/duplication_contract.rb",
     "Flay total score" => "test/duplication_contract.rb",
@@ -702,6 +703,11 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "report.paths = report.paths",
   "Flay per-file timeout retains completed source",
   "Fleek per-file timeout did not retain the completed source result")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'input != "--timeout" && input != "-#" && !input.start_with?("--fuzzy=")',
+  'input != "--timeout" && !input.start_with?("--fuzzy=")',
+  "Flay numbering no-op support",
+  "Fleek numbering option changed normalized status")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'bool writer = attr_writer || fleek_name_is(scope->parser, call->name, "attr_accessor") || fleek_name_is(scope->parser, call->name, "attr_writer");',
   "bool writer = false;",
@@ -2179,7 +2185,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay top-level required parameters",
   "unsupported Flay candidate syntax")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  '["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout"].include?(argument)',
+  '["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout", "-#"].include?(argument)',
   '["--only", "--liberal", "--fuzzy", "--legacy", "--timeout"].include?(argument)',
   "Flay mass check applicability",
   "inapplicable Flay mass was not rejected before Reek analysis")).run
@@ -2204,7 +2210,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay only missing repeated value",
   "missing repeated --only diagnostic changed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  '["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout"].include?(argument)',
+  '["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout", "-#"].include?(argument)',
   '["--mass", "--liberal", "--fuzzy", "--legacy", "--timeout"].include?(argument)',
   "Flay only check applicability",
   "inapplicable Flay only was not rejected before Reek analysis")).run
@@ -2219,12 +2225,12 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay liberal candidate retention",
   "liberal pruning omitted retained method candidates")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  '["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout"].include?(argument)',
+  '["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout", "-#"].include?(argument)',
   '["--mass", "--only", "--fuzzy", "--legacy", "--timeout"].include?(argument)',
   "Flay liberal check applicability",
   "inapplicable Flay liberal was not rejected before Reek analysis")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'reek_inputs = without_option_pairs(without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy"), "--timeout")',
+  'reek_inputs = without_option(without_option_pairs(without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy"), "--timeout"), "-#")',
   'reek_inputs = without_option_pairs(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--mass"), "--only"), "--legacy"), "--timeout")',
   "Flay liberal combined routing",
   "combined Flay liberal status")).run
@@ -2264,7 +2270,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay legacy parser boundary",
   "Fleek legacy parser failure test/fixtures/ruby4_duplicate.rb changed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  '["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout"].include?(argument)',
+  '["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout", "-#"].include?(argument)',
   '["--mass", "--only", "--liberal", "--fuzzy", "--timeout"].include?(argument)',
   "Flay legacy check applicability",
   "Reek-only legacy option changed")).run

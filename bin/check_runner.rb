@@ -27,6 +27,7 @@ class CheckRunner
     test/duplication_fuzzy_distance_contract.rb
     test/duplication_control_interactions_contract.rb
     test/duplication_timeout_contract.rb
+    test/duplication_presentation_contract.rb
     test/legacy_parser_contract.rb
     test/flayignore_contract.rb
     test/flay_paths_contract.rb
