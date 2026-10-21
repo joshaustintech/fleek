@@ -15,6 +15,7 @@
 - Ticket 81 matches DataClump participation across `class << self` and instance methods, retaining Reek's distinct counts for overlapping parameter groups. See [ADR 0218](../../docs/adr/0218-match-dataclump-singleton-participation.md).
 - Ticket 82 counts TooManyConstants independently for a top-level module and its direct nested module. See [ADR 0219](../../docs/adr/0219-count-too-many-constants-per-nested-module.md).
 - Ticket 83 counts TooManyInstanceVariables independently in two direct nested classes under one top-level class. See [ADR 0220](../../docs/adr/0220-count-too-many-instance-variables-per-nested-class.md).
+- Ticket 84 counts TooManyMethods independently in one top-level class and its direct nested class, preserving findings beside unsupported syntax. See [ADR 0221](../../docs/adr/0221-count-too-many-methods-per-nested-class.md).
 - Ticket 80 extends FeatureEnvy receiver counting through one supported method block; multiple blocks stay incomplete. See [ADR 0217](../../docs/adr/0217-analyze-feature-envy-inside-one-block.md).
 - Ticket 79 confirms configured ignored iterator names reduce NestedIterators depth; three-level chain at line 5 becomes depth two when `map` is ignored. See [ADR 0216](../../docs/adr/0216-verify-nested-iterator-ignore-depth.md).
 - Ticket 78 analyzes RepeatedConditional separately in each direct top-level class; thresholds and findings stay class-local. See [ADR 0215](../../docs/adr/0215-isolate-repeated-conditional-class-scopes.md).
