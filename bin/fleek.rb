@@ -1395,7 +1395,9 @@ class Fleek
     }
     static bool fleek_unused_private_collect_methods(pm_parser_t *parser, const pm_class_node_t *class_node,
       fleek_unused_private_state_t *state) {
-      if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) || !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE)) return false;
+      if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE)) return false;
+      if (class_node->body == NULL) return true;
+      if (!PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE)) return false;
       const pm_statements_node_t *statements = (const pm_statements_node_t *) class_node->body;
       bool private_visibility = false;
       if (statements->body.size > 128) return false;

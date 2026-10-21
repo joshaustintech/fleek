@@ -117,6 +117,8 @@ class DefaultArgumentApiContract
       verify_long_parameter_block_limit
     when "LongParameterList initializer override threshold"
       verify_initializer_override
+    when "UnusedPrivateMethod empty framework subclass handling"
+      verify_unused_private_framework_empty_class
     when "missing BooleanParameter finding"
       verify_boolean_parameter
     when "missing LongYieldList finding", "missing LongYieldList block finding"
@@ -434,6 +436,11 @@ class DefaultArgumentApiContract
     verify_unused_private_call_from_private
     verify_called_private_method_is_clean
     verify_dynamic_private_method_call_is_incomplete
+    verify_unused_private_framework_empty_class
+  end
+
+  def self.verify_unused_private_framework_empty_class
+    verify_unused_private_case("test/fixtures/unused_private_method_framework_subclass.rb", 0)
   end
 
   def self.verify_unused_private_symbol_visibility
