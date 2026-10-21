@@ -41,3 +41,5 @@ Reproduced the baseline with pinned Spinel `2026.09.12`, Flay `2.14.4`, and Reek
 The next identified class-body gap is bare visibility declarations. [Issue 131](131-rails-flay-visibility-declarations.md) tracks the reference-backed `private`/`protected`/`public` case; [ADR 0245](../../../docs/adr/0245-bound-rails-flay-visibility-declarations.md) records its intended boundary. The Rails manifest completion gate remains open.
 
 Issue 131 is resolved. `UsersController` now has complete Flay coverage when selected alone and retains its exact score-48 group; the combined 25-file manifest remains incomplete because of other residual source shapes.
+
+The next residual is `ApplicationController`'s direct `include SessionsHelper` declaration. [Issue 132](132-rails-flay-include-declarations.md) tracks the reference-backed include case; [ADR 0246](../../../docs/adr/0246-bound-rails-flay-include-declarations.md) records its narrow boundary. Issue 97 remains open.
