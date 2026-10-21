@@ -29,6 +29,7 @@ class DefaultArgumentApiContract
     verify_default_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb")
     verify_configured_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb", "test/fixtures/config_missing_safe_method_exclude.yml")
     verify_configured_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb", "test/fixtures/config_missing_safe_method_multiple_exclude.yml")
+    verify_manual_dispatch_nested_guard
     verify_default_detector("RepeatedConditional", "test/fixtures/repeated_conditional.rb")
     verify_configured_detector("RepeatedConditional", "test/fixtures/repeated_conditional.rb", "test/fixtures/config_repeated_conditional.yml")
     verify_default_detector("NestedIterators", "test/fixtures/nested_iterators.rb")
@@ -370,6 +371,29 @@ class DefaultArgumentApiContract
     verify(reference[0] == 0 && AnalysisRunner.detector_warnings(reference, "DuplicateMethodCall").empty?, "pinned nested DuplicateMethodCall allow_calls changed")
     verify(actual[0] == 0 && actual_output.include?("Status: complete") && actual_output.include?("1 analyzed; 0 failed"), "nested DuplicateMethodCall allow_calls was not complete and clean")
     AnalysisRunner.assert_detector_findings(actual, reference, "DuplicateMethodCall")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_manual_dispatch_nested_guard
+    source = "test/fixtures/manual_dispatch_nested_guard.rb"
+    reference = run_reek(source, "ManualDispatch")
+    actual = run_fleek(source, "", "reek:ManualDispatch")
+    reference_output = reference[1]
+    verify(reference[0] == 2 && reference_output.include?("[3]:ManualDispatch: Parcel#guarded_dispatch manually dispatches method call") &&
+      !reference_output.include?("Parcel#unguarded_dispatch"), "pinned nested ManualDispatch guard boundary changed")
+    AnalysisRunner.assert_status(actual, reference, "nested ManualDispatch guard")
+    AnalysisRunner.assert_detector_findings(actual, reference, "ManualDispatch")
+    verify_manual_dispatch_exclusion(source)
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_manual_dispatch_exclusion(source)
+    config = "test/fixtures/config_manual_dispatch_exclusion.yml"
+    reference = run_reek(source, "ManualDispatch", config)
+    actual = run_fleek(source, config, "reek:ManualDispatch")
+    verify(reference[0] == 0 && AnalysisRunner.detector_warnings(reference, "ManualDispatch").empty?, "pinned ManualDispatch context exclusion changed")
+    verify(actual[0] == 0 && actual[1].include?("Status: complete"), "ManualDispatch context exclusion was not complete and clean")
+    AnalysisRunner.assert_detector_findings(actual, reference, "ManualDispatch")
   end
 
   def self.verify_configured_detector(detector, source, config)

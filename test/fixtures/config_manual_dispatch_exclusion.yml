@@ -1,0 +1,4 @@
+detectors:
+  ManualDispatch:
+    exclude:
+      - "Parcel#guarded_dispatch"
