@@ -14,5 +14,5 @@ Support only receiver-free `include` calls with no block and one or more constan
 
 ## Consequences
 
-Issue 132 owns the fixtures, exact reference assertions, and mutation boundary. This does not support `extend`, `prepend`, or module singleton behavior. Rails-wide parity remains open in issue 97 until all remaining manifest shapes resolve.
+Issue 132 is implemented and resolved. Its public contract matches Flay 2.14.4 for the supported `:defn` group, and the pinned Rails `ApplicationController` analyzes completely when selected alone. Dynamic arguments, receiver calls, blocks, `extend`, `prepend`, and module singleton behavior remain outside the accepted boundary. Rails-wide parity remains open in issue 97 until all remaining manifest shapes resolve.
 

@@ -1039,6 +1039,13 @@ visibility_receiver_fields = ["scope=partial", "locations=\"#{visibility_receive
 DuplicationProcess.verify_output(visibility_receiver_actual, DuplicationProcess::OutputExpectation.new(1, visibility_receiver_fields, "receiver-qualified visibility calls were accepted"))
 DuplicationProcess.verify_output(visibility_receiver_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :class (mass = 54)", "#{visibility_receiver_path}:1", "#{visibility_receiver_path}:12"], "Flay receiver-visibility reference changed"))
 
+include_path = "test/fixtures/duplication_class_methods_include.rb"
+include_actual = DuplicationProcess.run(DuplicationProcess::Input.new(include_path, "fleek", ""))
+include_reference = DuplicationProcess.run(DuplicationProcess::Input.new(include_path, "flay", ""))
+include_fields = ["kind=\"similar\"", "locations=\"#{include_path}:5,#{include_path}:12\"", "mass=48 score=48", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(include_actual, DuplicationProcess::OutputExpectation.new(2, include_fields, "direct include declarations made supported methods incomplete"))
+DuplicationProcess.verify_output(include_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :defn (mass = 48)", "#{include_path}:5", "#{include_path}:12", "Total score (lower is better) = 48"], "Flay direct include result changed"))
+
 rails_corpus_root = ENV["FLEEK_RAILS_CORPUS"]
 if ENV["FLEEK_REQUIRE_RAILS_CORPUS"] == "1" && (!rails_corpus_root || rails_corpus_root.empty?)
   raise "FLEEK_RAILS_CORPUS is required for the pinned Rails controller contract"
@@ -1061,7 +1068,39 @@ if rails_corpus_root && !rails_corpus_root.empty?
   DuplicationProcess.verify_output(rails_actual, DuplicationProcess::OutputExpectation.new(2, rails_fields, "pinned Rails controller Flay result or complete status differed"))
   rails_reference_fields = ["Similar code found in :defn (mass = 48)", "#{rails_controller_path}:51", "#{rails_controller_path}:58", "Total score (lower is better) = 48"]
   DuplicationProcess.verify_output(rails_reference, DuplicationProcess::OutputExpectation.new(0, rails_reference_fields, "pinned Rails Flay reference changed"))
+  rails_application_controller = File.join(rails_corpus_root, "app/controllers/application_controller.rb")
+  rails_application_actual = DuplicationProcess.run(DuplicationProcess::Input.new(rails_application_controller, "fleek", ""))
+  rails_application_reference = DuplicationProcess.run(DuplicationProcess::Input.new(rails_application_controller, "flay", ""))
+  DuplicationProcess.verify_output(rails_application_actual, DuplicationProcess::OutputExpectation.new(0,
+    ["scope=included", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+    "pinned Rails ApplicationController include result was incomplete"))
+  DuplicationProcess.verify_output(rails_application_reference, DuplicationProcess::OutputExpectation.new(0,
+    ["Total score (lower is better) = 0"], "pinned Rails ApplicationController Flay result changed"))
 end
+
+include_dynamic_path = "test/fixtures/duplication_class_methods_include_dynamic.rb"
+include_dynamic_actual = DuplicationProcess.run(DuplicationProcess::Input.new(include_dynamic_path, "fleek", ""))
+include_dynamic_reference = DuplicationProcess.run(DuplicationProcess::Input.new(include_dynamic_path, "flay", ""))
+DuplicationProcess.verify_output(include_dynamic_actual, DuplicationProcess::OutputExpectation.new(1,
+  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"], "dynamic include argument was accepted"))
+DuplicationProcess.verify_output(include_dynamic_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay dynamic include reference changed"))
+
+include_receiver_path = "test/fixtures/duplication_class_methods_include_receiver.rb"
+include_receiver_actual = DuplicationProcess.run(DuplicationProcess::Input.new(include_receiver_path, "fleek", ""))
+include_receiver_reference = DuplicationProcess.run(DuplicationProcess::Input.new(include_receiver_path, "flay", ""))
+DuplicationProcess.verify_output(include_receiver_actual, DuplicationProcess::OutputExpectation.new(1,
+  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"], "receiver include call was accepted"))
+DuplicationProcess.verify_output(include_receiver_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay receiver include reference changed"))
+
+include_block_path = "test/fixtures/duplication_class_methods_include_block.rb"
+include_block_actual = DuplicationProcess.run(DuplicationProcess::Input.new(include_block_path, "fleek", ""))
+include_block_reference = DuplicationProcess.run(DuplicationProcess::Input.new(include_block_path, "flay", ""))
+DuplicationProcess.verify_output(include_block_actual, DuplicationProcess::OutputExpectation.new(1,
+  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"], "include block was accepted"))
+DuplicationProcess.verify_output(include_block_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay include block reference changed"))
 
 DuplicationProcess.verify_class_method_pair(class_methods_path, 19, "class method")
 DuplicationProcess.verify_class_method_pair(class_methods_with_helper_path, 19, "class helper")

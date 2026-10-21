@@ -43,3 +43,5 @@ The next identified class-body gap is bare visibility declarations. [Issue 131](
 Issue 131 is resolved. `UsersController` now has complete Flay coverage when selected alone and retains its exact score-48 group; the combined 25-file manifest remains incomplete because of other residual source shapes.
 
 The next residual is `ApplicationController`'s direct `include SessionsHelper` declaration. [Issue 132](132-rails-flay-include-declarations.md) tracks the reference-backed include case; [ADR 0246](../../../docs/adr/0246-bound-rails-flay-include-declarations.md) records its narrow boundary. Issue 97 remains open.
+
+Issue 132 is resolved: direct constant and constant-path `include` declarations are accepted, and the pinned `ApplicationController` analyzes completely by itself. The 25-file manifest gate still reports Flay incomplete at 0/25 fully analyzed; further class-body and method shapes remain.

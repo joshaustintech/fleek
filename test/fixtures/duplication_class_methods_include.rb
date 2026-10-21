@@ -1,0 +1,18 @@
+class CurrentFeed
+  include SessionsHelper, Shared::Current
+  private
+
+  def current
+    @heading = "Current"
+    @stream = Stream.open(params[:token])
+    @entries = @stream.current.list(limit: params[:limit])
+    render "current", status: :unprocessable_entity
+  end
+
+  def archived
+    @heading = "Archived"
+    @stream = Stream.open(params[:token])
+    @entries = @stream.archived.list(limit: params[:limit])
+    render "archive", status: :unprocessable_entity
+  end
+end
