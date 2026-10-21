@@ -12,6 +12,7 @@ class DefaultArgumentApiContract
     verify_run_coverage(actual)
     AnalysisRunner.assert_detector_findings(actual, reference, "LongParameterList")
     verify_initializer_override
+    verify_long_parameter_list_comment_suppression
     verify_boolean_parameter
     verify_boolean_parameter_singleton
     verify_long_yield_list
@@ -945,6 +946,26 @@ class DefaultArgumentApiContract
     reference = run_reek(source)
     actual = run_fleek(source)
     AnalysisRunner.assert_detector_findings(actual, reference, "LongParameterList")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_long_parameter_list_comment_suppression
+    class_source = "test/fixtures/long_parameter_list_class_suppressed.rb"
+    methods_source = "test/fixtures/long_parameter_list_method_suppression.rb"
+    class_actual = run_fleek(class_source, "", "reek:LongParameterList")
+    class_reference = run_reek(class_source, "LongParameterList")
+    methods_actual = run_fleek(methods_source, "", "reek:LongParameterList")
+    methods_reference = run_reek(methods_source, "LongParameterList")
+    AnalysisRunner.assert_same_report(class_actual, class_reference, "class LongParameterList suppression")
+    AnalysisRunner.assert_same_report(methods_actual, methods_reference, "method LongParameterList suppression")
+    verify_long_parameter_list_suppression_findings(methods_reference)
+  end
+
+  def self.verify_long_parameter_list_suppression_findings(reference)
+    warnings = AnalysisRunner.detector_warnings(reference, "LongParameterList")
+    reported_methods = warnings.map { |warning| warning.match(/Parcel#\w+/)[0] }
+    verify(reported_methods == %w[Parcel#deliver Parcel#repeated_enabled],
+      "LongParameterList suppression or repeated directive precedence differs from Reek")
   end
 
   def self.verify_run_coverage(actual)

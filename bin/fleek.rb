@@ -206,12 +206,17 @@ class Fleek
       return true;
     }
 
-    static int fleek_comment_suppression(const pm_comment_t *comment) {
-      const char *needle = ":reek:ClassVariable";
-      size_t needle_length = strlen(needle);
+    static int fleek_comment_suppression(const pm_comment_t *comment, const char *detector) {
+      char needle[128];
+      int needle_written = snprintf(needle, sizeof(needle), ":reek:%s", detector);
+      if (needle_written < 0 || (size_t) needle_written >= sizeof(needle)) return -1;
+      size_t needle_length = (size_t) needle_written;
       const uint8_t *directive = NULL;
       for (const uint8_t *cursor = comment->location.start; cursor + needle_length <= comment->location.end; cursor++) {
-        if (memcmp(cursor, needle, needle_length) == 0) { directive = cursor + needle_length; break; }
+        if (memcmp(cursor, needle, needle_length) == 0 &&
+            (cursor + needle_length == comment->location.end || (!isalnum(cursor[needle_length]) && cursor[needle_length] != '_'))) {
+          directive = cursor + needle_length;
+        }
       }
       if (directive == NULL) return 0;
       while (directive < comment->location.end && isspace(*directive)) directive++;
@@ -230,6 +235,31 @@ class Fleek
       while (directive < comment->location.end && isspace(*directive)) directive++;
       if (directive == comment->location.end || *directive != '}') return -1;
       return enabled ? 2 : 1;
+    }
+
+    static int fleek_context_suppression(pm_parser_t *parser, const uint8_t *keyword, const char *detector) {
+      int setting = 0;
+      for (pm_list_node_t *item = parser->comment_list.head; item != NULL; item = item->next) {
+        pm_comment_t *comment = (pm_comment_t *) item;
+        if (comment->location.end > keyword || !fleek_only_comments_between(comment->location.end, keyword)) continue;
+        int current = fleek_comment_suppression(comment, detector);
+        if (current < 0) return current;
+        if (current != 0) setting = current;
+      }
+      return setting;
+    }
+
+    static int fleek_method_suppressed(pm_parser_t *parser, const pm_node_t *scope, const pm_def_node_t *method, const char *detector) {
+      const uint8_t *scope_keyword = NULL;
+      if (scope != NULL && PM_NODE_TYPE_P(scope, PM_CLASS_NODE))
+        scope_keyword = ((const pm_class_node_t *) scope)->class_keyword_loc.start;
+      else if (scope != NULL && PM_NODE_TYPE_P(scope, PM_MODULE_NODE))
+        scope_keyword = ((const pm_module_node_t *) scope)->module_keyword_loc.start;
+      int scope_setting = scope_keyword == NULL ? 0 : fleek_context_suppression(parser, scope_keyword, detector);
+      if (scope_setting < 0) return scope_setting;
+      int method_setting = fleek_context_suppression(parser, method->def_keyword_loc.start, detector);
+      if (method_setting < 0) return method_setting;
+      return (method_setting != 0 ? method_setting : scope_setting) == 1;
     }
 
     typedef struct {
@@ -1152,6 +1182,8 @@ class Fleek
     }
 
     typedef int (*fleek_method_analyzer_t)(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
+    typedef struct { size_t maximum; const pm_node_t *scope; } fleek_long_parameter_state_t;
+    static int fleek_long_parameter_list_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     typedef struct { bool public_methods_only; bool method_is_public; bool unsupported_visibility; } fleek_utility_scan_t;
     typedef struct { size_t maximum; bool singleton_seen; } fleek_too_many_statements_scan_t;
     typedef struct { bool found; } fleek_nested_method_state_t;
@@ -1165,7 +1197,9 @@ class Fleek
     static int fleek_too_many_statements_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     static int fleek_uncommunicative_method_name_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
 
-    static int fleek_scan_method_scope(const char *source, size_t length, fleek_method_analyzer_t analyze, void *state) {
+    static int fleek_scan_method_scope(const char *source, size_t length, fleek_method_analyzer_t analyze, void *state,
+        const pm_node_t **scope_output) {
+      if (scope_output != NULL) *scope_output = NULL;
       fleek_class_count = fleek_module_count = 0;
       fleek_only_scope = NULL;
       if (memchr(source, 0, length) != NULL) return -2;
@@ -1224,6 +1258,7 @@ class Fleek
       if (fleek_class_count + fleek_module_count > 1 || (fleek_class_count + fleek_module_count == 1 && fleek_only_scope == NULL)) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
+      if (scope_output != NULL) *scope_output = fleek_only_scope;
       const pm_node_t *body;
       const char *class_name_text;
       size_t class_name_length;
@@ -1479,16 +1514,17 @@ class Fleek
       return true;
     }
 
-    typedef struct { size_t maximum; } fleek_long_parameter_state_t;
-
     static int fleek_long_parameter_list_method(pm_parser_t *parser, const uint8_t *source,
         const char *class_name, size_t class_name_length, const pm_node_t *node, void *data) {
       if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return 0;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
+      const fleek_long_parameter_state_t *state = (const fleek_long_parameter_state_t *) data;
+      int suppressed = fleek_method_suppressed(parser, state->scope, method, "LongParameterList");
+      if (suppressed < 0) return -1;
+      if (suppressed) return 0;
       bool class_method = method->receiver != NULL;
       if ((class_method && !PM_NODE_TYPE_P(method->receiver, PM_SELF_NODE)) || (method->parameters != NULL && !PM_NODE_TYPE_P((const pm_node_t *) method->parameters, PM_PARAMETERS_NODE))) return -1;
       size_t count = fleek_parameter_count((const pm_parameters_node_t *) method->parameters);
-      const fleek_long_parameter_state_t *state = (const fleek_long_parameter_state_t *) data;
       size_t method_maximum = fleek_name_is(parser, method->name, "initialize") ? 5 : state->maximum;
       if (count <= method_maximum) return 0;
       pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
@@ -1505,8 +1541,8 @@ class Fleek
     int fleek_long_parameter_list(const char *source, size_t length, size_t maximum) {
       fleek_long_parameter_list_buffer[0] = 0;
       fleek_long_parameter_list_used = 0;
-      fleek_long_parameter_state_t state = { maximum };
-      return fleek_scan_method_scope(source, length, fleek_long_parameter_list_method, &state);
+      fleek_long_parameter_state_t state = { maximum, NULL };
+      return fleek_scan_method_scope(source, length, fleek_long_parameter_list_method, &state, &state.scope);
     }
 
     const char *fleek_long_parameter_list_finding(void) { return fleek_long_parameter_list_buffer; }
@@ -1552,7 +1588,7 @@ class Fleek
     int fleek_boolean_parameter(const char *source, size_t length) {
       fleek_boolean_parameter_buffer[0] = 0;
       fleek_boolean_parameter_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_boolean_parameter_method, NULL);
+      return fleek_scan_method_scope(source, length, fleek_boolean_parameter_method, NULL, NULL);
     }
 
     const char *fleek_boolean_parameter_finding(void) { return fleek_boolean_parameter_buffer; }
@@ -1600,7 +1636,7 @@ class Fleek
     int fleek_long_yield_list(const char *source, size_t length, size_t maximum) {
       fleek_long_yield_list_buffer[0] = 0;
       fleek_long_yield_list_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_long_yield_list_method, &maximum);
+      return fleek_scan_method_scope(source, length, fleek_long_yield_list_method, &maximum, NULL);
     }
 
     const char *fleek_long_yield_list_finding(void) { return fleek_long_yield_list_buffer; }
@@ -1923,13 +1959,13 @@ class Fleek
     int fleek_control_parameter(const char *source, size_t length) {
       fleek_control_parameter_buffer[0] = 0; fleek_control_parameter_used = 0;
       int control_parameter_mode = 1;
-      return fleek_scan_method_scope(source, length, fleek_method_api_method, &control_parameter_mode);
+      return fleek_scan_method_scope(source, length, fleek_method_api_method, &control_parameter_mode, NULL);
     }
     const char *fleek_control_parameter_finding(void) { return fleek_control_parameter_buffer; }
     int fleek_unused_parameters(const char *source, size_t length) {
       fleek_unused_parameters_buffer[0] = 0; fleek_unused_parameters_used = 0;
       int unused_parameter_mode = 2;
-      return fleek_scan_method_scope(source, length, fleek_method_api_method, &unused_parameter_mode);
+      return fleek_scan_method_scope(source, length, fleek_method_api_method, &unused_parameter_mode, NULL);
     }
     const char *fleek_unused_parameters_finding(void) { return fleek_unused_parameters_buffer; }
     typedef struct { bool has_send; bool uses_self; } fleek_utility_state_t;
@@ -1966,7 +2002,7 @@ class Fleek
     int fleek_utility_function(const char *source, size_t length, size_t public_methods_only) {
       fleek_utility_function_buffer[0] = 0; fleek_utility_function_used = 0;
       fleek_utility_scan_t options = { public_methods_only != 0, true, false };
-      return fleek_scan_method_scope(source, length, fleek_utility_function_method, &options);
+      return fleek_scan_method_scope(source, length, fleek_utility_function_method, &options, NULL);
     }
     const char *fleek_utility_function_finding(void) { return fleek_utility_function_buffer; }
     typedef struct { const uint8_t *start; size_t length; } fleek_duplicate_call_t;
@@ -2034,7 +2070,7 @@ class Fleek
     int fleek_duplicate_method_call(const char *source, size_t length, size_t maximum, const char *allow_calls) {
       fleek_duplicate_method_call_buffer[0] = 0; fleek_duplicate_method_call_used = 0;
       fleek_duplicate_options_t options = { maximum, allow_calls };
-      return fleek_scan_method_scope(source, length, fleek_duplicate_method_call_method, &options);
+      return fleek_scan_method_scope(source, length, fleek_duplicate_method_call_method, &options, NULL);
     }
     const char *fleek_duplicate_method_call_finding(void) { return fleek_duplicate_method_call_buffer; }
     typedef struct { pm_parser_t *parser; const uint8_t *source; int lines[128]; size_t count; bool overflow; } fleek_manual_dispatch_state_t;
@@ -2076,7 +2112,7 @@ class Fleek
     }
     int fleek_manual_dispatch(const char *source, size_t length) {
       fleek_manual_dispatch_buffer[0] = 0; fleek_manual_dispatch_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_manual_dispatch_method, NULL);
+      return fleek_scan_method_scope(source, length, fleek_manual_dispatch_method, NULL, NULL);
     }
     const char *fleek_manual_dispatch_finding(void) { return fleek_manual_dispatch_buffer; }
     typedef struct { pm_parser_t *parser; const uint8_t *source; int lines[128]; size_t count; bool overflow; } fleek_nil_check_state_t;
@@ -2134,7 +2170,7 @@ class Fleek
     }
     int fleek_nil_check(const char *source, size_t length) {
       fleek_nil_check_buffer[0] = 0; fleek_nil_check_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_nil_check_method, NULL);
+      return fleek_scan_method_scope(source, length, fleek_nil_check_method, NULL, NULL);
     }
     const char *fleek_nil_check_finding(void) { return fleek_nil_check_buffer; }
     static bool fleek_missing_safe_version_exists(pm_parser_t *parser, const pm_def_node_t *method,
@@ -2175,7 +2211,7 @@ class Fleek
     }
     int fleek_missing_safe_method(const char *source, size_t length) {
       fleek_missing_safe_method_buffer[0] = 0; fleek_missing_safe_method_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_missing_safe_method_method, NULL);
+      return fleek_scan_method_scope(source, length, fleek_missing_safe_method_method, NULL, NULL);
     }
     const char *fleek_missing_safe_method_finding(void) { return fleek_missing_safe_method_buffer; }
     typedef struct { const uint8_t *expression; size_t length; int lines[64]; size_t count; } fleek_conditional_group_t;
@@ -2268,7 +2304,7 @@ class Fleek
       pm_visit_node(root, fleek_collect_classes, NULL);
       if (fleek_class_count <= 1) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
-        return fleek_scan_method_scope(source, length, fleek_repeated_conditional_method, &state);
+        return fleek_scan_method_scope(source, length, fleek_repeated_conditional_method, &state, NULL);
       }
       if (fleek_module_count != 0 || !PM_NODE_TYPE_P(root, PM_PROGRAM_NODE) ||
           ((const pm_program_node_t *) root)->statements == NULL) {
@@ -2422,7 +2458,7 @@ class Fleek
       state.source = (const uint8_t *) source;
       state.ignore_iterators = ignore_iterators;
       state.maximum = maximum;
-      return fleek_scan_method_scope(source, length, fleek_nested_iterator_method, &state);
+      return fleek_scan_method_scope(source, length, fleek_nested_iterator_method, &state, NULL);
     }
     const char *fleek_nested_iterators_finding(void) { return fleek_nested_iterators_buffer; }
     typedef struct { pm_constant_id_t name; int lines[128]; size_t count; } fleek_receiver_refs_t;
@@ -2488,7 +2524,7 @@ class Fleek
     }
     int fleek_feature_envy(const char *source, size_t length) {
       fleek_feature_envy_buffer[0] = 0; fleek_feature_envy_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_feature_envy_method, NULL);
+      return fleek_scan_method_scope(source, length, fleek_feature_envy_method, NULL, NULL);
     }
     const char *fleek_feature_envy_finding(void) { return fleek_feature_envy_buffer; }
 
@@ -2729,7 +2765,7 @@ class Fleek
       pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
       if (parse_error) return -1;
       fleek_too_many_statements_scan_t scan = { maximum, false };
-      int result = fleek_scan_method_scope(source, length, fleek_too_many_statements_method, &scan);
+      int result = fleek_scan_method_scope(source, length, fleek_too_many_statements_method, &scan, NULL);
       if (result == -4 && fleek_too_many_statements_used > 0) return -5;
       if (found && !scan.singleton_seen) return fleek_too_many_statements_used > 0 ? -5 : -4;
       return result;
@@ -2752,7 +2788,7 @@ class Fleek
       fleek_uncommunicative_method_name_buffer[0] = 0;
       fleek_uncommunicative_method_name_used = 0;
       fleek_name_patterns_t patterns = { reject, accept };
-      int result = fleek_scan_method_scope(source, length, fleek_uncommunicative_method_name_method, &patterns);
+      int result = fleek_scan_method_scope(source, length, fleek_uncommunicative_method_name_method, &patterns, NULL);
       return result == -4 && fleek_uncommunicative_method_name_used > 0 ? -5 : result;
     }
     const char *fleek_uncommunicative_method_name_finding(void) { return fleek_uncommunicative_method_name_buffer; }
@@ -2847,7 +2883,7 @@ class Fleek
     int fleek_uncommunicative_parameter_name(const char *source, size_t length, const char *reject, const char *accept) {
       fleek_uncommunicative_parameter_name_buffer[0] = 0; fleek_uncommunicative_parameter_name_used = 0;
       fleek_name_patterns_t patterns = { reject, accept };
-      int result = fleek_scan_method_scope(source, length, fleek_uncommunicative_parameter_name_method, &patterns);
+      int result = fleek_scan_method_scope(source, length, fleek_uncommunicative_parameter_name_method, &patterns, NULL);
       return result == -4 && fleek_uncommunicative_parameter_name_used > 0 ? -5 : result;
     }
     const char *fleek_uncommunicative_parameter_name_finding(void) { return fleek_uncommunicative_parameter_name_buffer; }
@@ -2922,7 +2958,7 @@ class Fleek
       pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
       fleek_name_patterns_t patterns = { reject, accept };
       fleek_variable_name_state_t state = { NULL, (const uint8_t *) source, "", 0, &patterns, false };
-      int result = fleek_scan_method_scope(source, length, fleek_uncommunicative_variable_name_method, &state);
+      int result = fleek_scan_method_scope(source, length, fleek_uncommunicative_variable_name_method, &state, NULL);
       return unsupported || result == -4 || state.unsupported ? (state.used > 0 ? -5 : -4) : result;
     }
     const char *fleek_uncommunicative_variable_name_finding(void) { return fleek_uncommunicative_variable_name_buffer; }
@@ -3246,7 +3282,7 @@ class Fleek
       pm_list_node_t *comment_node = parser.comment_list.head;
       while (comment_node != NULL) {
         pm_comment_t *comment = (pm_comment_t *) comment_node;
-        int suppression = fleek_comment_suppression(comment);
+        int suppression = fleek_comment_suppression(comment, "ClassVariable");
         if (comment->location.end <= scope_keyword && suppression != 0) {
           if (fleek_only_comments_between(comment->location.end, scope_keyword)) {
             if (suppression < 0) fleek_bad_suppression = 1;
