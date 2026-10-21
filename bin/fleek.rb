@@ -5604,9 +5604,9 @@ class Fleek
   def self.print_analysis_usage
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
     puts "       fleek --checks reek:ClassVariable[,flay:StructuralDuplication] [--reek-config FILE] SOURCE"
-    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--liberal] [--fuzzy [DIFF]] [--legacy] [--reek-config FILE] SOURCE..."
+    puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--timeout SECONDS] [--liberal] [--fuzzy [DIFF]] [--legacy] [--reek-config FILE] SOURCE..."
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
-    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--liberal] [--fuzzy [DIFF]] [--legacy] [--only NODE] SOURCE"
+    puts "       fleek --checks flay:StructuralDuplication [--mass MASS] [--timeout SECONDS] [--liberal] [--fuzzy [DIFF]] [--legacy] [--only NODE] SOURCE"
   end
 
   def self.help_requested?(arguments)
@@ -5662,7 +5662,7 @@ class Fleek
 
   def self.print_usage_error(message)
     warn message
-    warn "Use long options: --checks, --mass, --liberal, --fuzzy, --legacy, and --reek-config."
+    warn "Use long options: --checks, --mass, --timeout, --liberal, --fuzzy, --legacy, and --reek-config."
     warn "Usage: fleek [--help | --version]"
     1
   end
@@ -5719,6 +5719,8 @@ class Fleek
   def self.structural_duplication_input_error(inputs)
     mass_error = duplication_mass_error(inputs)
     return mass_error unless mass_error.empty?
+    timeout_error = duplication_timeout_error(inputs)
+    return timeout_error unless timeout_error.empty?
     fuzzy_error = duplication_fuzzy_error(inputs)
     return fuzzy_error unless fuzzy_error.empty?
     only_error = duplication_only_error(inputs)
@@ -5817,15 +5819,37 @@ class Fleek
     mass >= 3 && mass <= 2_147_483_647
   end
 
+  def self.duplication_timeout_error(inputs)
+    inputs.each_index do |index|
+      next unless inputs[index] == "--timeout"
+      return "--timeout requires an integer number of seconds." unless integer_option_value(inputs[index + 1])
+    end
+    ""
+  end
+
+  def self.duplication_timeout(inputs)
+    value = nil
+    inputs.each_index { |index| value = integer_option_value(inputs[index + 1]) if inputs[index] == "--timeout" }
+    value
+  end
+
   def self.duplication_source_input_error(inputs)
-    unsupported_option = inputs.find { |input| input.start_with?("-") && input != "--mass" && input != "--only" && input != "--liberal" && input != "--fuzzy" && input != "--legacy" && !input.start_with?("--fuzzy=") }
+    unsupported_option = duplication_unsupported_option(inputs)
     return "Unsupported Flay option: #{quote_text(unsupported_option)}" if unsupported_option
     return "flay:StructuralDuplication requires at least one Ruby source path." if duplication_source_paths(inputs).empty?
     ""
   end
 
+  def self.duplication_unsupported_option(inputs)
+    unsupported_index = inputs.each_index.find do |index|
+      input = inputs[index]
+      input.start_with?("-") && !(index.positive? && inputs[index - 1] == "--timeout") && input != "--mass" && input != "--only" && input != "--liberal" && input != "--fuzzy" && input != "--legacy" && input != "--timeout" && !input.start_with?("--fuzzy=")
+    end
+    inputs[unsupported_index] if unsupported_index
+  end
+
   def self.duplication_source_paths(inputs)
-    paths = without_option(without_optional_integer_option(without_option(without_option_pairs(without_option_pairs(inputs, "--mass"), "--only"), "--liberal"), "--fuzzy"), "--legacy")
+    paths = without_option_pairs(without_option(without_optional_integer_option(without_option(without_option_pairs(without_option_pairs(inputs, "--mass"), "--only"), "--liberal"), "--fuzzy"), "--legacy"), "--timeout")
     paths.map { |path| normalize_duplication_source_path(path) }.uniq
   end
 
@@ -6632,7 +6656,7 @@ class Fleek
   # :reek:TooManyStatements
   def self.prepare_combined_analysis(inputs)
     flay_inputs = without_option_pairs(inputs, "--reek-config")
-    reek_inputs = without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy")
+    reek_inputs = without_option_pairs(without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy"), "--timeout")
     flay_error = structural_duplication_input_error(flay_inputs)
     configuration, reek_sources, config_error = combined_reek_configuration(reek_inputs)
     return CombinedAnalysis.new(flay_inputs, reek_inputs, nil, config_error, []) unless config_error.empty?
@@ -6685,7 +6709,7 @@ class Fleek
 
   def self.run_profile_check(profile, check, inputs)
     return 0 unless profile.run.include?(check)
-    return run_structural_duplication(inputs, true) if check == "flay:StructuralDuplication"
+    return run_structural_duplication(inputs, true) if selected_flay_only?(check)
     return run_class_variable(inputs, true) if check == "reek:ClassVariable"
     detector = check.delete_prefix("reek:")
     return run_reek_detector(inputs, detector, :combined) if REEK_DETECTORS.key?(detector)
@@ -6717,7 +6741,7 @@ class Fleek
 
   def self.report_combined_input_error(message)
     warn "ERROR: #{message}"
-    warn "Use long options: --checks, --mass, --liberal, and --reek-config."
+    warn "Use long options: --checks, --mass, --timeout, --liberal, and --reek-config."
     1
   end
 
@@ -7160,8 +7184,190 @@ class Fleek
   end
 
   def self.run(arguments)
+    first_argument = arguments[0]
+    internal_result = run_internal_timeout_command(arguments)
+    return internal_result if internal_result
     return report_unsupported_format if unsupported_format_requested?(arguments)
+    run_with_flay_timeout(arguments)
+  end
+
+  def self.run_internal_timeout_command(arguments)
+    first_argument = arguments[0]
+    return run_timeout_worker_arguments(arguments) if first_argument == "--timeout-worker"
+    return run_timeout_killer(arguments) if first_argument == "--timeout-killer" && ENV["FLEEK_TIMEOUT_PARENT"] == Process.ppid.to_s
+    nil
+  end
+
+  def self.run_with_flay_timeout(arguments)
+    timeout, timeout_error = selected_flay_timeout(arguments)
+    return print_usage_error(timeout_error) unless timeout_error.empty?
+    return report_timeout_skip(arguments, timeout) if timeout && timeout < 0
+    return run_timeout_child(arguments, timeout) if timeout && timeout > 0
     run_without_unsupported_format(arguments)
+  end
+
+  def self.run_timeout_worker_arguments(arguments)
+    run_without_unsupported_format(File.read(arguments[1]).split("\u0000"))
+  end
+
+  def self.selected_flay_timeout(arguments)
+    return [nil, ""] unless selected_checks_requested?(arguments, arguments[0])
+    check = arguments[1]
+    return [nil, ""] unless check.include?(FLAY_CHECK)
+    inputs = arguments[2..]
+    [duplication_timeout(inputs), duplication_timeout_error(inputs)]
+  end
+
+  def self.run_timeout_child(arguments, timeout)
+    files = timeout_worker_files
+    status, expired = run_timeout_worker(arguments, timeout, files)
+    return report_timeout_skip(arguments, timeout) if expired
+    print_timeout_worker_output(files)
+    status
+  ensure
+    cleanup_timeout_worker_files(files) if files
+  end
+
+  def self.timeout_worker_files
+    token = Process.pid.to_s
+    ["/tmp/fleek-timeout-#{token}.out", "/tmp/fleek-timeout-#{token}.err", "/tmp/fleek-timeout-#{token}.args", "/tmp/fleek-timeout-#{token}.expired"]
+  end
+
+  def self.run_timeout_worker(arguments, timeout, files)
+    output, error, argument_path, expired_path = files
+    timeout_budget = prepare_timeout_worker(arguments, timeout, argument_path)
+    process_id = Process.spawn($0, "--timeout-worker", argument_path, out: output, err: error)
+    wait_for_timeout_worker_start(process_id, timeout_budget, expired_path)
+  end
+
+  def self.prepare_timeout_worker(arguments, timeout, argument_path)
+    child_arguments = without_option_pairs(arguments, "--timeout")
+    timeout_budget = timeout * timeout_source_count(arguments)
+    File.write(argument_path, child_arguments.join("\u0000"))
+    timeout_budget
+  end
+
+  def self.wait_for_timeout_worker_start(process_id, timeout_budget, expired_path)
+    timer_id = Process.spawn("env", "FLEEK_TIMEOUT_PARENT=#{Process.pid}", $0, "--timeout-killer", process_id.to_s, timeout_budget.to_s, expired_path, out: "/dev/null", err: "/dev/null")
+    _, worker_status = Process.waitpid2(process_id)
+    stop_timeout_timer(timer_id)
+    [worker_status.exitstatus || 1, File.file?(expired_path)]
+  end
+
+  # :reek:TooManyStatements
+  def self.run_timeout_killer(arguments)
+    process_id = arguments[1].to_i
+    sleep(arguments[2].to_i)
+    File.write(arguments[3], "timeout")
+    Process.kill("KILL", process_id)
+    0
+  rescue SystemCallError
+    0
+  end
+
+  def self.stop_timeout_timer(timer_id)
+    begin
+      Process.kill("KILL", timer_id)
+    rescue SystemCallError
+      nil
+    end
+    Process.waitpid2(timer_id)
+  rescue SystemCallError
+    nil
+  end
+
+  def self.print_timeout_worker_output(files)
+    output, error = files
+    $stdout.write(File.read(output))
+    $stderr.write(File.read(error))
+  end
+
+  def self.cleanup_timeout_worker_files(files)
+    files.each { |path| File.delete(path) if File.file?(path) }
+  end
+
+  def self.timeout_source_count(arguments)
+    report = timeout_source_report(arguments)
+    count = report.paths.length + report.errors.length
+    count.positive? ? count : 1
+  end
+
+  def self.timeout_source_report(arguments)
+    inputs = without_option_pairs(without_option_pairs(arguments[2..], "--timeout"), "--reek-config")
+    ignore_patterns, = load_flay_ignore_patterns
+    duplication_input_report(inputs, ignore_patterns)
+  end
+
+  def self.report_timeout_skip(arguments, timeout)
+    check = arguments[1]
+    report, inputs, error = timeout_failure_context(arguments)
+    return print_usage_error(error) if error.size > 0
+    return report_standalone_timeout(report, timeout) if check == FLAY_CHECK
+    report_combined_timeout_skip(report, inputs, timeout)
+  end
+
+  def self.timeout_failure_context(arguments)
+    inputs = without_option_pairs(arguments[2..], "--timeout")
+    flay_inputs = without_option_pairs(inputs, "--reek-config")
+    report, error = duplication_timeout_report_for_inputs(flay_inputs)
+    [report, inputs, error]
+  end
+
+  def self.duplication_timeout_report_for_inputs(inputs)
+    input_error = structural_duplication_input_error(inputs)
+    return [nil, input_error] unless input_error.empty?
+    duplication_timeout_report(inputs)
+  end
+
+  def self.duplication_timeout_report(inputs)
+    ignore_patterns, error = load_flay_ignore_patterns
+    return [nil, error] unless error == ""
+    [duplication_input_report(inputs, ignore_patterns), ""]
+  end
+
+  def self.report_standalone_timeout(report, timeout)
+    print_duplication_header(report)
+    warn "ERROR: Flay timeout after #{timeout} seconds; selected sources were not analyzed."
+    report_duplication_failure_summary(report)
+  end
+
+  def self.report_combined_timeout_skip(report, inputs, timeout)
+    analysis = prepare_combined_analysis(inputs)
+    analysis_error = analysis.error
+    return report_combined_input_error(analysis_error) unless analysis_error.empty?
+    print_combined_header
+    finish_combined_timeout(report, analysis, timeout)
+  end
+
+  def self.finish_combined_timeout(report, analysis, timeout)
+    report_combined_timeout_sections(report, analysis, timeout)
+    finish_combined_analysis(1, 1)
+  end
+
+  def self.report_combined_timeout_sections(report, analysis, timeout)
+    report_combined_flay_timeout(report, timeout)
+    report_combined_smell_timeout(analysis)
+  end
+
+  def self.report_combined_flay_timeout(report, timeout)
+    puts "Duplication section:"
+    print_duplication_header(report, true)
+    warn "ERROR: Flay timeout after #{timeout} seconds; selected sources were not analyzed."
+    report_duplication_failure_summary(report, true)
+  end
+
+  def self.report_combined_smell_timeout(analysis)
+    puts "Smell section:"
+    configuration = analysis.configuration
+    files, errors = discover_sources(analysis.reek_inputs, configuration)
+    report_combined_smell_timeout_coverage(files, errors, configuration)
+  end
+
+  def self.report_combined_smell_timeout_coverage(files, errors, configuration)
+    excluded = files.count { |path| configuration.excluded_path?(path) }
+    failed = files.length - excluded + errors.length
+    coverage = Coverage.new(failed + excluded, 0, failed, excluded, "incomplete")
+    report_section_coverage("Smell", coverage)
   end
 
   # :reek:TooManyStatements
@@ -7206,7 +7412,7 @@ class Fleek
   end
 
   def self.without_flay_options(inputs)
-    without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy")
+    without_option_pairs(without_option(without_option_pairs(without_option_pairs(without_option(without_optional_integer_option(inputs, "--fuzzy"), "--liberal"), "--mass"), "--only"), "--legacy"), "--timeout")
   end
 
   # :reek:TooManyStatements
@@ -7230,15 +7436,19 @@ class Fleek
     return run_reek_detector(inputs, detector, :single) if check.start_with?("reek:") && REEK_DETECTORS.key?(detector)
     return run_module_initialize(inputs) if check == "reek:ModuleInitialize"
     return run_subclassed_from_core_class(inputs) if check == "reek:SubclassedFromCoreClass"
-    return run_structural_duplication(inputs) if check == "flay:StructuralDuplication"
+    return run_structural_duplication(inputs) if check == FLAY_CHECK
     return run_combined_checks(inputs) if check == "flay:StructuralDuplication,reek:ClassVariable" || check == "reek:ClassVariable,flay:StructuralDuplication"
     print_usage_error(input_error(arguments))
   end
 
   def self.selected_check_option_error(check, inputs)
-    reek_option = inputs.find { |argument| ["--mass", "--only", "--liberal", "--fuzzy", "--legacy"].include?(argument) || argument.start_with?("--fuzzy=") } if check.start_with?("reek:") && !check.include?(FLAY_CHECK)
+    reek_option = inputs.find { |argument| ["--mass", "--only", "--liberal", "--fuzzy", "--legacy", "--timeout"].include?(argument) || argument.start_with?("--fuzzy=") } if check.start_with?("reek:") && !check.include?(FLAY_CHECK)
     return "#{reek_option} applies only to flay:StructuralDuplication." if reek_option
     check == FLAY_CHECK && inputs.include?("--reek-config") ? "--reek-config applies only to Reek checks." : ""
+  end
+
+  def self.selected_flay_only?(check)
+    check == FLAY_CHECK
   end
 
   def self.run_selected_opt_in_detector(inputs, detector)

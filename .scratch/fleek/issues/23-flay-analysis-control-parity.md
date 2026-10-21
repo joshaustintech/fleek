@@ -2,7 +2,7 @@
 
 **What to build:** Flay-specific settings and analysis-affecting controls produce the same structural duplication result and selected source set as pinned Flay 2.14.4.
 
-**Blocked by:** None (can start immediately).
+**Blocked by:** 121; 128; 129.
 
 **Status:** claimed
 **Type:** task  
@@ -17,4 +17,4 @@
 
 ## Answer
 
-Inventory confirms Flay 2.14.4 controls: analysis-affecting `--mass`, `--fuzzy [DIFF]`, `--liberal`, `--legacy`, and `--only NODE`; presentation/runtime controls include `--summary`, `--diff`, `-#`, `--verbose`, and `--timeout`. Fleek supports bounded `--mass`, `.flayignore`, recursive `**/*.rb` path expansion, `--only NODE` filtering, and `--liberal` pruning, with full total score and last-value behavior preserved for repeated `--only`. Reek-only selections reject `--mass`, `--only`, and `--liberal`; Flay-only selections reject `--reek-config`. ADRs 0106, 0107, and 0109 record these rules. Ticket 59 reconciles this inventory with evidence from tickets 10 and 53–58: `--timeout` remains an analysis/runtime gap (ticket 120), and `--summary`, `--diff`, `-#`, and `--verbose` remain report-v1 presentation differences (ticket 121). This parent remains open until its full acceptance checklist and residual gaps are resolved.
+Inventory confirms Flay 2.14.4 controls: analysis-affecting `--mass`, `--fuzzy [DIFF]`, `--liberal`, `--legacy`, and `--only NODE`; presentation/runtime controls include `--summary`, `--diff`, `-#`, `--verbose`, and `--timeout`. Fleek supports bounded `--mass`, `.flayignore`, recursive `**/*.rb` path expansion, `--only NODE` filtering, and `--liberal` pruning, with full total score and last-value behavior preserved for repeated `--only`. Reek-only selections reject `--mass`, `--only`, and `--liberal`; Flay-only selections reject `--reek-config`. ADRs 0106, 0107, and 0109 record these rules. Ticket 59 reconciles this inventory with evidence from tickets 10 and 53–58. Ticket 120 adds process-isolated timeout handling; its per-file continuation gap is tracked in issue 128. Presentation controls remain in issue 121. This parent remains open until the residuals and full acceptance checklist are resolved.
