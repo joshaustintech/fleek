@@ -23,6 +23,7 @@ class DefaultArgumentApiContract
     verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call.yml")
     verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_allow.yml")
     verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_multiple_allow.yml")
+    verify_duplicate_method_call_nested_branches
     verify_default_detector("ManualDispatch", "test/fixtures/manual_dispatch.rb")
     verify_default_detector("NilCheck", "test/fixtures/nil_check.rb")
     verify_default_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb")
@@ -345,6 +346,30 @@ class DefaultArgumentApiContract
 
   def self.verify_utility_instance_call
     verify_default_detector("UtilityFunction", "test/fixtures/utility_instance_method_call.rb")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_duplicate_method_call_nested_branches
+    source = "test/fixtures/duplicate_method_call_nested_branches.rb"
+    reference = run_reek(source, "DuplicateMethodCall")
+    actual = run_fleek(source, "", "reek:DuplicateMethodCall")
+    reference_output = reference[1]
+    verify(reference[0] == 2 && reference_output.include?("[4, 6]:DuplicateMethodCall: Parcel#calculate calls 'order.total(:net)' 2 times") &&
+      !reference_output.include?("order.total(:gross)"), "pinned nested DuplicateMethodCall grouping changed")
+    AnalysisRunner.assert_status(actual, reference, "nested DuplicateMethodCall branches")
+    AnalysisRunner.assert_detector_findings(actual, reference, "DuplicateMethodCall")
+    verify_duplicate_method_call_nested_allow(source)
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_duplicate_method_call_nested_allow(source)
+    config = "test/fixtures/config_duplicate_method_call_nested_allow.yml"
+    reference = run_reek(source, "DuplicateMethodCall", config)
+    actual = run_fleek(source, config, "reek:DuplicateMethodCall")
+    actual_output = actual[1]
+    verify(reference[0] == 0 && AnalysisRunner.detector_warnings(reference, "DuplicateMethodCall").empty?, "pinned nested DuplicateMethodCall allow_calls changed")
+    verify(actual[0] == 0 && actual_output.include?("Status: complete") && actual_output.include?("1 analyzed; 0 failed"), "nested DuplicateMethodCall allow_calls was not complete and clean")
+    AnalysisRunner.assert_detector_findings(actual, reference, "DuplicateMethodCall")
   end
 
   def self.verify_configured_detector(detector, source, config)
