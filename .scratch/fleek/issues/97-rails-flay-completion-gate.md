@@ -45,3 +45,5 @@ Issue 131 is resolved. `UsersController` now has complete Flay coverage when sel
 The next residual is `ApplicationController`'s direct `include SessionsHelper` declaration. [Issue 132](132-rails-flay-include-declarations.md) tracks the reference-backed include case; [ADR 0246](../../../docs/adr/0246-bound-rails-flay-include-declarations.md) records its narrow boundary. Issue 97 remains open.
 
 Issue 132 is resolved: direct constant and constant-path `include` declarations are accepted, and the pinned `ApplicationController` analyzes completely by itself. The 25-file manifest gate still reports Flay incomplete at 0/25 fully analyzed; further class-body and method shapes remain.
+
+The next concrete gap is empty class method bodies. [Issue 133](133-rails-flay-empty-method-bodies.md) tracks the pinned Rails controllers' empty `new`, `edit`, and action methods; Flay reports score zero while Fleek currently marks those sources partial. [ADR 0247](../../../docs/adr/0247-bound-rails-flay-empty-method-bodies.md) records the proposed zero-candidate boundary.
