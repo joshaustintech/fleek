@@ -1508,6 +1508,21 @@ class Fleek
       pm_visit_node(body, fleek_find_body_name, &search);
       return search.found;
     }
+    static bool fleek_find_body_name_in_blocks(const pm_node_t *node, void *data) {
+      fleek_name_search_t *search = (fleek_name_search_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
+      pm_constant_id_t name = 0;
+      if (PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE)) name = ((const pm_local_variable_read_node_t *) node)->name;
+      if (PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE)) name = ((const pm_local_variable_write_node_t *) node)->name;
+      if (name != 0 && fleek_constants_equal(search->parser, search->name, name)) { search->found = true; return false; }
+      return true;
+    }
+    static bool fleek_body_uses_name_in_blocks(pm_parser_t *parser, const pm_node_t *body, pm_constant_id_t name) {
+      if (body == NULL) return false;
+      fleek_name_search_t search = { parser, name, false };
+      pm_visit_node(body, fleek_find_body_name_in_blocks, &search);
+      return search.found;
+    }
     static bool fleek_find_implicit_super(const pm_node_t *node, void *data);
     static bool fleek_body_has_implicit_super(const pm_node_t *body) {
       if (body == NULL) return false;
@@ -1746,7 +1761,8 @@ class Fleek
           const pm_node_t *parameter = items->nodes[index];
           pm_constant_id_t name_id = fleek_parameter_name(parameter);
           if (name_id == 0) return -1;
-          bool unused = !fleek_body_uses_name(parser, method->body, name_id);
+          bool include_block_locals = data != NULL && *((int *) data) == 2;
+          bool unused = !(include_block_locals ? fleek_body_uses_name_in_blocks(parser, method->body, name_id) : fleek_body_uses_name(parser, method->body, name_id));
           if (!unused || fleek_body_has_implicit_super(method->body)) continue;
           pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, name_id);
           int written = snprintf(fleek_unused_parameters_buffer + fleek_unused_parameters_used,
@@ -1798,7 +1814,8 @@ class Fleek
     const char *fleek_control_parameter_finding(void) { return fleek_control_parameter_buffer; }
     int fleek_unused_parameters(const char *source, size_t length) {
       fleek_unused_parameters_buffer[0] = 0; fleek_unused_parameters_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_method_api_method, NULL);
+      int unused_parameter_mode = 2;
+      return fleek_scan_method_scope(source, length, fleek_method_api_method, &unused_parameter_mode);
     }
     const char *fleek_unused_parameters_finding(void) { return fleek_unused_parameters_buffer; }
     typedef struct { bool has_send; bool uses_self; } fleek_utility_state_t;
@@ -5749,7 +5766,7 @@ class Fleek
     "BooleanParameter" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has boolean parameter '%s'"],
     "LongYieldList" => ["one simple class or module with direct instance methods", "%s yields %s parameters"],
     "ControlParameter" => ["simple methods with direct conditionals and one iterator block", "%s is controlled by argument '%s'"],
-    "UnusedParameters" => ["simple method parameter lists and supported method bodies", "%s has unused parameter '%s'"],
+    "UnusedParameters" => ["simple method parameter lists and supported method bodies with one iterator block", "%s has unused parameter '%s'"],
     "UnusedPrivateMethod" => ["one simple class with direct instance methods and bare private/public/protected visibility", "%s has the unused private instance method '%s'"],
     "UtilityFunction" => ["direct instance methods without inherited overrides", "%s doesn't depend on instance state (maybe move it to another class?)"],
     "DuplicateMethodCall" => ["direct method calls with identical source form", "%s calls '%s' %s times"],

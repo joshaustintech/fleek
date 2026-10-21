@@ -17,6 +17,7 @@ class DefaultArgumentApiContract
     verify_long_yield_list
     verify_default_detector("ControlParameter", "test/fixtures/control_parameter.rb")
     verify_default_detector("UnusedParameters", "test/fixtures/unused_parameters.rb")
+    verify_unused_parameter_block_shadowing
     verify_default_detector("UtilityFunction", "test/fixtures/utility_function.rb")
     verify_default_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb")
     verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call.yml")
@@ -262,6 +263,29 @@ class DefaultArgumentApiContract
 
   def self.verify_control_parameter_branch_logical_body
     verify_default_detector("ControlParameter", "test/fixtures/control_parameter_branch_logical.rb")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_unused_parameter_block_shadowing
+    source = "test/fixtures/unused_parameters_block_shadowing.rb"
+    reference = run_reek(source, "UnusedParameters")
+    actual = run_fleek(source, "", "reek:UnusedParameters")
+    reference_output = reference[1]
+    verify(reference[0] == 2 && reference_output.include?("[14]:UnusedParameters: Parcel#unused has unused parameter 'value'") &&
+      !reference_output.include?("Parcel#shadowed") && !reference_output.include?("Parcel#captured"), "pinned UnusedParameters block shadowing boundary changed")
+    verify(actual[1].include?("Scope limits: simple method parameter lists and supported method bodies with one iterator block"), "UnusedParameters block scope limit was not reported")
+    AnalysisRunner.assert_status(actual, reference, "UnusedParameters block shadowing")
+    AnalysisRunner.assert_detector_findings(actual, reference, "UnusedParameters block shadowing")
+    verify_unused_parameter_block_exclusion(source)
+    AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/control_parameter_multiple_blocks.rb", "", "reek:UnusedParameters"), "multiple iterator blocks")
+  end
+
+  def self.verify_unused_parameter_block_exclusion(source)
+    config = "test/fixtures/config_unused_parameters_block_exclusion.yml"
+    reference = run_reek(source, "UnusedParameters", config)
+    actual = run_fleek(source, config, "reek:UnusedParameters")
+    verify(reference[0] == 0 && !reference[1].include?("UnusedParameters:"), "pinned UnusedParameters block exclusion changed")
+    verify_configuration_parity(actual, reference, "UnusedParameters")
   end
 
   # :reek:TooManyStatements

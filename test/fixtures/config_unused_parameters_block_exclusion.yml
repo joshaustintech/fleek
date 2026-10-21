@@ -1,0 +1,4 @@
+detectors:
+  UnusedParameters:
+    exclude:
+      - "Parcel#unused"
