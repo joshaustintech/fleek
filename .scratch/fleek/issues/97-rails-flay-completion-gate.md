@@ -51,3 +51,5 @@ Issue 133 resolves the empty class method gap: the pinned `static_pages_controll
 The next residual is the direct `primary_abstract_class` call in pinned `ApplicationRecord`. [Issue 134](134-rails-flay-primary-abstract-class.md) bounds that one no-argument Rails declaration; [ADR 0248](../../../docs/adr/0248-bound-rails-flay-primary-abstract-class.md) records its fail-closed boundary.
 
 Issue 134 resolves the pinned `ApplicationRecord` gap. Calls with arguments, receivers, blocks, and unrecognized names remain incomplete. The combined Rails manifest still fails its full Flay completeness gate; remaining gaps are in `UsersHelper`, `ApplicationMailer`, and models `Micropost`, `Relationship`, and `User`.
+
+The next gap is pinned `ApplicationMailer`'s `default from: <string>` and `layout <string>` declarations. [Issue 135](135-rails-flay-mailer-declarations.md) bounds those two call forms; [ADR 0249](../../../docs/adr/0249-bound-rails-flay-mailer-declarations.md) records the fail-closed shapes.
