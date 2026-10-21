@@ -4025,6 +4025,18 @@ class Fleek
       return true;
     }
 
+    static bool fleek_duplication_is_visibility_declaration(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return false;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      const uint8_t *name = call->message_loc.start;
+      if (call->receiver != NULL || call->block != NULL || name == NULL) return false;
+      size_t name_length = (size_t) (call->message_loc.end - name);
+      bool visibility_name = (name_length == 7 && memcmp(name, "private", 7) == 0) ||
+        (name_length == 9 && memcmp(name, "protected", 9) == 0) ||
+        (name_length == 6 && memcmp(name, "public", 6) == 0);
+      return visibility_name && (call->arguments == NULL || call->arguments->arguments.size == 0);
+    }
+
     static bool fleek_duplication_collect_class_methods(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set, bool collect_nested_sibling_scopes) {
       if (!PM_NODE_TYPE_P(node, PM_CLASS_NODE)) return false;
       const pm_class_node_t *class_node = (const pm_class_node_t *) node;
@@ -4085,7 +4097,8 @@ class Fleek
             if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_CLASS_NODE)) {
               only_classes = false;
               if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE) &&
-                  !fleek_duplication_is_callback_declaration(body->body.nodes[index])) fleek_duplication_partial = 1;
+                  !fleek_duplication_is_callback_declaration(body->body.nodes[index]) &&
+                  !fleek_duplication_is_visibility_declaration(body->body.nodes[index])) fleek_duplication_partial = 1;
               continue;
             }
             class_child_count++;
@@ -4207,7 +4220,8 @@ class Fleek
         for (size_t index = 0; index < body->body.size; index++) {
           const pm_node_t *child = body->body.nodes[index];
           if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) {
-            if (!fleek_duplication_is_callback_declaration(child)) fleek_duplication_partial = 1;
+            if (!fleek_duplication_is_callback_declaration(child) &&
+                !fleek_duplication_is_visibility_declaration(child)) fleek_duplication_partial = 1;
             continue;
           }
           if (!fleek_duplication_reserve_next_class_candidate(set) ||

@@ -1018,6 +1018,27 @@ callback_block_expected = ["scope=partial", "locations=\"#{callback_block_path}:
 DuplicationProcess.verify_output(callback_block_actual, DuplicationProcess::OutputExpectation.new(1, callback_block_expected, "callback blocks were incorrectly accepted as direct declarations"))
 DuplicationProcess.verify_output(callback_block_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :class (mass = 58)", "#{callback_block_path}:1", "#{callback_block_path}:15"], "Flay callback-block reference changed"))
 
+visibility_path = "test/fixtures/duplication_class_methods_visibility.rb"
+visibility_actual = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_path, "fleek", ""))
+visibility_reference = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_path, "flay", ""))
+visibility_fields = ["kind=\"similar\"", "locations=\"#{visibility_path}:5,#{visibility_path}:16\"", "mass=48 score=48", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(visibility_actual, DuplicationProcess::OutputExpectation.new(2, visibility_fields, "bare visibility declarations made supported methods incomplete"))
+DuplicationProcess.verify_output(visibility_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :defn (mass = 48)", "#{visibility_path}:5", "#{visibility_path}:16", "Total score (lower is better) = 48"], "Flay bare visibility declaration result changed"))
+
+visibility_arguments_path = "test/fixtures/duplication_class_methods_visibility_arguments.rb"
+visibility_arguments_actual = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_arguments_path, "fleek", ""))
+visibility_arguments_reference = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_arguments_path, "flay", ""))
+visibility_arguments_fields = ["scope=partial", "locations=\"#{visibility_arguments_path}:4,#{visibility_arguments_path}:15\"", "mass=48 score=48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(visibility_arguments_actual, DuplicationProcess::OutputExpectation.new(1, visibility_arguments_fields, "visibility calls with arguments were accepted"))
+DuplicationProcess.verify_output(visibility_arguments_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :class (mass = 54)", "#{visibility_arguments_path}:1", "#{visibility_arguments_path}:12"], "Flay visibility-argument reference changed"))
+
+visibility_receiver_path = "test/fixtures/duplication_class_methods_visibility_receiver.rb"
+visibility_receiver_actual = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_receiver_path, "fleek", ""))
+visibility_receiver_reference = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_receiver_path, "flay", ""))
+visibility_receiver_fields = ["scope=partial", "locations=\"#{visibility_receiver_path}:4,#{visibility_receiver_path}:15\"", "mass=48 score=48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(visibility_receiver_actual, DuplicationProcess::OutputExpectation.new(1, visibility_receiver_fields, "receiver-qualified visibility calls were accepted"))
+DuplicationProcess.verify_output(visibility_receiver_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :class (mass = 54)", "#{visibility_receiver_path}:1", "#{visibility_receiver_path}:12"], "Flay receiver-visibility reference changed"))
+
 rails_corpus_root = ENV["FLEEK_RAILS_CORPUS"]
 if ENV["FLEEK_REQUIRE_RAILS_CORPUS"] == "1" && (!rails_corpus_root || rails_corpus_root.empty?)
   raise "FLEEK_RAILS_CORPUS is required for the pinned Rails controller contract"
@@ -1036,9 +1057,8 @@ if rails_corpus_root && !rails_corpus_root.empty?
   raise "pinned Rails UsersController has local modifications" unless rails_file[0] == 0
   rails_actual = DuplicationProcess.run(DuplicationProcess::Input.new(rails_controller_path, "fleek", ""))
   rails_reference = DuplicationProcess.run(DuplicationProcess::Input.new(rails_controller_path, "flay", ""))
-  rails_fields = ["scope=partial", "locations=\"#{rails_controller_path}:51,#{rails_controller_path}:58\"", "mass=48 score=48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-  DuplicationProcess.verify_output(rails_actual, DuplicationProcess::OutputExpectation.new(1, rails_fields, "pinned Rails controller Flay group or incomplete status differed"))
-  DuplicationProcess.verify(rails_actual[2].include?("Partial results may omit Flay candidates"), "pinned Rails controller partial warning missing")
+  rails_fields = ["scope=included", "locations=\"#{rails_controller_path}:51,#{rails_controller_path}:58\"", "mass=48 score=48", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+  DuplicationProcess.verify_output(rails_actual, DuplicationProcess::OutputExpectation.new(2, rails_fields, "pinned Rails controller Flay result or complete status differed"))
   rails_reference_fields = ["Similar code found in :defn (mass = 48)", "#{rails_controller_path}:51", "#{rails_controller_path}:58", "Total score (lower is better) = 48"]
   DuplicationProcess.verify_output(rails_reference, DuplicationProcess::OutputExpectation.new(0, rails_reference_fields, "pinned Rails Flay reference changed"))
 end

@@ -14,5 +14,5 @@ Support bare, receiver-free `private`, `protected`, and `public` calls in a simp
 
 ## Consequences
 
-Issue 131 owns the reference fixtures and mutation boundary. This extends only candidate collection for simple class scopes. Rails-wide Flay parity remains open in issue 97 until the remaining source shapes are implemented and the exact 25-file contract passes with complete coverage.
+Issue 131 verifies the reference fixtures and mutation boundary. The pinned `UsersController` now has complete one-file coverage and exact score-48 findings. The combined 25-file manifest remains incomplete because other source shapes still need work. The default-configuration contract asserts that the opt-in detector stays disabled without constraining aggregate status, which can include findings from other selected analyzers after Flay coverage becomes complete.
 

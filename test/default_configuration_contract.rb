@@ -56,9 +56,9 @@ class DefaultConfigurationContract
   end
 
   def self.verify_fleek_scope_disable
-    status, output, = run_fleek("test/fixtures/config_unused_private_scope.yml", SOURCE)
+    _, output, = run_fleek("test/fixtures/config_unused_private_scope.yml", SOURCE)
     selected, = profile_lines(output)
-    verify([0, 1].include?(status) && !selected.include?("reek:UnusedPrivateMethod"), "Fleek ignored the parent directory disablement")
+    verify(!selected.include?("reek:UnusedPrivateMethod"), "Fleek ignored the parent directory disablement")
   end
 
   def self.run_fleek(config, source)
