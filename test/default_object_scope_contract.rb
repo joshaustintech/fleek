@@ -56,10 +56,43 @@ class DefaultObjectScopeContract
   end
 
   def self.verify_unsupported_shapes
-    source = "test/fixtures/class_new_assignment.rb"
-    verify_unsupported_detector("SubclassedFromCoreClass", source, "inherits from core class")
-    verify_unsupported_detector("IrresponsibleModule", source, "has no descriptive comment")
+    verify_subclassed_class_new_assignment
+    verify_unsupported_detector("IrresponsibleModule", "test/fixtures/class_new_assignment.rb", "has no descriptive comment")
     verify_class_new_method_call
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_subclassed_class_new_assignment
+    source = "test/fixtures/class_new_assignment.rb"
+    reference = run_reek_for("SubclassedFromCoreClass", source)
+    actual = run_fleek_check("SubclassedFromCoreClass", source)
+    verify(reference[0] == 2 && reference[1].include?("[1]:SubclassedFromCoreClass: RecordSet inherits from core class 'Array'"), "pinned Class.new(Array) finding changed")
+    AnalysisRunner.assert_status(actual, reference, "Class.new(Array)")
+    AnalysisRunner.assert_detector_findings(actual, reference, "Class.new(Array)")
+
+    custom_source = "test/fixtures/class_new_custom_assignment.rb"
+    custom_reference = run_reek_for("SubclassedFromCoreClass", custom_source)
+    custom_actual = run_fleek_check("SubclassedFromCoreClass", custom_source)
+    custom_output = custom_actual[1]
+    verify(custom_reference[0] == 0, "pinned Class.new(custom class) clean control changed")
+    verify(custom_actual[0] == 0 && custom_actual[2].empty? && custom_output.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && custom_output.include?("Status: complete"), "Class.new(custom class) was not analyzed cleanly")
+    AnalysisRunner.assert_detector_findings(custom_actual, custom_reference, "Class.new(custom class)")
+
+    dynamic_source = "test/fixtures/class_new_dynamic_superclass_assignment.rb"
+    dynamic_reference = run_reek_for("SubclassedFromCoreClass", dynamic_source)
+    dynamic_actual = run_fleek_check("SubclassedFromCoreClass", dynamic_source)
+    dynamic_output = dynamic_actual[1]
+    verify(dynamic_reference[0] == 0, "pinned dynamic Class.new superclass control changed")
+    verify(dynamic_actual[0] == 1 && dynamic_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded") && dynamic_output.include?("Status: incomplete"), "dynamic Class.new superclass was not reported as incomplete")
+    AnalysisRunner.assert_detector_findings(dynamic_actual, dynamic_reference, "dynamic Class.new superclass")
+
+    config = "test/fixtures/config_subclassed_from_core_class_exclusion.yml"
+    excluded_reference = run_reek_config_for("SubclassedFromCoreClass", source, config)
+    excluded_actual = run_fleek_check_config("SubclassedFromCoreClass", source, config)
+    excluded_output = excluded_actual[1]
+    verify(excluded_reference[0] == 0, "pinned Class.new(Array) exclusion changed")
+    verify(excluded_actual[0] == 0 && excluded_actual[2].empty? && excluded_output.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && excluded_output.include?("Status: complete"), "Class.new(Array) exclusion did not remain complete and clean")
+    AnalysisRunner.assert_detector_findings(excluded_actual, excluded_reference, "Class.new(Array) exclusion")
   end
 
   def self.verify_attribute_alias

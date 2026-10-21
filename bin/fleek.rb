@@ -500,6 +500,10 @@ class Fleek
       return constant->length == length && memcmp(constant->start, name, length) == 0;
     }
 
+    static bool fleek_core_subclass(pm_parser_t *parser, pm_constant_id_t id) {
+      return fleek_name_is(parser, id, "Array") || fleek_name_is(parser, id, "Hash") || fleek_name_is(parser, id, "String");
+    }
+
     static int fleek_source_line(const uint8_t *source, const uint8_t *position) {
       int line = 1;
       for (const uint8_t *cursor = source; cursor < position; cursor++) if (*cursor == '\\n') line++;
@@ -815,15 +819,16 @@ class Fleek
 
     const char *fleek_instance_variable_assumption_finding(void) { return fleek_instance_variable_assumption_buffer; }
 
-    typedef struct { pm_parser_t *parser; bool found; } fleek_class_new_search_t;
+    typedef struct { pm_parser_t *parser; const pm_node_t *assignment; const pm_call_node_t *call; bool unsupported; } fleek_class_new_search_t;
 
-    static bool fleek_class_new_expression(pm_parser_t *parser, const pm_node_t *node) {
-      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return false;
+    static const pm_call_node_t *fleek_class_new_expression(pm_parser_t *parser, const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return NULL;
       const pm_call_node_t *call = (const pm_call_node_t *) node;
-      return call->receiver != NULL && PM_NODE_TYPE_P(call->receiver, PM_CONSTANT_READ_NODE) && fleek_name_is(parser, call->name, "new") && fleek_name_is(parser, ((const pm_constant_read_node_t *) call->receiver)->name, "Class");
+      if (call->receiver == NULL || !PM_NODE_TYPE_P(call->receiver, PM_CONSTANT_READ_NODE) || !fleek_name_is(parser, call->name, "new") || !fleek_name_is(parser, ((const pm_constant_read_node_t *) call->receiver)->name, "Class")) return NULL;
+      return call;
     }
 
-    static bool fleek_class_new_assignment(const pm_node_t *node, void *data) {
+    static bool fleek_class_new_assignment_visit(const pm_node_t *node, void *data) {
       fleek_class_new_search_t *search = (fleek_class_new_search_t *) data;
       const pm_node_t *value = NULL;
       if (PM_NODE_TYPE_P(node, PM_CONSTANT_WRITE_NODE)) value = ((const pm_constant_write_node_t *) node)->value;
@@ -831,14 +836,25 @@ class Fleek
       else if (PM_NODE_TYPE_P(node, PM_CONSTANT_AND_WRITE_NODE)) value = ((const pm_constant_and_write_node_t *) node)->value;
       else if (PM_NODE_TYPE_P(node, PM_CONSTANT_OR_WRITE_NODE)) value = ((const pm_constant_or_write_node_t *) node)->value;
       else if (PM_NODE_TYPE_P(node, PM_CONSTANT_OPERATOR_WRITE_NODE)) value = ((const pm_constant_operator_write_node_t *) node)->value;
-      if (value != NULL && fleek_class_new_expression(search->parser, value)) { search->found = true; return false; }
+      const pm_call_node_t *call = value == NULL ? NULL : fleek_class_new_expression(search->parser, value);
+      if (call != NULL) {
+        if (search->call != NULL || !PM_NODE_TYPE_P(node, PM_CONSTANT_WRITE_NODE)) { search->unsupported = true; return false; }
+        search->assignment = node;
+        search->call = call;
+        return true;
+      }
       return true;
     }
 
+    static fleek_class_new_search_t fleek_find_class_new_assignment(pm_parser_t *parser, pm_node_t *root) {
+      fleek_class_new_search_t search = { parser, NULL, NULL, false };
+      pm_visit_node(root, fleek_class_new_assignment_visit, &search);
+      return search;
+    }
+
     static bool fleek_has_class_new(pm_parser_t *parser, pm_node_t *root) {
-      fleek_class_new_search_t search = { parser, false };
-      pm_visit_node(root, fleek_class_new_assignment, &search);
-      return search.found;
+      fleek_class_new_search_t search = fleek_find_class_new_assignment(parser, root);
+      return search.call != NULL || search.unsupported;
     }
 
     int fleek_subclassed_from_core_class(const char *source, size_t length) {
@@ -856,8 +872,30 @@ class Fleek
       if (parser.error_list.head != NULL) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1;
       }
-      if (fleek_has_class_new(&parser, root)) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
       pm_visit_node(root, fleek_collect_classes, NULL);
+      fleek_class_new_search_t class_new = fleek_find_class_new_assignment(&parser, root);
+      if (class_new.call != NULL || class_new.unsupported) {
+        if (class_new.unsupported || class_new.assignment == NULL || class_new.call->block != NULL || class_new.call->arguments == NULL || class_new.call->arguments->arguments.size != 1) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        const pm_node_t *argument = class_new.call->arguments->arguments.nodes[0];
+        if (!PM_NODE_TYPE_P(argument, PM_CONSTANT_READ_NODE) || fleek_class_count != 0 || fleek_module_count != 0) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        pm_constant_id_t superclass_id = ((const pm_constant_read_node_t *) argument)->name;
+        if (fleek_core_subclass(&parser, superclass_id)) {
+          const pm_constant_write_node_t *assignment = (const pm_constant_write_node_t *) class_new.assignment;
+          pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, assignment->name);
+          pm_constant_t *superclass_name = pm_constant_pool_id_to_constant(&parser.constant_pool, superclass_id);
+          int line = fleek_source_line((const uint8_t *) source, assignment->name_loc.start);
+          int written = snprintf(fleek_subclassed_from_core_class_buffer, sizeof(fleek_subclassed_from_core_class_buffer), "%d\\t%.*s\\t%.*s\\n", line, (int) class_name->length, class_name->start, (int) superclass_name->length, superclass_name->start);
+          if (written < 0 || (size_t) written >= sizeof(fleek_subclassed_from_core_class_buffer)) {
+            pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+          }
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 1;
+        }
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
+      }
       if (fleek_class_count == 0) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
       }
@@ -872,10 +910,9 @@ class Fleek
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
       pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) class_node->constant_path)->name);
-      pm_constant_t *superclass_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) class_node->superclass)->name);
-      bool core = (superclass_name->length == 5 && memcmp(superclass_name->start, "Array", 5) == 0) ||
-        (superclass_name->length == 4 && memcmp(superclass_name->start, "Hash", 4) == 0) ||
-        (superclass_name->length == 6 && memcmp(superclass_name->start, "String", 6) == 0);
+      pm_constant_id_t superclass_id = ((const pm_constant_read_node_t *) class_node->superclass)->name;
+      pm_constant_t *superclass_name = pm_constant_pool_id_to_constant(&parser.constant_pool, superclass_id);
+      bool core = fleek_core_subclass(&parser, superclass_id);
       int result = 0;
       if (core) {
         int line = fleek_source_line((const uint8_t *) source, class_node->class_keyword_loc.start);

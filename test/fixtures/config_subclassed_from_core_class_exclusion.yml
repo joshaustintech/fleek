@@ -1,0 +1,4 @@
+detectors:
+  SubclassedFromCoreClass:
+    exclude:
+      - RecordSet
