@@ -4007,6 +4007,24 @@ class Fleek
       }
     }
 
+    static bool fleek_duplication_is_callback_declaration(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return false;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      const uint8_t *name = call->message_loc.start;
+      if (call->receiver != NULL || call->block != NULL || name == NULL || call->message_loc.end - name != 13 ||
+          memcmp(name, "before_action", 13) != 0) return false;
+      if (call->arguments == NULL) return false;
+      const pm_node_list_t *arguments = &call->arguments->arguments;
+      if (arguments->size == 0) return false;
+      for (size_t index = 0; index < arguments->size; index++) {
+        const pm_node_t *argument = arguments->nodes[index];
+        if (!PM_NODE_TYPE_P(argument, PM_SYMBOL_NODE) && !PM_NODE_TYPE_P(argument, PM_ARRAY_NODE) &&
+            !PM_NODE_TYPE_P(argument, PM_HASH_NODE) && !PM_NODE_TYPE_P(argument, PM_ASSOC_NODE) &&
+            !PM_NODE_TYPE_P(argument, PM_KEYWORD_HASH_NODE)) return false;
+      }
+      return true;
+    }
+
     static bool fleek_duplication_collect_class_methods(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set, bool collect_nested_sibling_scopes) {
       if (!PM_NODE_TYPE_P(node, PM_CLASS_NODE)) return false;
       const pm_class_node_t *class_node = (const pm_class_node_t *) node;
@@ -4066,7 +4084,8 @@ class Fleek
           for (size_t index = 0; index < body->body.size; index++) {
             if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_CLASS_NODE)) {
               only_classes = false;
-              if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE)) fleek_duplication_partial = 1;
+              if (!PM_NODE_TYPE_P(body->body.nodes[index], PM_DEF_NODE) &&
+                  !fleek_duplication_is_callback_declaration(body->body.nodes[index])) fleek_duplication_partial = 1;
               continue;
             }
             class_child_count++;
@@ -4187,7 +4206,10 @@ class Fleek
         }
         for (size_t index = 0; index < body->body.size; index++) {
           const pm_node_t *child = body->body.nodes[index];
-          if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) { fleek_duplication_partial = 1; continue; }
+          if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) {
+            if (!fleek_duplication_is_callback_declaration(child)) fleek_duplication_partial = 1;
+            continue;
+          }
           if (!fleek_duplication_reserve_next_class_candidate(set) ||
               !fleek_duplication_class_method(child, source, &set->candidates[set->count])) { fleek_duplication_partial = 1; continue; }
           set->methods[set->count] = (const pm_def_node_t *) child;

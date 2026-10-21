@@ -333,6 +333,8 @@ class MutationCase
     "Flay partial source label" => "test/duplication_contract.rb",
     "Flay partial coverage count" => "test/duplication_contract.rb",
     "Flay partial class candidates" => "test/duplication_contract.rb",
+    "Flay callback declaration support" => "test/duplication_contract.rb",
+    "Flay callback block rejection" => "test/duplication_contract.rb",
     "Flay empty namespace classes" => "test/duplication_contract.rb",
     "Flay empty module body guard" => "test/duplication_contract.rb",
     "Flay cross-file location mapping" => "test/duplication_contract.rb",
@@ -2051,8 +2053,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method candidate capacity",
   "class-method candidate capacity parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "const pm_node_t *child = body->body.nodes[index];\n          if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) { fleek_duplication_partial = 1; continue; }\n          if (!fleek_duplication_reserve_next_class_candidate(set) ||",
-  "const pm_node_t *child = body->body.nodes[index];\n          if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) { fleek_duplication_partial = 1; continue; }\n          if (set->count >= 1 || !fleek_duplication_reserve_next_class_candidate(set) ||",
+  "if (!fleek_duplication_reserve_next_class_candidate(set) ||\n              !fleek_duplication_class_method(child, source, &set->candidates[set->count])) { fleek_duplication_partial = 1; continue; }",
+  "if (set->count >= 1 || !fleek_duplication_reserve_next_class_candidate(set) ||\n              !fleek_duplication_class_method(child, source, &set->candidates[set->count])) { fleek_duplication_partial = 1; continue; }",
   "Flay additional class method rejection",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -2069,7 +2071,17 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "return set->candidates[index].scope_kind != 0 && set->scope_candidate_counts[index] > 0 &&\n        set->scope_body_counts[index] == set->scope_candidate_counts[index];",
   "return set->candidates[index].scope_kind != 0;",
   "Flay partial class candidates",
-  "supported class methods were hidden by unsupported callbacks")).run
+  "direct callback declarations made supported class methods incomplete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "!fleek_duplication_is_callback_declaration(body->body.nodes[index])) fleek_duplication_partial = 1;",
+  "true) fleek_duplication_partial = 1;",
+  "Flay callback declaration support",
+  "direct callback declarations made supported class methods incomplete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "call->receiver != NULL || call->block != NULL || name == NULL",
+  "call->receiver != NULL || false || name == NULL",
+  "Flay callback block rejection",
+  "callback blocks were incorrectly accepted as direct declarations")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "else if (!fleek_duplication_collect_namespace_classes(statement, (const uint8_t *) source, &class_candidates)) {",
   "else if (true) {",
@@ -2116,15 +2128,15 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method pair ordering",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  'if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) { fleek_duplication_partial = 1; continue; }',
-  'if (!PM_NODE_TYPE_P(child, PM_DEF_NODE)) { fleek_duplication_partial = 0; continue; }',
+  'if (!fleek_duplication_is_callback_declaration(child)) fleek_duplication_partial = 1;',
+  'if (!fleek_duplication_is_callback_declaration(child)) fleek_duplication_partial = 0;',
   "Flay class method partial status",
-  "supported class methods were hidden by unsupported callbacks")).run
+  "callback blocks were incorrectly accepted as direct declarations")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'print_duplication_source(path, report.source_scope)',
   'print_duplication_source(path, "included")',
   "Flay partial source label",
-  "partial Rails class results were hidden or reported complete")).run
+  "callback blocks were incorrectly accepted as direct declarations")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'report.paths.length - report.partial_paths.length',
   'report.paths.length',

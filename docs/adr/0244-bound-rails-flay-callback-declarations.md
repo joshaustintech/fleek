@@ -14,5 +14,5 @@ Track direct callback declarations as a bounded Flay candidate-collection case. 
 
 ## Consequences
 
-Issue 130 owns the focused implementation and mutation proof. Rails-wide Flay parity remains open in issue 97 until every residual source gap has a verified implementation or explicit unresolved child. The existing partial result remains the truthful baseline until the callback case is implemented.
+Issue 130 implements the focused case with public reference comparisons and mutations for callback acceptance, block rejection, and candidate preservation. Rails-wide Flay parity remains open in issue 97 until every residual source gap has a verified implementation or explicit unresolved child. The Rails contract verifies the callback-bearing controller case while retaining incomplete status for the remaining manifest shapes.
 

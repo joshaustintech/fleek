@@ -1,5 +1,5 @@
 class CurrentFeed
-  before_action :authorize
+  before_action :authorize, only: [:current, :refresh]
 
   def current
     @heading = "Current"

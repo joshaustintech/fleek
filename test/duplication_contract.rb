@@ -999,18 +999,24 @@ DuplicationProcess.verify_output(empty_module_reference, DuplicationProcess::Out
 partial_candidates_path = "test/fixtures/duplication_class_methods_partial_candidates.rb"
 partial_candidates_actual = DuplicationProcess.run(DuplicationProcess::Input.new(partial_candidates_path, "fleek", ""))
 partial_candidates_reference = DuplicationProcess.run(DuplicationProcess::Input.new(partial_candidates_path, "flay", ""))
-partial_candidates_fields = ["kind=\"similar\"", "locations=\"#{partial_candidates_path}:4,#{partial_candidates_path}:15\"", "mass=48 score=48", "Total duplication score: 48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(partial_candidates_actual, DuplicationProcess::OutputExpectation.new(1, partial_candidates_fields, "supported class methods were hidden by unsupported callbacks"))
+partial_candidates_fields = ["kind=\"similar\"", "locations=\"#{partial_candidates_path}:4,#{partial_candidates_path}:15\"", "mass=48 score=48", "Total duplication score: 48", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(partial_candidates_actual, DuplicationProcess::OutputExpectation.new(2, partial_candidates_fields, "direct callback declarations made supported class methods incomplete"))
 partial_candidates_reference_fields = ["Similar code found in :defn (mass = 48)", "#{partial_candidates_path}:4", "#{partial_candidates_path}:15", "Total score (lower is better) = 48"]
 DuplicationProcess.verify_output(partial_candidates_reference, DuplicationProcess::OutputExpectation.new(0, partial_candidates_reference_fields, "Flay class methods with callbacks changed"))
 
 partial_rails_path = "test/fixtures/duplication_class_methods_partial_rails.rb"
 partial_rails_actual = DuplicationProcess.run(DuplicationProcess::Input.new(partial_rails_path, "fleek", ""))
 partial_rails_reference = DuplicationProcess.run(DuplicationProcess::Input.new(partial_rails_path, "flay", ""))
-partial_rails_expected = ["#{partial_rails_path}\" scope=partial", "locations=\"#{partial_rails_path}:4,#{partial_rails_path}:11\"", "mass=48 score=48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(partial_rails_actual, DuplicationProcess::OutputExpectation.new(1, partial_rails_expected, "partial Rails class results were hidden or reported complete"))
-DuplicationProcess.verify(partial_rails_actual[2].include?("Partial results may omit Flay candidates"), "partial Rails class results were not labeled")
+partial_rails_expected = ["#{partial_rails_path}\" scope=included", "locations=\"#{partial_rails_path}:4,#{partial_rails_path}:11\"", "mass=48 score=48", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
+DuplicationProcess.verify_output(partial_rails_actual, DuplicationProcess::OutputExpectation.new(2, partial_rails_expected, "direct callback declarations made supported Rails methods incomplete"))
 DuplicationProcess.verify_output(partial_rails_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :defn (mass = 48)", "#{partial_rails_path}:4", "#{partial_rails_path}:11"], "partial Rails Flay reference changed"))
+
+callback_block_path = "test/fixtures/duplication_class_methods_callback_block.rb"
+callback_block_actual = DuplicationProcess.run(DuplicationProcess::Input.new(callback_block_path, "fleek", ""))
+callback_block_reference = DuplicationProcess.run(DuplicationProcess::Input.new(callback_block_path, "flay", ""))
+callback_block_expected = ["scope=partial", "locations=\"#{callback_block_path}:7,#{callback_block_path}:21\"", "mass=48 score=48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(callback_block_actual, DuplicationProcess::OutputExpectation.new(1, callback_block_expected, "callback blocks were incorrectly accepted as direct declarations"))
+DuplicationProcess.verify_output(callback_block_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :class (mass = 58)", "#{callback_block_path}:1", "#{callback_block_path}:15"], "Flay callback-block reference changed"))
 
 rails_corpus_root = ENV["FLEEK_RAILS_CORPUS"]
 if ENV["FLEEK_REQUIRE_RAILS_CORPUS"] == "1" && (!rails_corpus_root || rails_corpus_root.empty?)
