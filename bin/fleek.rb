@@ -1366,11 +1366,6 @@ class Fleek
     }
 
     typedef struct { size_t maximum; } fleek_long_parameter_state_t;
-    static bool fleek_has_block(const pm_node_t *node, void *data) {
-      bool *found = (bool *) data;
-      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) { *found = true; return false; }
-      return !PM_NODE_TYPE_P(node, PM_DEF_NODE);
-    }
 
     static int fleek_long_parameter_list_method(pm_parser_t *parser, const uint8_t *source,
         const char *class_name, size_t class_name_length, const pm_node_t *node, void *data) {
@@ -1378,9 +1373,6 @@ class Fleek
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       bool class_method = method->receiver != NULL;
       if ((class_method && !PM_NODE_TYPE_P(method->receiver, PM_SELF_NODE)) || (method->parameters != NULL && !PM_NODE_TYPE_P((const pm_node_t *) method->parameters, PM_PARAMETERS_NODE))) return -1;
-      bool has_block = false;
-      if (method->body != NULL) pm_visit_node(method->body, fleek_has_block, &has_block);
-      if (has_block) return -1;
       size_t count = fleek_parameter_count((const pm_parameters_node_t *) method->parameters);
       const fleek_long_parameter_state_t *state = (const fleek_long_parameter_state_t *) data;
       size_t method_maximum = fleek_name_is(parser, method->name, "initialize") ? 5 : state->maximum;

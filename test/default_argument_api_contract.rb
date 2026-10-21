@@ -229,10 +229,39 @@ class DefaultArgumentApiContract
     verify_configuration_parity(actual, reference, detector)
   end
 
+  # :reek:TooManyStatements
   def self.verify_long_parameter_block_limit
-    actual = run_fleek("test/fixtures/long_parameter_block.rb")
-    verify(actual[0] == 1, "LongParameterList block scope appeared clean")
-    verify(actual[2].include?("LongParameterList supports"), "LongParameterList block scope was not reported unsupported")
+    source = "test/fixtures/long_parameter_block.rb"
+    reference = run_reek(source)
+    actual = run_fleek(source, "", "reek:LongParameterList")
+    output = actual[1]
+    verify(reference[0] == 0, "pinned block-parameter-only source changed")
+    verify(actual[0] == 0 && actual[2].empty? && output.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && output.include?("Status: complete"), "block-parameter-only method was not analyzed cleanly")
+    AnalysisRunner.assert_detector_findings(actual, reference, "block-parameter-only source")
+    verify_long_parameter_block_boundaries
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_long_parameter_block_boundaries
+    source = "test/fixtures/long_parameter_block_boundary.rb"
+    reference = run_reek(source)
+    actual = run_fleek(source, "", "reek:LongParameterList")
+    reference_output = reference[1]
+    verify(reference[0] == 2 && reference_output.include?("[6]:LongParameterList: Parcel#over_default_limit has 4 parameters") && reference_output.include?("[10]:LongParameterList: Parcel#over_configured_limit has 5 parameters"), "pinned default block-body threshold boundaries changed")
+    AnalysisRunner.assert_status(actual, reference, "default block-body threshold")
+    AnalysisRunner.assert_detector_findings(actual, reference, "default block-body threshold")
+    verify_configured_long_parameter_block_boundary(source)
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_configured_long_parameter_block_boundary(source)
+    config = "test/fixtures/config_long_parameter_list.yml"
+    reference = run_reek(source, "LongParameterList", config)
+    actual = run_fleek(source, config, "reek:LongParameterList")
+    reference_output = reference[1]
+    verify(reference[0] == 2 && !reference_output.include?("over_default_limit has 4 parameters") && reference_output.include?("[10]:LongParameterList: Parcel#over_configured_limit has 5 parameters"), "pinned configured block-body threshold changed")
+    AnalysisRunner.assert_status(actual, reference, "configured block-body threshold")
+    AnalysisRunner.assert_detector_findings(actual, reference, "configured block-body threshold")
   end
 
   def self.verify_long_parameter_configuration
