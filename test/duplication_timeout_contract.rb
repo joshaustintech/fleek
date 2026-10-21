@@ -17,6 +17,7 @@ class DuplicationTimeoutContract
     verify_combined_positive_value
     verify_combined_negative_value
     verify_timeout_expiry
+    verify_per_file_timeout_continuation
     verify_timer_command_is_not_exposed
     puts "Flay timeout contract: pass"
   end
@@ -80,6 +81,30 @@ class DuplicationTimeoutContract
     File.delete(path) if File.file?(path)
   end
 
+  # :reek:TooManyStatements
+  def self.verify_per_file_timeout_continuation
+    slow_path = "/tmp/flay-timeout-slow-pair-#{Process.pid}.rb"
+    write_timeout_source(slow_path)
+    paths = [slow_path, PATH]
+    reference = invoke("flay", ["--timeout", "1"], paths)
+    raise "Flay did not retain the fast source result after timeout" unless reference[0] == 0 &&
+      reference[1].include?("Total score (lower is better) = 48") &&
+      reference[2].include?("TIMEOUT parsing #{slow_path}. Skipping.")
+
+    actual = invoke("fleek", ["--timeout", "1"], paths)
+    AnalysisRunner.assert_report_contains(actual, [1, [
+      "Source: #{slow_path.inspect} scope=failed",
+      "Source: #{PATH.inspect} scope=included",
+      "Total duplication score: 48",
+      "Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=\"similar\" locations=\"#{PATH}:2,#{PATH}:9\" mass=48 score=48",
+      "Coverage: 2 selected; 1 analyzed; 1 failed; 0 excluded",
+      "Status: incomplete"
+    ], "Fleek per-file timeout did not retain the completed source result"])
+    raise "Fleek per-file timeout omitted the skipped source diagnostic" unless actual[2].include?("#{slow_path}") && actual[2].include?("timeout")
+  ensure
+    File.delete(slow_path) if slow_path && File.file?(slow_path)
+  end
+
   def self.write_timeout_source(path)
     body = "x\n" * 8_000_000
     File.write(path, "def first\n#{body}end\ndef second\n#{body}end\n")
@@ -118,14 +143,19 @@ class DuplicationTimeoutContract
     output = "/tmp/flay-timeout-#{tool}-#{Process.pid}.out"
     error = "/tmp/flay-timeout-#{tool}-#{Process.pid}.err"
     executable = File.expand_path("../build/fleek", __dir__)
-    process_id = if tool == "flay" && options.length == 2
-      Process.spawn(BUNDLE, "exec", "flay", options[0], options[1], path, out: output, err: error)
+    paths = path.is_a?(Array) ? path : [path]
+    process_id = if tool == "flay" && options.length == 2 && paths.length == 1
+      Process.spawn(BUNDLE, "exec", "flay", options[0], options[1], paths[0], out: output, err: error)
+    elsif tool == "flay" && options.length == 2
+      Process.spawn(BUNDLE, "exec", "flay", options[0], options[1], paths[0], paths[1], out: output, err: error)
     elsif tool == "flay"
-      Process.spawn(BUNDLE, "exec", "flay", options[0], options[1], options[2], options[3], path, out: output, err: error)
+      Process.spawn(BUNDLE, "exec", "flay", options[0], options[1], options[2], options[3], paths[0], out: output, err: error)
+    elsif options.length == 2 && paths.length == 1
+      Process.spawn(executable, "--checks", "flay:StructuralDuplication", options[0], options[1], paths[0], out: output, err: error)
     elsif options.length == 2
-      Process.spawn(executable, "--checks", "flay:StructuralDuplication", options[0], options[1], path, out: output, err: error)
+      Process.spawn(executable, "--checks", "flay:StructuralDuplication", options[0], options[1], paths[0], paths[1], out: output, err: error)
     else
-      Process.spawn(executable, "--checks", "flay:StructuralDuplication", options[0], options[1], options[2], options[3], path, out: output, err: error)
+      Process.spawn(executable, "--checks", "flay:StructuralDuplication", options[0], options[1], options[2], options[3], paths[0], out: output, err: error)
     end
     AnalysisRunner.observe(process_id, output, error)
   end

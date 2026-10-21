@@ -5672,11 +5672,17 @@ class Fleek
   end
 
   # :reek:BooleanParameter
-  def self.run_structural_duplication(inputs, joint_run = false)
+  def self.run_structural_duplication(inputs, joint_run = false, timeout_failures = [])
     ignore_patterns, input_error = duplication_analysis_options(inputs)
     return report_duplication_input_failure(input_error) unless input_error == ""
     report = duplication_input_report(inputs, ignore_patterns)
+    apply_duplication_timeout_failures(report, timeout_failures)
     read_and_analyze_duplication(report, joint_run)
+  end
+
+  def self.apply_duplication_timeout_failures(report, timeout_failures)
+    report.paths = report.paths - timeout_failures.map(&:path)
+    report.errors = report.errors + timeout_failures
   end
 
   def self.duplication_analysis_options(inputs)
@@ -6637,14 +6643,14 @@ class Fleek
   end
 
   # :reek:TooManyStatements
-  def self.run_combined_checks(inputs, profile = CheckProfiles::EXPLICIT)
+  def self.run_combined_checks(inputs, profile = CheckProfiles::EXPLICIT, timeout_failures = [])
     analysis = prepare_combined_analysis(inputs)
     error = analysis.error
     return report_combined_input_error(error) if error != ""
     disabled_paths = analysis.disabled_paths
     return report_disabled_check(disabled_paths, analysis.configuration) unless disabled_paths.empty? || !profile.run.include?("reek:ClassVariable")
     print_combined_header(profile)
-    run_combined_sections(analysis, profile)
+    run_combined_sections(analysis, profile, timeout_failures)
   end
 
   def self.print_combined_header(profile = CheckProfiles::EXPLICIT)
@@ -6692,9 +6698,9 @@ class Fleek
   end
 
   # :reek:TooManyStatements
-  def self.run_combined_sections(analysis, profile = CheckProfiles::EXPLICIT)
+  def self.run_combined_sections(analysis, profile = CheckProfiles::EXPLICIT, timeout_failures = [])
     puts "Duplication section:"
-    duplication_status = run_profile_check(profile, "flay:StructuralDuplication", analysis.flay_inputs)
+    duplication_status = run_profile_check(profile, "flay:StructuralDuplication", analysis.flay_inputs, timeout_failures)
     puts "Smell section:"
     smell_statuses = run_profile_smells(profile, analysis)
     smell_status = class_variable_input_status(smell_statuses)
@@ -6707,9 +6713,11 @@ class Fleek
     end
   end
 
-  def self.run_profile_check(profile, check, inputs)
+  # Timeout failures extend the Flay source report without changing Reek inputs.
+  # :reek:LongParameterList
+  def self.run_profile_check(profile, check, inputs, timeout_failures = [])
     return 0 unless profile.run.include?(check)
-    return run_structural_duplication(inputs, true) if selected_flay_only?(check)
+    return run_structural_duplication(inputs, true, timeout_failures) if selected_flay_only?(check)
     return run_class_variable(inputs, true) if check == "reek:ClassVariable"
     detector = check.delete_prefix("reek:")
     return run_reek_detector(inputs, detector, :combined) if REEK_DETECTORS.key?(detector)
@@ -7202,8 +7210,57 @@ class Fleek
     timeout, timeout_error = selected_flay_timeout(arguments)
     return print_usage_error(timeout_error) unless timeout_error.empty?
     return report_timeout_skip(arguments, timeout) if timeout && timeout < 0
-    return run_timeout_child(arguments, timeout) if timeout && timeout > 0
+    return run_positive_flay_timeout(arguments, timeout) if timeout && timeout > 0
     run_without_unsupported_format(arguments)
+  end
+
+  def self.run_positive_flay_timeout(arguments, timeout)
+    return run_timeout_child(arguments, timeout) unless timeout_source_count(arguments) > 1
+    run_per_file_timeout(arguments, timeout)
+  end
+
+  # Preserves source failures, timeout diagnostics, and standalone versus combined dispatch.
+  # :reek:TooManyStatements
+  def self.run_per_file_timeout(arguments, timeout)
+    failures = per_file_timeout_failures(arguments, timeout)
+    failures.each { |failure| warn "#{failure.message} #{quote_text(failure.path)}" }
+    inputs = without_option_pairs(arguments[2..], "--timeout")
+    run_per_file_timeout_analysis(arguments, inputs, failures)
+  end
+
+  def self.per_file_timeout_failures(arguments, timeout)
+    timeout_source_report(arguments).paths.select { |path| timeout_source_exceeded?(arguments, path, timeout) }.map do |path|
+      SourceFailure.new(path, "ERROR: Flay timeout after #{timeout} seconds; source was not analyzed.", :source)
+    end
+  end
+
+  def self.run_per_file_timeout_analysis(arguments, inputs, failures)
+    return run_structural_duplication(inputs, false, failures) if arguments[0] == "--checks" && arguments[1] == FLAY_CHECK
+    run_combined_checks(inputs, CheckProfiles::EXPLICIT, failures)
+  end
+
+  def self.timeout_source_exceeded?(arguments, path, timeout)
+    files = timeout_worker_files
+    # Keep probe to one source while preserving Flay controls.
+    probe = ["--checks", FLAY_CHECK] + timeout_probe_options(arguments) + ["--timeout", timeout.to_s, path]
+    _status, expired = run_timeout_worker(probe, timeout, files)
+    expired
+  ensure
+    cleanup_timeout_worker_files(files) if files
+  end
+
+  # Each supported Flay parser option must be copied explicitly into isolated probes.
+  # :reek:TooManyStatements
+  def self.timeout_probe_options(arguments)
+    inputs = arguments[2..]
+    options = []
+    ["--mass", "--only", "--fuzzy"].each do |option|
+      index = inputs.index(option)
+      options += [option, inputs[index + 1]] if index
+    end
+    options << "--liberal" if inputs.include?("--liberal")
+    options << "--legacy" if inputs.include?("--legacy")
+    options
   end
 
   def self.run_timeout_worker_arguments(arguments)
