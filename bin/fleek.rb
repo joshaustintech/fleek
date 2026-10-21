@@ -1154,6 +1154,7 @@ class Fleek
     typedef int (*fleek_method_analyzer_t)(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     typedef struct { bool public_methods_only; bool method_is_public; bool unsupported_visibility; } fleek_utility_scan_t;
     static int fleek_utility_function_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
+    static int fleek_missing_safe_method_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
 
     static int fleek_scan_method_scope(const char *source, size_t length, fleek_method_analyzer_t analyze, void *state) {
       fleek_class_count = fleek_module_count = 0;
@@ -1216,6 +1217,20 @@ class Fleek
               continue;
             }
             if (((fleek_utility_scan_t *) state)->public_methods_only) ((fleek_utility_scan_t *) state)->unsupported_visibility = true;
+          }
+          if (analyze == fleek_missing_safe_method_method && PM_NODE_TYPE_P(statement, PM_SINGLETON_CLASS_NODE)) {
+            const pm_node_t *singleton_body = ((const pm_singleton_class_node_t *) statement)->body;
+            if (!PM_NODE_TYPE_P(singleton_body, PM_STATEMENTS_NODE)) { findings = -1; break; }
+            const pm_statements_node_t *singleton_statements = (const pm_statements_node_t *) singleton_body;
+            for (size_t method_index = 0; method_index < singleton_statements->body.size; method_index++) {
+              const pm_node_t *singleton_method = singleton_statements->body.nodes[method_index];
+              if (!PM_NODE_TYPE_P(singleton_method, PM_DEF_NODE)) continue;
+              int result = analyze(&parser, (const uint8_t *) source, class_name_text,
+                class_name_length, singleton_method, (void *) statement);
+              if (result < 0) findings = -1;
+              else findings += result;
+            }
+            continue;
           }
           if (!PM_NODE_TYPE_P(statement, PM_DEF_NODE)) continue;
           if (utility_scan) {
@@ -2047,10 +2062,12 @@ class Fleek
       return fleek_scan_method_scope(source, length, fleek_nil_check_method, NULL);
     }
     const char *fleek_nil_check_finding(void) { return fleek_nil_check_buffer; }
-    static bool fleek_missing_safe_version_exists(pm_parser_t *parser, const pm_def_node_t *method, const pm_constant_t *name) {
+    static bool fleek_missing_safe_version_exists(pm_parser_t *parser, const pm_def_node_t *method,
+        const pm_constant_t *name, const pm_node_t *singleton_scope) {
       if (fleek_only_scope == NULL || name->length < 2 || name->start[name->length - 1] != '!') return false;
-      const pm_node_t *body = PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE) ?
-        ((const pm_class_node_t *) fleek_only_scope)->body : ((const pm_module_node_t *) fleek_only_scope)->body;
+      const pm_node_t *body = singleton_scope != NULL ? ((const pm_singleton_class_node_t *) singleton_scope)->body :
+        (PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE) ?
+          ((const pm_class_node_t *) fleek_only_scope)->body : ((const pm_module_node_t *) fleek_only_scope)->body);
       if (!PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) return false;
       const pm_statements_node_t *statements = (const pm_statements_node_t *) body;
       for (size_t index = 0; index < statements->body.size; index++) {
@@ -2065,11 +2082,11 @@ class Fleek
     }
     static int fleek_missing_safe_method_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
         size_t class_name_length, const pm_node_t *node, void *data) {
-      (void) data;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver != NULL || fleek_only_scope == NULL) return 0;
+      const pm_node_t *singleton_scope = data;
+      if ((method->receiver != NULL && singleton_scope == NULL) || fleek_only_scope == NULL) return 0;
       pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
-      if (!fleek_missing_safe_version_exists(parser, method, name)) {
+      if (!fleek_missing_safe_version_exists(parser, method, name, singleton_scope)) {
         if (name->length < 2 || name->start[name->length - 1] != '!') return 0;
         int written = snprintf(fleek_missing_safe_method_buffer + fleek_missing_safe_method_used,
           sizeof(fleek_missing_safe_method_buffer) - fleek_missing_safe_method_used,

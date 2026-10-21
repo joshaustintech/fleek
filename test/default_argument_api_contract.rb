@@ -28,6 +28,7 @@ class DefaultArgumentApiContract
     verify_nil_check_nested_block
     verify_default_detector("NilCheck", "test/fixtures/nil_check.rb")
     verify_default_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb")
+    verify_missing_safe_method_singleton_companions
     verify_configured_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb", "test/fixtures/config_missing_safe_method_exclude.yml")
     verify_configured_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb", "test/fixtures/config_missing_safe_method_multiple_exclude.yml")
     verify_manual_dispatch_nested_guard
@@ -419,6 +420,18 @@ class DefaultArgumentApiContract
     verify(reference[0] == 0 && AnalysisRunner.detector_warnings(reference, "NilCheck").empty?, "pinned NilCheck block exclusion changed")
     verify(actual[0] == 0 && actual[1].include?("Status: complete"), "NilCheck block exclusion was not clean and complete")
     AnalysisRunner.assert_detector_findings(actual, reference, "NilCheck")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_missing_safe_method_singleton_companions
+    source = "test/fixtures/missing_safe_method_singleton.rb"
+    reference = run_reek(source, "MissingSafeMethod")
+    actual = run_fleek(source, "", "reek:MissingSafeMethod")
+    verify(reference[1].include?("[7]:MissingSafeMethod: Parcel has missing safe method 'deliver!'"),
+      "pinned singleton MissingSafeMethod finding or line changed")
+    AnalysisRunner.assert_status(actual, reference, "singleton MissingSafeMethod")
+    AnalysisRunner.assert_detector_findings(actual, reference, "MissingSafeMethod")
+    verify_configured_detector("MissingSafeMethod", source, "test/fixtures/config_missing_safe_method_singleton_exclude.yml")
   end
 
   def self.verify_configured_detector(detector, source, config)

@@ -65,7 +65,7 @@ class MutationCase
     "missing NilCheck finding" => "test/default_argument_api_contract.rb",
     "NilCheck block scope analysis" => "test/default_argument_api_contract.rb",
     "wrong nested NilCheck lines" => "test/default_argument_api_contract.rb",
-    "missing MissingSafeMethod finding" => "test/default_argument_api_contract.rb",
+    "MissingSafeMethod singleton scope analysis" => "test/default_argument_api_contract.rb",
     "ignored MissingSafeMethod exclusion entry" => "test/default_argument_api_contract.rb",
     "missing RepeatedConditional finding" => "test/default_argument_api_contract.rb",
     "missing NestedIterators finding" => "test/default_argument_api_contract.rb",
@@ -833,10 +833,10 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "wrong nested NilCheck lines",
   "NilCheck findings differ from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (!fleek_missing_safe_version_exists(parser, method, name)) {",
-  "if (fleek_missing_safe_version_exists(parser, method, name)) {",
-  "missing MissingSafeMethod finding",
-  "MissingSafeMethod findings differ from Reek")).run
+  "if ((method->receiver != NULL && singleton_scope == NULL) || fleek_only_scope == NULL) return 0;",
+  "if (singleton_scope != NULL || method->receiver != NULL || fleek_only_scope == NULL) return 0;",
+  "MissingSafeMethod singleton scope analysis",
+  "singleton MissingSafeMethod status differs from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   '(detector_setting("MissingSafeMethod", "exclude", path) || "").split("\\n").include?(name)',
   'false',
