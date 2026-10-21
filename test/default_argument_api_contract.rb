@@ -43,6 +43,7 @@ class DefaultArgumentApiContract
     verify_default_detector("FeatureEnvy", "test/fixtures/feature_envy.rb")
     verify_feature_envy_block_receivers
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump.rb")
+    verify_data_clump_singleton_methods
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump_after_empty_method.rb")
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump_multiple_groups.rb")
     verify_data_clump_preserves_supported_findings
@@ -492,6 +493,27 @@ class DefaultArgumentApiContract
     verify_configured_detector("FeatureEnvy", source, "test/fixtures/config_feature_envy_block_exclude.yml")
     AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/feature_envy_multiple_blocks.rb", "", "reek:FeatureEnvy"),
       "multiple FeatureEnvy blocks")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_data_clump_singleton_methods
+    source = "test/fixtures/data_clump_singleton_methods.rb"
+    reference = run_reek(source, "DataClump")
+    actual = run_fleek(source, "", "reek:DataClump")
+    warnings = AnalysisRunner.detector_warnings(reference, "DataClump")
+    verify(warnings.length == 2 && warnings[0].include?("to 8 methods") && warnings[1].include?("to 9 methods") &&
+      warnings.none? { |warning| warning.include?("[10]") },
+      "pinned DataClump singleton participation groups changed")
+    AnalysisRunner.assert_status(actual, reference, "singleton DataClump")
+    AnalysisRunner.assert_detector_findings(actual, reference, "DataClump")
+
+    config = "test/fixtures/config_data_clump_singleton_minimum.yml"
+    configured_reference = run_reek(source, "DataClump", config)
+    configured_actual = run_fleek(source, config, "reek:DataClump")
+    verify(AnalysisRunner.detector_warnings(configured_reference, "DataClump").length == 1,
+      "pinned singleton DataClump minimum size changed")
+    AnalysisRunner.assert_status(configured_actual, configured_reference, "singleton DataClump minimum size")
+    AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "DataClump")
   end
 
   def self.verify_configured_detector(detector, source, config)

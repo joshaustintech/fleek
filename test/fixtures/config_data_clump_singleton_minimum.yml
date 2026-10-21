@@ -1,0 +1,4 @@
+detectors:
+  DataClump:
+    max_copies: 2
+    min_clump_size: 3
