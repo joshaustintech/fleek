@@ -1,0 +1,10 @@
+detectors:
+  LongParameterList:
+    enabled: true
+directories:
+  .:
+    LongParameterList:
+      max_params: 3
+  child:
+    LongParameterList:
+      max_params: 4
