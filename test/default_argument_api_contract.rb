@@ -102,6 +102,7 @@ class DefaultArgumentApiContract
     verify_long_yield_configuration
     verify_explicit_long_parameter_list
     verify_unused_private_opt_in
+    verify_unused_private_call_graph_residuals
     puts "Default argument and method API contract: pass"
   end
 
@@ -215,6 +216,10 @@ class DefaultArgumentApiContract
       verify_unused_private_call_cases
     when "UnusedPrivateMethod dynamic call boundary"
       verify_dynamic_private_method_call_is_incomplete
+    when "UnusedPrivateMethod inherited scope boundary"
+      verify_unused_private_incomplete_case("test/fixtures/unused_private_method_inherited.rb", [2, "UnusedPrivateMethod: InheritedPrivateBase has the unused private instance method 'inherited_helper'"])
+    when "UnusedPrivateMethod method object boundary"
+      verify_unused_private_incomplete_case("test/fixtures/unused_private_method_method_object.rb", [0, ""])
     else
       raise "missing focused contract for mutation: #{label}"
     end
@@ -459,9 +464,38 @@ class DefaultArgumentApiContract
   end
 
   def self.verify_dynamic_private_method_call_is_incomplete
-    actual = run_fleek("test/fixtures/unused_private_method_dynamic_call.rb", "", "reek:UnusedPrivateMethod")
-    checks = [actual[0] == 1, actual[2].include?("UnusedPrivateMethod supports"), actual[1].include?("Status: incomplete")]
-    verify(checks.all?, "dynamic private method call was treated as complete")
+    verify_unused_private_incomplete_case("test/fixtures/unused_private_method_dynamic_call.rb", [2, "UnusedPrivateMethod: PrivateThing has the unused private instance method 'hidden'"])
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_unused_private_call_graph_residuals
+    verify_unused_private_incomplete_case("test/fixtures/unused_private_method_inherited.rb", [2, "UnusedPrivateMethod: InheritedPrivateBase has the unused private instance method 'inherited_helper'"])
+    verify_unused_private_incomplete_case("test/fixtures/unused_private_method_public_send.rb", [2, "UnusedPrivateMethod: PublicSendPrivateMethod has the unused private instance method 'hidden'"])
+    verify_unused_private_incomplete_case("test/fixtures/unused_private_method_method_object.rb", [0, ""])
+    verify_unused_private_incomplete_case("test/fixtures/unused_private_method_to_proc.rb", [0, ""])
+  end
+
+  def self.verify_unused_private_incomplete_case(source, expected_reference)
+    config = "test/fixtures/config_unused_private_enabled.yml"
+    reference = run_reek(source, "UnusedPrivateMethod", config)
+    actual = run_fleek(source, "", "reek:UnusedPrivateMethod")
+    verify_unused_private_reference(reference, expected_reference, source)
+    verify_unused_private_incomplete_report(actual, source)
+  end
+
+  def self.verify_unused_private_reference(reference, expected, source)
+    status, output = reference
+    expected_status, expected_finding = expected
+    finding_matches = expected_finding.empty? || output.index(expected_finding) != nil
+    verify(status == expected_status && finding_matches, "pinned Reek call graph result changed for #{source}")
+  end
+
+  def self.verify_unused_private_incomplete_report(actual, source)
+    status, output, error = actual
+    incomplete = "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded"
+    checks = [status == 1, output.include?(incomplete), output.include?("Status: incomplete"),
+      error.include?("UnusedPrivateMethod supports"), !output.include?('Finding: check="reek:UnusedPrivateMethod"')]
+    verify(checks.all?, "inherited/dynamic private call graph was treated as complete for #{source}")
   end
 
   def self.verify_private_method_location(output)

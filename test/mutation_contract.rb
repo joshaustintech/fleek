@@ -352,6 +352,8 @@ class MutationCase
     "UnusedPrivateMethod public visibility" => "test/default_argument_api_contract.rb",
     "UnusedPrivateMethod direct call tracking" => "test/default_argument_api_contract.rb",
     "UnusedPrivateMethod dynamic call boundary" => "test/default_argument_api_contract.rb",
+    "UnusedPrivateMethod inherited scope boundary" => "test/default_argument_api_contract.rb",
+    "UnusedPrivateMethod method object boundary" => "test/default_argument_api_contract.rb",
     "implicit current directory" => "test/default_invocation_contract.rb"
   }
   CONTRACT_DEPENDENCIES = {
@@ -2168,7 +2170,17 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'fleek_name_is(call_state->parser, call->name, "send")',
   'false',
   "UnusedPrivateMethod dynamic call boundary",
-  "dynamic private method call was treated as complete")).run
+  "inherited/dynamic private call graph was treated as complete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'fleek_class_count != 1 ||',
+  'false ||',
+  "UnusedPrivateMethod inherited scope boundary",
+  "inherited/dynamic private call graph was treated as complete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'fleek_name_is(call_state->parser, call->name, "method")',
+  'false',
+  "UnusedPrivateMethod method object boundary",
+  "inherited/dynamic private call graph was treated as complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'paths.any? { |path| effective_detector_enabled(name, best_scope(path)) }',
   'paths.any? { |_path| effective_detector_enabled(name, -1) }',
