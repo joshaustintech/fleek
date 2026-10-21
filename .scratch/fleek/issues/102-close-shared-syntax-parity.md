@@ -4,7 +4,7 @@
 
 **Part of:** Ticket 24.
 
-**Blocked by:** 22; 23; 43; 90; 91; 92; 93; 94; 95; 96; 97; 98; 99; 100; 101; 115 — Verify harness savings before resuming feature work.
+**Blocked by:** 22; 23; 43; 90; 91; 92; 93; 94; 95; 96; 97; 98; 99; 100; 101; 115; 127 — Verify harness savings before resuming feature work.
 
 **Status:** open
 **Type:** task
