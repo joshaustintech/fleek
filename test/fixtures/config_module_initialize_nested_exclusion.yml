@@ -1,0 +1,4 @@
+detectors:
+  ModuleInitialize:
+    exclude:
+      - Outer::InitializerMixin

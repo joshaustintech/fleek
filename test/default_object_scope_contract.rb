@@ -21,6 +21,7 @@ class DefaultObjectScopeContract
     verify_attribute_nested_class
     verify_nested_instance_variable_assumption
     verify_unsupported_shapes
+    verify_nested_module_initialize
     verify_comment_overflow
     verify_other_detectors
     puts "Default object-scope contract: pass"
@@ -53,6 +54,26 @@ class DefaultObjectScopeContract
     DEFAULT_DETECTORS.each { |detector, source| verify_default_detector(detector, source) }
     verify_instance_variable_exclusion
     verify_irresponsible_module("test/fixtures/irresponsible_module.rb")
+  end
+
+  def self.verify_nested_module_initialize
+    source = "test/fixtures/module_initialize_nested.rb"
+    reference = run_reek_for("ModuleInitialize", source)
+    actual = run_fleek_check("ModuleInitialize", source)
+    verify(reference[0] == 2 && reference[1].include?("[2]:ModuleInitialize: Outer::InitializerMixin has initialize method"), "pinned nested ModuleInitialize finding changed")
+    AnalysisRunner.assert_status(actual, reference, "nested ModuleInitialize")
+    AnalysisRunner.assert_detector_findings(actual, reference, "nested ModuleInitialize")
+    verify_nested_module_initialize_exclusion(source)
+  end
+
+  def self.verify_nested_module_initialize_exclusion(source)
+    config = "test/fixtures/config_module_initialize_nested_exclusion.yml"
+    reference = run_reek_config_for("ModuleInitialize", source, config)
+    actual = run_fleek_check_config("ModuleInitialize", source, config)
+    output = actual[1]
+    verify(reference[0] == 0, "pinned nested ModuleInitialize exclusion changed")
+    verify(actual[0] == 0 && actual[2].empty? && output.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && output.include?("Status: complete"), "nested ModuleInitialize exclusion did not stay complete")
+    AnalysisRunner.assert_detector_findings(actual, reference, "nested ModuleInitialize exclusion")
   end
 
   def self.verify_unsupported_shapes

@@ -945,6 +945,7 @@ class Fleek
       fleek_module_initialize_buffer[0] = 0;
       fleek_class_count = fleek_module_count = 0;
       fleek_only_scope = fleek_namespace_scope = NULL;
+      fleek_inner_namespace_scope = NULL;
       if (memchr(source, 0, length) != NULL) return -2;
       fleek_source_start = (const uint8_t *) source;
       pm_options_t options = {0};
@@ -960,7 +961,11 @@ class Fleek
       if (fleek_module_count == 0) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
       }
-      if (fleek_module_count != 1 || fleek_class_count != 0 || !PM_NODE_TYPE_P(fleek_only_scope, PM_MODULE_NODE)) {
+      bool simple_module = fleek_module_count == 1 && fleek_class_count == 0 && PM_NODE_TYPE_P(fleek_only_scope, PM_MODULE_NODE);
+      bool nested_module = fleek_module_count == 2 && fleek_class_count == 0 &&
+        PM_NODE_TYPE_P(fleek_namespace_scope, PM_MODULE_NODE) && PM_NODE_TYPE_P(fleek_only_scope, PM_MODULE_NODE) &&
+        fleek_scope_contains(fleek_namespace_scope, fleek_only_scope) && fleek_module_has_direct_child(fleek_namespace_scope, fleek_only_scope);
+      if ((!simple_module && !nested_module) || !PM_NODE_TYPE_P(fleek_only_scope, PM_MODULE_NODE)) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
       const pm_module_node_t *module_node = (const pm_module_node_t *) fleek_only_scope;
@@ -968,12 +973,28 @@ class Fleek
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
       pm_constant_t *module_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) module_node->constant_path)->name);
+      char qualified_module_name[512];
+      const char *context = (const char *) module_name->start;
+      size_t context_length = module_name->length;
+      if (nested_module) {
+        const pm_module_node_t *outer_module = (const pm_module_node_t *) fleek_namespace_scope;
+        if (!PM_NODE_TYPE_P(outer_module->constant_path, PM_CONSTANT_READ_NODE)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        pm_constant_t *outer_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) outer_module->constant_path)->name);
+        int written = snprintf(qualified_module_name, sizeof(qualified_module_name), "%.*s::%.*s", (int) outer_name->length, outer_name->start, (int) module_name->length, module_name->start);
+        if (written < 0 || (size_t) written >= sizeof(qualified_module_name)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        context = qualified_module_name;
+        context_length = (size_t) written;
+      }
       fleek_module_initialize_t state = { &parser, false };
       if (module_node->body != NULL) pm_visit_node(module_node->body, fleek_module_defines_initialize, &state);
       int result = 0;
       if (state.found) {
         int line = fleek_source_line((const uint8_t *) source, module_node->module_keyword_loc.start);
-        int written = snprintf(fleek_module_initialize_buffer, sizeof(fleek_module_initialize_buffer), "%d\\t%.*s\\tinitialize\\n", line, (int) module_name->length, module_name->start);
+        int written = snprintf(fleek_module_initialize_buffer, sizeof(fleek_module_initialize_buffer), "%d\\t%.*s\\tinitialize\\n", line, (int) context_length, context);
         result = written < 0 || (size_t) written >= sizeof(fleek_module_initialize_buffer) ? -4 : 1;
       }
       pm_node_destroy(&parser, root);
@@ -5667,7 +5688,7 @@ class Fleek
     "Attribute" => ["public literal attr_accessor and attr_writer declarations in one simple class or module, including one direct nested class", "%s is a writable attribute"],
     "InstanceVariableAssumption" => ["direct instance methods in one simple class, including one direct nested class", "%s assumes too much for instance variable '%s'"],
     "SubclassedFromCoreClass" => ["one simple class inheriting directly from Array, Hash, or String", "%s inherits from core class '%s'"],
-    "ModuleInitialize" => ["one simple module with direct instance methods", "%s has initialize method"],
+    "ModuleInitialize" => ["one simple module or one direct nested module with direct instance methods", "%s has initialize method"],
     "IrresponsibleModule" => ["one simple class or module", "%s has no descriptive comment"],
     "LongParameterList" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has %s parameters"],
     "BooleanParameter" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has boolean parameter '%s'"],

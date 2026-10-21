@@ -38,6 +38,8 @@ class MutationCase
     "missing Class.new SubclassedFromCoreClass finding" => "test/default_object_scope_contract.rb",
     "false-positive Class.new SubclassedFromCoreClass finding" => "test/default_object_scope_contract.rb",
     "missing ModuleInitialize finding" => "test/default_object_scope_contract.rb",
+    "nested ModuleInitialize scope acceptance" => "test/default_object_scope_contract.rb",
+    "nested ModuleInitialize context" => "test/default_object_scope_contract.rb",
     "missing IrresponsibleModule finding" => "test/default_object_scope_contract.rb",
     "missing Attribute aliased finding" => "test/default_object_scope_contract.rb",
     "unsupported Class.new assignment" => "test/default_object_scope_contract.rb",
@@ -708,7 +710,17 @@ MutationCase.new(MutationCase::Configuration.new(source,
   'fleek_name_is(state->parser, method->name, "initialize")',
   "false",
   "missing ModuleInitialize finding",
-  "ModuleInitialize findings differ from Reek")).run
+  "nested ModuleInitialize status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'bool nested_module = fleek_module_count == 2 && fleek_class_count == 0 &&',
+  'bool nested_module = false &&',
+  "nested ModuleInitialize scope acceptance",
+  "nested ModuleInitialize status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  'context_length = (size_t) written;',
+  'context_length = module_name->length;',
+  "nested ModuleInitialize context",
+  "nested ModuleInitialize exclusion did not stay complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "return words >= 2 ? 1 : 0;",
   "return words >= 20 ? 1 : 0;",
