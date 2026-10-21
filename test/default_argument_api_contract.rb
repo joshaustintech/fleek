@@ -67,6 +67,7 @@ class DefaultArgumentApiContract
     verify_uncommunicative_parameter_name_block_scope
     verify_supported_default_detector("UncommunicativeVariableName", "test/fixtures/uncommunicative_variable_name.rb")
     verify_configured_detector("UncommunicativeVariableName", "test/fixtures/uncommunicative_variable_name.rb", "test/fixtures/config_uncommunicative_variable_name.yml")
+    verify_uncommunicative_variable_name_blocks
     verify_unsupported_naming_scopes
     verify_too_many_statements_class_method
     verify_unsupported_singleton_class_methods
@@ -775,10 +776,41 @@ class DefaultArgumentApiContract
       "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "complete", "block parameter configured behavior"))
   end
 
+  # :reek:TooManyStatements
   def self.verify_partial_variable_names
     variable_result = run_fleek("test/fixtures/uncommunicative_variable_name_partial.rb", "", "reek:UncommunicativeVariableName")
-    AnalysisRunner.assert_unsupported(variable_result, "UncommunicativeVariableName block arguments")
-    verify(AnalysisRunner.detector_warnings(variable_result, "UncommunicativeVariableName").any? { |finding| finding.include?("Worker#work") && finding.include?("x") }, "UncommunicativeVariableName discarded a supported finding beside block arguments")
+    variable_reference = run_reek("test/fixtures/uncommunicative_variable_name_partial.rb", "UncommunicativeVariableName")
+    AnalysisRunner.assert_status(variable_result, variable_reference, "UncommunicativeVariableName block arguments")
+    AnalysisRunner.assert_detector_findings(variable_result, variable_reference, "UncommunicativeVariableName block arguments")
+    verify(AnalysisRunner.detector_warnings(variable_result, "UncommunicativeVariableName").any? { |finding| finding.include?("Worker#work") && finding.include?("x") }, "UncommunicativeVariableName discarded the method-local finding beside a block argument")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_uncommunicative_variable_name_blocks
+    source = "test/fixtures/uncommunicative_variable_name_blocks.rb"
+    reference = run_reek(source, "UncommunicativeVariableName")
+    actual = run_fleek(source, "", "reek:UncommunicativeVariableName")
+    findings = AnalysisRunner.detector_warnings(reference, "UncommunicativeVariableName")
+    expected_findings = /(?=.*\[3\]:UncommunicativeVariableName: Worker#perform has the variable name 'x')(?=.*\[4\]:UncommunicativeVariableName: Worker#perform has the variable name 'n2')(?=.*\[12\]:UncommunicativeVariableName: Worker#archive has the variable name 'z')(?=.*\[13\]:UncommunicativeVariableName: Worker#archive has the variable name 'q2')/m
+    verify(findings.size == 4 && findings.join("\n").match?(expected_findings),
+      "pinned block variable-name findings changed")
+    AnalysisRunner.assert_status(actual, reference, "block variable-name default patterns")
+    AnalysisRunner.assert_detector_findings(actual, reference, "UncommunicativeVariableName")
+
+    config = "test/fixtures/config_uncommunicative_variable_name_blocks.yml"
+    configured_reference = run_reek(source, "UncommunicativeVariableName", config)
+    configured_actual = run_fleek(source, config, "reek:UncommunicativeVariableName")
+    configured_findings = AnalysisRunner.detector_warnings(configured_reference, "UncommunicativeVariableName")
+    verify(configured_findings.size == 1 && configured_findings.first.include?("[6]:UncommunicativeVariableName: Worker#perform has the variable name 'item'"),
+      "pinned configured block variable-name patterns changed")
+    AnalysisRunner.assert_status(configured_actual, configured_reference, "block variable-name configured patterns")
+    AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "UncommunicativeVariableName")
+
+    unsupported = run_fleek("test/fixtures/uncommunicative_variable_name_class_block.rb", "", "reek:UncommunicativeVariableName")
+    unsupported_output = unsupported[1]
+    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
+      unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
+      "unsupported class-level block parameter scope was not reported incomplete")
   end
 
   def self.verify_unsupported_names(source)

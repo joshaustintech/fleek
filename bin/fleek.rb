@@ -2855,7 +2855,31 @@ class Fleek
     static bool fleek_uncommunicative_variable_name_node(const pm_node_t *node, void *data) {
       fleek_variable_name_state_t *state = (fleek_variable_name_state_t *) data;
       if (PM_NODE_TYPE_P(node, PM_DEF_NODE) || PM_NODE_TYPE_P(node, PM_CLASS_NODE) || PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
-      if (PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE)) { state->unsupported = true; return true; }
+      if (PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE)) {
+        const pm_block_parameters_node_t *block = (const pm_block_parameters_node_t *) node;
+        const pm_parameters_node_t *parameters = block->parameters;
+        if (parameters == NULL) { if (block->locals.size > 0) state->unsupported = true; return true; }
+        if (parameters->optionals.size > 0 || parameters->posts.size > 0 || parameters->keywords.size > 0 ||
+            parameters->rest != NULL || parameters->keyword_rest != NULL || parameters->block != NULL || block->locals.size > 0) {
+          state->unsupported = true; return true;
+        }
+        for (size_t index = 0; index < parameters->requireds.size; index++) {
+          pm_constant_id_t name_id = fleek_parameter_name(parameters->requireds.nodes[index]);
+          if (name_id == 0) { state->unsupported = true; return true; }
+          pm_constant_t *name = pm_constant_pool_id_to_constant(&state->parser->constant_pool, name_id);
+          if (fleek_matches_any_pattern((const uint8_t *) name->start, name->length, state->patterns->accept) ||
+              !fleek_matches_any_pattern((const uint8_t *) name->start, name->length, state->patterns->reject)) continue;
+          int written = snprintf(fleek_uncommunicative_variable_name_buffer + fleek_uncommunicative_variable_name_used,
+            sizeof(fleek_uncommunicative_variable_name_buffer) - fleek_uncommunicative_variable_name_used, "%d\\t%s\\t%.*s\\n",
+            fleek_source_line(state->source, block->base.location.start), state->context, (int) name->length, name->start);
+          if (written < 0 || (size_t) written >= sizeof(fleek_uncommunicative_variable_name_buffer) - fleek_uncommunicative_variable_name_used) {
+            state->unsupported = true; return true;
+          }
+          fleek_uncommunicative_variable_name_used += (size_t) written;
+          state->used++;
+        }
+        return true;
+      }
       if (!PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE)) return true;
       const pm_local_variable_write_node_t *write = (const pm_local_variable_write_node_t *) node;
       pm_constant_t *name = pm_constant_pool_id_to_constant(&state->parser->constant_pool, write->name);
@@ -6207,7 +6231,7 @@ class Fleek
     "UncommunicativeMethodName" => ["direct methods in one simple class or module, including one direct nested class", "%s has the name '%s'"],
     "UncommunicativeModuleName" => ["simple names and one-level qualified class/module constant paths", "%s has the name '%s'"],
     "UncommunicativeParameterName" => ["simple method parameters", "%s has the parameter name '%s'"],
-    "UncommunicativeVariableName" => ["simple local assignments in direct methods", "%s has the variable name '%s'"]
+    "UncommunicativeVariableName" => ["simple local assignments and required block parameters in direct methods", "%s has the variable name '%s'"]
   }.freeze
   UNCOMMUNICATIVE_NAME_DEFAULTS = {
     "UncommunicativeMethodName" => ["^[a-z]$\n[0-9]$\n[A-Z]", ""],
