@@ -41,6 +41,7 @@ class DefaultArgumentApiContract
     verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators_ignore.yml")
     verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators_multiple_ignore.yml")
     verify_default_detector("FeatureEnvy", "test/fixtures/feature_envy.rb")
+    verify_feature_envy_block_receivers
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump.rb")
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump_after_empty_method.rb")
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump_multiple_groups.rb")
@@ -476,6 +477,21 @@ class DefaultArgumentApiContract
     verify(ignored_actual[0] == 0 && ignored_actual[1].include?("Status: complete"),
       "ignored map did not produce a complete clean result")
     AnalysisRunner.assert_detector_findings(ignored_actual, ignored_reference, "NestedIterators")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_feature_envy_block_receivers
+    source = "test/fixtures/feature_envy_block_receivers.rb"
+    reference = run_reek(source, "FeatureEnvy")
+    actual = run_fleek(source, "", "reek:FeatureEnvy")
+    verify(AnalysisRunner.detector_warnings(reference, "FeatureEnvy").length == 1 &&
+      reference[1].include?("[5, 6, 7]:FeatureEnvy: Parcel#price refers to 'item' more than self"),
+      "pinned block FeatureEnvy receiver counts or context changed")
+    AnalysisRunner.assert_status(actual, reference, "FeatureEnvy block receiver")
+    AnalysisRunner.assert_detector_findings(actual, reference, "FeatureEnvy")
+    verify_configured_detector("FeatureEnvy", source, "test/fixtures/config_feature_envy_block_exclude.yml")
+    AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/feature_envy_multiple_blocks.rb", "", "reek:FeatureEnvy"),
+      "multiple FeatureEnvy blocks")
   end
 
   def self.verify_configured_detector(detector, source, config)

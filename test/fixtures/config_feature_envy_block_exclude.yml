@@ -1,0 +1,4 @@
+detectors:
+  FeatureEnvy:
+    exclude:
+      - Parcel#price

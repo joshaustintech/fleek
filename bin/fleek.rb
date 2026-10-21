@@ -2380,7 +2380,7 @@ class Fleek
       (void) data;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       if (method->receiver != NULL || method->body == NULL) return 0;
-      if (!fleek_method_body_supported(method->body)) return -1;
+      if (!fleek_single_block_body_supported(method->body)) return -1;
       fleek_feature_envy_state_t state = { parser, source, { 0 }, 0, 0, false };
       pm_visit_node(method->body, fleek_feature_envy_visit, &state);
       if (state.unsupported) return -1;
