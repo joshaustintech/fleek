@@ -66,6 +66,14 @@ class ConfigurationProcess
     raise "#{label} was not rejected before analysis" unless result[0] == 1 && result[1].empty? && result[2].include?(diagnostic)
   end
 
+  def self.assert_rejected_by_both(path, diagnostic, label)
+    source = File.expand_path("test/fixtures/class_variable.rb")
+    fleek = invoke(Input.new(source, path, label, "", "fleek"))
+    reek = invoke(Input.new(source, path, label, "", "reek"))
+    assert_rejected(fleek, diagnostic, label)
+    raise "Reek accepted #{label}" unless reek[0] == 1 && reek[1].empty? && !reek[2].empty?
+  end
+
   def self.compare_discovery_and_explicit(path, explicit_config)
     File.write(".reek.yml", File.read("test/fixtures/config_disabled.yml"))
     [invoke(Input.new(path, "", "discovered", "", "fleek")), invoke(Input.new(path, "", "discovered", "", "reek")), invoke(Input.new(path, explicit_config, "explicit", "", "fleek")), invoke(Input.new(path, explicit_config, "explicit", "", "reek"))]
@@ -88,8 +96,14 @@ raise "Reek disabled check behavior changed" unless disabled_reference[0] == 0 &
 unsupported = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(source, "test/fixtures/config_unsupported.yml", "unsupported", "", "fleek"))
 unsupported_reference = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(source, "test/fixtures/config_unsupported.yml", "unsupported", "", "reek"))
 AnalysisRunner.assert_same_report(unsupported, unsupported_reference, "explicit supported selection with unsupported enabled default")
-malformed = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(source, "test/fixtures/config_malformed.yml", "malformed", "", "fleek"))
-ConfigurationProcess.assert_rejected(malformed, "unsupported Reek YAML key", "malformed YAML")
+ConfigurationProcess.assert_rejected_by_both("test/fixtures/config_malformed.yml", "unsupported Reek YAML key", "malformed YAML")
+[
+  ["test/fixtures/config_unknown_detector.yml", "unsupported enabled detector", "unknown detector"],
+  ["test/fixtures/config_unknown_setting.yml", "unsupported detector setting", "unknown setting"],
+  ["test/fixtures/config_wrong_scalar_type.yml", "unsupported detector setting", "wrong scalar type"],
+  ["test/fixtures/config_wrong_list_type.yml", "unsupported ClassVariable setting", "wrong list type"],
+  ["test/fixtures/config_invalid_threshold.yml", "unsupported detector setting", "invalid threshold"]
+].each { |path, diagnostic, label| ConfigurationProcess.assert_rejected_by_both(path, diagnostic, label) }
 bad_mapping = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(source, "test/fixtures/config_bad_mapping.yml", "bad mapping", "", "fleek"))
 ConfigurationProcess.assert_rejected(bad_mapping, "malformed YAML mapping", "malformed YAML mapping")
 bad_list_mapping = ConfigurationProcess.invoke(ConfigurationProcess::Input.new(source, "test/fixtures/config_bad_list_mapping.yml", "bad list mapping", "", "fleek"))
