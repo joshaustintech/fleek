@@ -61,6 +61,7 @@ class DefaultArgumentApiContract
     verify_uncommunicative_method_name_nested_singleton
     verify_supported_default_detector("UncommunicativeModuleName", "test/fixtures/uncommunicative_module_name.rb")
     verify_configured_detector("UncommunicativeModuleName", "test/fixtures/uncommunicative_module_name.rb", "test/fixtures/config_uncommunicative_module_name.yml")
+    verify_uncommunicative_module_name_qualified
     verify_supported_default_detector("UncommunicativeParameterName", "test/fixtures/uncommunicative_parameter_name.rb")
     verify_configured_detector("UncommunicativeParameterName", "test/fixtures/uncommunicative_parameter_name.rb", "test/fixtures/config_uncommunicative_parameter_name.yml")
     verify_supported_default_detector("UncommunicativeVariableName", "test/fixtures/uncommunicative_variable_name.rb")
@@ -717,6 +718,39 @@ class DefaultArgumentApiContract
     verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
       unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
       "unsupported deeply nested singleton method-name scope was not reported incomplete")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_uncommunicative_module_name_qualified
+    source = "test/fixtures/uncommunicative_module_name_qualified.rb"
+    reference = run_reek(source, "UncommunicativeModuleName")
+    actual = run_fleek(source, "", "reek:UncommunicativeModuleName")
+    findings = AnalysisRunner.detector_warnings(reference, "UncommunicativeModuleName")
+    actual_findings = AnalysisRunner.detector_warnings(actual, "UncommunicativeModuleName")
+    verify(findings.size == 1 && findings.first.include?("Fleet::S has the name 'S'"),
+      "pinned qualified UncommunicativeModuleName default pattern changed")
+    verify(actual_findings.size == 1 && actual_findings.first.include?("Fleet::S has the name 'S'"),
+      "qualified UncommunicativeModuleName context differs from Reek")
+    AnalysisRunner.assert_status(actual, reference, "qualified UncommunicativeModuleName default patterns")
+    AnalysisRunner.assert_detector_findings(actual, reference, "qualified UncommunicativeModuleName default patterns")
+
+    config = "test/fixtures/config_uncommunicative_module_name_qualified.yml"
+    configured_reference = run_reek(source, "UncommunicativeModuleName", config)
+    configured_actual = run_fleek(source, config, "reek:UncommunicativeModuleName")
+    configured_findings = AnalysisRunner.detector_warnings(configured_reference, "UncommunicativeModuleName")
+    configured_actual_findings = AnalysisRunner.detector_warnings(configured_actual, "UncommunicativeModuleName")
+    verify(configured_findings.size == 1 && configured_findings.first.include?("Fleet::Shipment has the name 'Shipment'"),
+      "pinned configured qualified module-name patterns changed")
+    verify(configured_actual_findings.size == 1 && configured_actual_findings.first.include?("Fleet::Shipment has the name 'Shipment'"),
+      "configured qualified module-name context differs from Reek")
+    AnalysisRunner.assert_status(configured_actual, configured_reference, "qualified UncommunicativeModuleName configured patterns")
+    AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "qualified UncommunicativeModuleName configured patterns")
+
+    unsupported = run_fleek("test/fixtures/uncommunicative_module_name_deep_qualified.rb", "", "reek:UncommunicativeModuleName")
+    unsupported_output = unsupported[1]
+    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
+      unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
+      "unsupported deeply qualified module-name scope was not reported incomplete")
   end
 
   def self.verify_partial_variable_names

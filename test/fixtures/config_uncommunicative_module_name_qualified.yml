@@ -1,0 +1,6 @@
+detectors:
+  UncommunicativeModuleName:
+    reject:
+      - ^Shipment$
+    accept:
+      - ^S$

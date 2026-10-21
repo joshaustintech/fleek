@@ -2779,11 +2779,28 @@ class Fleek
           return true;
         }
       }
-      if (!PM_NODE_TYPE_P(path, PM_CONSTANT_READ_NODE)) { state->unsupported = true; return true; }
-      pm_constant_t *name = pm_constant_pool_id_to_constant(&state->parser->constant_pool, ((const pm_constant_read_node_t *) path)->name);
+      pm_constant_t *name = NULL;
+      const char *context = NULL;
+      size_t context_length = 0;
+      char qualified_name[512];
+      if (PM_NODE_TYPE_P(path, PM_CONSTANT_READ_NODE)) {
+        name = pm_constant_pool_id_to_constant(&state->parser->constant_pool, ((const pm_constant_read_node_t *) path)->name);
+        context = (const char *) name->start;
+        context_length = name->length;
+      } else if (PM_NODE_TYPE_P(path, PM_CONSTANT_PATH_NODE)) {
+        const pm_constant_path_node_t *qualified = (const pm_constant_path_node_t *) path;
+        if (!PM_NODE_TYPE_P(qualified->parent, PM_CONSTANT_READ_NODE)) { state->unsupported = true; return true; }
+        pm_constant_t *parent = pm_constant_pool_id_to_constant(&state->parser->constant_pool, ((const pm_constant_read_node_t *) qualified->parent)->name);
+        name = pm_constant_pool_id_to_constant(&state->parser->constant_pool, qualified->name);
+        int written = snprintf(qualified_name, sizeof(qualified_name), "%.*s::%.*s", (int) parent->length, parent->start,
+          (int) name->length, name->start);
+        if (written < 0 || (size_t) written >= sizeof(qualified_name)) { state->unsupported = true; return true; }
+        context = qualified_name;
+        context_length = (size_t) (written);
+      } else { state->unsupported = true; return true; }
       if (fleek_matches_any_pattern((const uint8_t *) name->start, name->length, state->patterns->accept)) return true;
       if (!fleek_matches_any_pattern((const uint8_t *) name->start, name->length, state->patterns->reject)) return true;
-      int written = snprintf(fleek_uncommunicative_module_name_buffer + fleek_uncommunicative_module_name_used, sizeof(fleek_uncommunicative_module_name_buffer) - fleek_uncommunicative_module_name_used, "%d\\t%.*s\\t%.*s\\n", fleek_source_line(state->source, keyword), (int) name->length, name->start, (int) name->length, name->start);
+      int written = snprintf(fleek_uncommunicative_module_name_buffer + fleek_uncommunicative_module_name_used, sizeof(fleek_uncommunicative_module_name_buffer) - fleek_uncommunicative_module_name_used, "%d\\t%.*s\\t%.*s\\n", fleek_source_line(state->source, keyword), (int) context_length, context, (int) name->length, name->start);
       if (written < 0 || (size_t) written >= sizeof(fleek_uncommunicative_module_name_buffer) - fleek_uncommunicative_module_name_used) { state->unsupported = true; return true; }
       fleek_uncommunicative_module_name_used += (size_t) written;
       return true;
@@ -6188,7 +6205,7 @@ class Fleek
     "TooManyMethods" => ["direct instance methods in one simple class, or in one class with a single direct nested class", "%s has at least %s methods"],
     "TooManyStatements" => ["simple direct and singleton-class method bodies with statement counting", "%s has approx %s statements"],
     "UncommunicativeMethodName" => ["direct methods in one simple class or module, including one direct nested class", "%s has the name '%s'"],
-    "UncommunicativeModuleName" => ["simple class and module constant names", "%s has the name '%s'"],
+    "UncommunicativeModuleName" => ["simple names and one-level qualified class/module constant paths", "%s has the name '%s'"],
     "UncommunicativeParameterName" => ["simple method parameters", "%s has the parameter name '%s'"],
     "UncommunicativeVariableName" => ["simple local assignments in direct methods", "%s has the variable name '%s'"]
   }.freeze
