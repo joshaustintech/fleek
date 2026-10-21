@@ -64,6 +64,7 @@ class DefaultArgumentApiContract
     verify_uncommunicative_module_name_qualified
     verify_supported_default_detector("UncommunicativeParameterName", "test/fixtures/uncommunicative_parameter_name.rb")
     verify_configured_detector("UncommunicativeParameterName", "test/fixtures/uncommunicative_parameter_name.rb", "test/fixtures/config_uncommunicative_parameter_name.yml")
+    verify_uncommunicative_parameter_name_block_scope
     verify_supported_default_detector("UncommunicativeVariableName", "test/fixtures/uncommunicative_variable_name.rb")
     verify_configured_detector("UncommunicativeVariableName", "test/fixtures/uncommunicative_variable_name.rb", "test/fixtures/config_uncommunicative_variable_name.yml")
     verify_unsupported_naming_scopes
@@ -751,6 +752,27 @@ class DefaultArgumentApiContract
     verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
       unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
       "unsupported deeply qualified module-name scope was not reported incomplete")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_uncommunicative_parameter_name_block_scope
+    source = "test/fixtures/uncommunicative_parameter_name_block.rb"
+    reference = run_reek(source, "UncommunicativeParameterName")
+    actual = run_fleek(source, "", "reek:UncommunicativeParameterName")
+    verify(reference[0] == 0 && AnalysisRunner.detector_warnings(reference, "UncommunicativeParameterName").empty?,
+      "pinned block-parameter Reek baseline changed")
+    AnalysisRunner.assert_same_report(actual, reference, "block parameter default behavior")
+    AnalysisRunner.assert_report_state(actual, AnalysisRunner::ReportExpectation.new(0,
+      "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "complete", "block parameter default behavior"))
+
+    config = "test/fixtures/config_uncommunicative_parameter_name_block.yml"
+    configured_reference = run_reek(source, "UncommunicativeParameterName", config)
+    configured_actual = run_fleek(source, config, "reek:UncommunicativeParameterName")
+    verify(configured_reference[0] == 0 && AnalysisRunner.detector_warnings(configured_reference, "UncommunicativeParameterName").empty?,
+      "pinned configured block-parameter Reek baseline changed")
+    AnalysisRunner.assert_same_report(configured_actual, configured_reference, "block parameter configured behavior")
+    AnalysisRunner.assert_report_state(configured_actual, AnalysisRunner::ReportExpectation.new(0,
+      "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "complete", "block parameter configured behavior"))
   end
 
   def self.verify_partial_variable_names

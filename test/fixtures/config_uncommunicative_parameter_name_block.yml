@@ -1,0 +1,6 @@
+detectors:
+  UncommunicativeParameterName:
+    reject:
+      - ^item$
+    accept:
+      - ^x$
