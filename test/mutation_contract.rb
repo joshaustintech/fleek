@@ -80,6 +80,7 @@ class MutationCase
     "TooManyConstants nested module isolation" => "test/default_argument_api_contract.rb",
     "TooManyInstanceVariables nested class isolation" => "test/default_argument_api_contract.rb",
     "TooManyMethods nested class isolation" => "test/default_argument_api_contract.rb",
+    "TooManyStatements singleton method scope" => "test/default_argument_api_contract.rb",
     "missing TooManyInstanceVariables finding" => "test/default_argument_api_contract.rb",
     "missing &&= instance variable writes" => "test/default_argument_api_contract.rb",
     "missing TooManyMethods finding" => "test/default_argument_api_contract.rb",
@@ -929,6 +930,11 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "TooManyMethods nested class isolation",
   "nested TooManyMethods default threshold status differs from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
+  "scan->singleton_seen = true;",
+  "scan->singleton_seen = false;",
+  "TooManyStatements singleton method scope",
+  "TooManyStatements singleton-class methods status differs from Reek")).run
+MutationCase.new(MutationCase::Configuration.new(source,
   'when "TooManyInstanceVariables" then NativePrism.fleek_too_many_instance_variables(source, length, maximum)',
   'when "TooManyInstanceVariables" then 0',
   "missing TooManyInstanceVariables finding",
@@ -949,15 +955,15 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "missing TooManyStatements finding",
   "TooManyStatements findings differ from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (found && result > 0) return -5;",
-  "if (found && result > 0) return -4;",
+  "if (singleton_unsupported) findings = -1;",
+  "if (singleton_unsupported) findings = 0;",
   "TooManyStatements drops mixed-scope findings",
-  "Fleek dropped supported finding beside singleton-class syntax")).run
+  "TooManyStatements mixed singleton method body unsupported shape appeared clean")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (result == -4 && fleek_too_many_statements_used > 0) return -5;",
   "if (result == -4 && fleek_too_many_statements_used > 0) return -4;",
   "TooManyStatements drops findings before unsupported body",
-  "Fleek dropped supported finding beside unsupported method body")).run
+  "Fleek dropped singleton-class finding beside unsupported method body")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'status = partial ? -5 : 1;',
   'status = 1;',

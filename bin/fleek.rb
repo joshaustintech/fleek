@@ -1153,8 +1153,16 @@ class Fleek
 
     typedef int (*fleek_method_analyzer_t)(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     typedef struct { bool public_methods_only; bool method_is_public; bool unsupported_visibility; } fleek_utility_scan_t;
+    typedef struct { size_t maximum; bool singleton_seen; } fleek_too_many_statements_scan_t;
+    typedef struct { bool found; } fleek_nested_method_state_t;
+    static bool fleek_find_nested_method(const pm_node_t *node, void *data) {
+      fleek_nested_method_state_t *state = (fleek_nested_method_state_t *) data;
+      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) { state->found = true; return false; }
+      return !PM_NODE_TYPE_P(node, PM_CLASS_NODE) && !PM_NODE_TYPE_P(node, PM_MODULE_NODE);
+    }
     static int fleek_utility_function_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     static int fleek_missing_safe_method_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
+    static int fleek_too_many_statements_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
 
     static int fleek_scan_method_scope(const char *source, size_t length, fleek_method_analyzer_t analyze, void *state) {
       fleek_class_count = fleek_module_count = 0;
@@ -1217,6 +1225,29 @@ class Fleek
               continue;
             }
             if (((fleek_utility_scan_t *) state)->public_methods_only) ((fleek_utility_scan_t *) state)->unsupported_visibility = true;
+          }
+          if (analyze == fleek_too_many_statements_method && PM_NODE_TYPE_P(statement, PM_SINGLETON_CLASS_NODE)) {
+            fleek_too_many_statements_scan_t *scan = (fleek_too_many_statements_scan_t *) state;
+            scan->singleton_seen = true;
+            const pm_singleton_class_node_t *singleton = (const pm_singleton_class_node_t *) statement;
+            if (!PM_NODE_TYPE_P(singleton->expression, PM_SELF_NODE) || !PM_NODE_TYPE_P(singleton->body, PM_STATEMENTS_NODE)) { findings = -1; continue; }
+            const pm_statements_node_t *singleton_body = (const pm_statements_node_t *) singleton->body;
+            bool singleton_unsupported = singleton_body->body.size > 128;
+            size_t singleton_findings = 0;
+            for (size_t method_index = 0; method_index < singleton_body->body.size; method_index++) {
+              const pm_node_t *singleton_statement = singleton_body->body.nodes[method_index];
+              if (PM_NODE_TYPE_P(singleton_statement, PM_DEF_NODE)) {
+                int result = analyze(&parser, (const uint8_t *) source, class_name_text, class_name_length, singleton_statement, state);
+                if (result < 0) singleton_unsupported = true;
+                else singleton_findings += (size_t) result;
+              } else {
+                fleek_nested_method_state_t nested = { false }; pm_visit_node(singleton_statement, fleek_find_nested_method, &nested);
+                if (nested.found) singleton_unsupported = true;
+              }
+            }
+            if (singleton_unsupported) findings = -1;
+            else findings += (int) singleton_findings;
+            continue;
           }
           if (analyze == fleek_missing_safe_method_method && PM_NODE_TYPE_P(statement, PM_SINGLETON_CLASS_NODE)) {
             const pm_node_t *singleton_body = ((const pm_singleton_class_node_t *) statement)->body;
@@ -2437,12 +2468,6 @@ class Fleek
       }
       return true;
     }
-    typedef struct { bool found; } fleek_nested_method_state_t;
-    static bool fleek_find_nested_method(const pm_node_t *node, void *data) {
-      fleek_nested_method_state_t *state = (fleek_nested_method_state_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) { state->found = true; return false; }
-      return !PM_NODE_TYPE_P(node, PM_CLASS_NODE) && !PM_NODE_TYPE_P(node, PM_MODULE_NODE);
-    }
     static int fleek_count_scope(const char *source, size_t length, const char *detector, size_t threshold) {
       if (memchr(source, 0, length) != NULL) return -2;
       fleek_class_count = fleek_module_count = 0; fleek_only_scope = NULL;
@@ -2637,7 +2662,7 @@ class Fleek
         const pm_node_t *statement = body->body.nodes[index];
         if (PM_NODE_TYPE_P(statement, PM_IF_NODE) || PM_NODE_TYPE_P(statement, PM_UNLESS_NODE) || PM_NODE_TYPE_P(statement, PM_WHILE_NODE) || PM_NODE_TYPE_P(statement, PM_UNTIL_NODE) || PM_NODE_TYPE_P(statement, PM_FOR_NODE) || PM_NODE_TYPE_P(statement, PM_CASE_NODE) || PM_NODE_TYPE_P(statement, PM_BEGIN_NODE)) return -1;
       }
-      if (fleek_name_is(parser, method->name, "initialize") || count <= *(size_t *) data) return 0;
+      if (fleek_name_is(parser, method->name, "initialize") || count <= ((fleek_too_many_statements_scan_t *) data)->maximum) return 0;
       pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
       int written = snprintf(fleek_too_many_statements_buffer + fleek_too_many_statements_used, sizeof(fleek_too_many_statements_buffer) - fleek_too_many_statements_used, "%d\\t%.*s#%s%.*s\\t%zu\\t\\n", fleek_source_line(source, method->def_keyword_loc.start), (int) class_name_length, class_name, method->receiver == NULL ? "" : "self.", (int) method_name->length, method_name->start, count);
       if (written < 0 || (size_t) written >= sizeof(fleek_too_many_statements_buffer) - fleek_too_many_statements_used) return -1;
@@ -2659,10 +2684,10 @@ class Fleek
       if (!parse_error) pm_visit_node(root, fleek_has_singleton_class, &found);
       pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
       if (parse_error) return -1;
-      int result = fleek_scan_method_scope(source, length, fleek_too_many_statements_method, &maximum);
-      if (found && result > 0) return -5;
+      fleek_too_many_statements_scan_t scan = { maximum, false };
+      int result = fleek_scan_method_scope(source, length, fleek_too_many_statements_method, &scan);
       if (result == -4 && fleek_too_many_statements_used > 0) return -5;
-      if (found) return -4;
+      if (found && !scan.singleton_seen) return fleek_too_many_statements_used > 0 ? -5 : -4;
       return result;
     }
     int fleek_too_many_statements(const char *source, size_t length, size_t maximum) { fleek_too_many_statements_buffer[0] = 0; fleek_too_many_statements_used = 0; return fleek_scan_too_many_statements(source, length, maximum); }
@@ -6117,7 +6142,7 @@ class Fleek
     "TooManyConstants" => ["direct constant assignments in one simple class or module, or in a direct nested module within one top-level module", "%s has %s constants"],
     "TooManyInstanceVariables" => ["one simple class, or two direct nested classes within one top-level class", "%s has at least %s instance variables"],
     "TooManyMethods" => ["direct instance methods in one simple class, or in one class with a single direct nested class", "%s has at least %s methods"],
-    "TooManyStatements" => ["simple method bodies with statement counting", "%s has approx %s statements"],
+    "TooManyStatements" => ["simple direct and singleton-class method bodies with statement counting", "%s has approx %s statements"],
     "UncommunicativeMethodName" => ["direct methods in one simple class or module", "%s has the name '%s'"],
     "UncommunicativeModuleName" => ["simple class and module constant names", "%s has the name '%s'"],
     "UncommunicativeParameterName" => ["simple method parameters", "%s has the parameter name '%s'"],
