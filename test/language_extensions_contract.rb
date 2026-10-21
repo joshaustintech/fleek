@@ -51,14 +51,18 @@ class LanguageExtensionContract
 end
 
 spinel_side_effect = "/tmp/fleek-spinel-source-executed"
-raise "Spinel side-effect marker already exists" if File.exist?(spinel_side_effect)
+require_side_effect = "/tmp/fleek-parser-side-effect"
+raise "Spinel side-effect marker already exists" if File.exist?(spinel_side_effect) || File.exist?(require_side_effect)
 
 spinel_path = "test/fixtures/spinel_ffi.rb"
+spinel_reference = AnalysisRunner.reek(spinel_path)
+reference_finding = "[6]:ClassVariable: NativeDependency declares the class variable '@@count'"
+raise "Reek Spinel reference result changed" unless spinel_reference[0] == 2 && spinel_reference[1].include?(reference_finding)
+raise "Reek loaded the Spinel require or application code" if File.exist?(spinel_side_effect) || File.exist?(require_side_effect)
 spinel = AnalysisRunner.fleek(spinel_path)
 LanguageExtensionContract.verify_finding(spinel, LanguageExtensionContract::Finding.new(spinel_path, "6", "NativeDependency"))
-spinel_reference = AnalysisRunner.reek(spinel_path)
 AnalysisRunner.assert_same_report(spinel, spinel_reference, "Spinel FFI ClassVariable extension")
-raise "Spinel source was executed or its require was loaded" if File.exist?(spinel_side_effect)
+raise "Fleek loaded the Spinel require or application code" if File.exist?(spinel_side_effect) || File.exist?(require_side_effect)
 
 spinel_flay = AnalysisRunner.fleek_with_check("flay:StructuralDuplication", spinel_path)
 raise "unsupported Spinel duplication module implied success" unless spinel_flay[0] == 1 && spinel_flay[1].include?("Status: incomplete")
@@ -76,10 +80,10 @@ reordered_module = AnalysisRunner.fleek_with_check("flay:StructuralDuplication",
 raise "Spinel FFI module after methods was not rejected as incomplete" unless reordered_module[0] == 1 && reordered_module[1].include?("Status: incomplete")
 
 ruby4_path = "test/fixtures/ruby4.rb"
-ruby4 = AnalysisRunner.fleek(ruby4_path)
-LanguageExtensionContract.verify_finding(ruby4, LanguageExtensionContract::Finding.new(ruby4_path, "3", "RubyFourExample"))
 ruby4_reference = AnalysisRunner.reek(ruby4_path)
 raise "Ruby 4 reference rejection was mistaken for clean analysis" unless ruby4_reference[0] == 0 && ruby4_reference[2].include?("cannot be processed by Reek")
+ruby4 = AnalysisRunner.fleek(ruby4_path)
+LanguageExtensionContract.verify_finding(ruby4, LanguageExtensionContract::Finding.new(ruby4_path, "3", "RubyFourExample"))
 
 ruby4_duplication_path = "test/fixtures/ruby4_duplicate.rb"
 ruby4_flay = AnalysisRunner.fleek_with_check("flay:StructuralDuplication", ruby4_duplication_path)

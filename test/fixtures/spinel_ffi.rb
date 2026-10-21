@@ -1,5 +1,5 @@
 # Parser must retain syntax comments while treating this file as inert source.
-require "missing_source_dependency"
+require_relative "side_effect"
 
 module NativeDependency
   ffi_func :native_call, [:int], :int
