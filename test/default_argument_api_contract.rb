@@ -7,6 +7,12 @@ class DefaultArgumentApiContract
 
   # :reek:TooManyStatements
   def self.run
+    mutation_label = ENV["FLEEK_MUTATION_LABEL"]
+    if mutation_label && !mutation_label.empty?
+      verify_mutation_case(mutation_label)
+      puts "Default argument focused mutation contract: pass"
+      return
+    end
     reference = run_reek
     actual = run_fleek
     verify_run_coverage(actual)
@@ -97,6 +103,121 @@ class DefaultArgumentApiContract
     verify_explicit_long_parameter_list
     verify_unused_private_opt_in
     puts "Default argument and method API contract: pass"
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_mutation_case(label)
+    case label
+    when "missing LongParameterList finding"
+      verify_default_detector("LongParameterList", SOURCE)
+    when "LongParameterList comment suppression"
+      verify_long_parameter_list_comment_suppression
+    when "LongParameterList block body support"
+      verify_long_parameter_block_limit
+    when "missing BooleanParameter finding"
+      verify_boolean_parameter
+    when "missing LongYieldList finding", "missing LongYieldList block finding"
+      verify_long_yield_list
+    when "missing ControlParameter finding", "wrong ControlParameter lines"
+      verify_default_detector("ControlParameter", "test/fixtures/control_parameter.rb")
+    when "nested ControlParameter block traversal"
+      verify_nested_control_parameter_loop
+    when "nested ControlParameter data use suppression"
+      verify_control_parameter_suppression
+    when "missing UnusedParameters finding"
+      verify_default_detector("UnusedParameters", "test/fixtures/unused_parameters.rb")
+    when "UnusedParameters block body traversal", "UnusedParameters block captures"
+      verify_unused_parameter_block_shadowing
+    when "missing UtilityFunction finding"
+      verify_default_detector("UtilityFunction", "test/fixtures/utility_function.rb")
+    when "UtilityFunction public visibility filter", "UtilityFunction private visibility state"
+      verify_utility_configuration_limit
+    when "missing DuplicateMethodCall finding"
+      verify_default_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb")
+    when "ignored DuplicateMethodCall list entry"
+      verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_allow.yml")
+    when "missing NilCheck finding"
+      verify_nil_check_nested_block
+    when "NilCheck block scope analysis", "wrong nested NilCheck lines"
+      verify_nil_check_nested_block
+    when "MissingSafeMethod singleton scope analysis"
+      verify_missing_safe_method_singleton_companions
+    when "ignored MissingSafeMethod exclusion entry"
+      verify_configured_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb", "test/fixtures/config_missing_safe_method_exclude.yml")
+    when "missing RepeatedConditional finding"
+      verify_default_detector("RepeatedConditional", "test/fixtures/repeated_conditional.rb")
+    when "RepeatedConditional class scope isolation"
+      verify_repeated_conditional_nested_classes
+    when "missing NestedIterators finding"
+      verify_nested_iterator_ignored_name
+    when "ignored NestedIterators list entry"
+      verify_nested_iterator_ignored_name
+    when "missing DataClump finding", "DataClump first clump only"
+      verify_supported_default_detector("DataClump", "test/fixtures/data_clump_multiple_groups.rb")
+    when "DataClump first-method dependence"
+      verify_supported_default_detector("DataClump", "test/fixtures/data_clump_after_empty_method.rb")
+    when "DataClump drops findings on incomplete syntax"
+      verify_data_clump_preserves_supported_findings
+    when "DataClump singleton parameter participation"
+      verify_data_clump_singleton_methods
+    when "missing TooManyConstants finding"
+      verify_supported_default_detector("TooManyConstants", "test/fixtures/too_many_constants.rb")
+    when "TooManyConstants nested module isolation"
+      verify_too_many_constants_nested_modules
+    when "missing TooManyInstanceVariables finding"
+      verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
+    when "missing &&= instance variable writes"
+      verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variable_operator_writes.rb")
+    when "TooManyInstanceVariables nested class isolation"
+      verify_too_many_instance_variables_nested_classes
+    when "missing TooManyMethods finding"
+      verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
+    when "TooManyMethods nested class isolation"
+      verify_too_many_methods_nested_classes
+    when "TooManyMethods partial scope loses incomplete status"
+      verify_too_many_methods_mixed_nested_definition
+    when "missing TooManyStatements finding"
+      verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
+    when "TooManyStatements singleton method scope"
+      verify_unsupported_singleton_class_methods
+    when "TooManyStatements drops mixed-scope findings"
+      verify_too_many_statements_mixed_singleton_body
+    when "TooManyStatements drops findings before unsupported body"
+      verify_too_many_statements_partial_findings("test/fixtures/too_many_statements_mixed_unsupported_body.rb",
+        "unsupported method body", "Fleek dropped singleton-class finding beside unsupported method body")
+    when "missing UncommunicativeMethodName finding"
+      verify_supported_default_detector("UncommunicativeMethodName", "test/fixtures/uncommunicative_method_name.rb")
+    when "UncommunicativeMethodName nested singleton context"
+      verify_uncommunicative_method_name_nested_singleton
+    when "missing UncommunicativeModuleName finding"
+      verify_supported_default_detector("UncommunicativeModuleName", "test/fixtures/uncommunicative_module_name.rb")
+    when "UncommunicativeModuleName qualified context"
+      verify_uncommunicative_module_name_qualified
+    when "missing UncommunicativeParameterName finding"
+      verify_supported_default_detector("UncommunicativeParameterName", "test/fixtures/uncommunicative_parameter_name.rb")
+    when "missing UncommunicativeVariableName finding"
+      verify_supported_default_detector("UncommunicativeVariableName", "test/fixtures/uncommunicative_variable_name.rb")
+    when "UncommunicativeVariableName block parameters"
+      verify_uncommunicative_variable_name_blocks
+    when "missing ManualDispatch finding"
+      verify_default_detector("ManualDispatch", "test/fixtures/manual_dispatch.rb")
+    when "missing FeatureEnvy finding"
+      verify_default_detector("FeatureEnvy", "test/fixtures/feature_envy.rb")
+    when "FeatureEnvy block scope analysis"
+      verify_feature_envy_block_receivers
+    when "UnusedPrivateMethod private visibility"
+      verify_unused_private_visibility_cases
+    when "UnusedPrivateMethod named visibility"
+      verify_unused_private_symbol_visibility
+    when "UnusedPrivateMethod public visibility"
+      verify_unused_private_public_visibility
+    when "UnusedPrivateMethod direct call tracking"
+      verify_unused_private_call_cases
+    when "UnusedPrivateMethod dynamic call boundary"
+      verify_dynamic_private_method_call_is_incomplete
+    else
+      raise "missing focused contract for mutation: #{label}"
+    end
   end
 
   def self.verify_boolean_parameter
@@ -867,7 +988,7 @@ class DefaultArgumentApiContract
     reference_text = reference_findings.join("\n")
     actual_text = actual_findings.join("\n")
     verify(reference_text.include?(supported_context), "pinned mixed singleton method fixture lost supported finding")
-    verify(actual_text.include?(supported_context), "Fleek dropped singleton-class finding beside unsupported method body")
+    verify(actual_text.include?(supported_context), "TooManyStatements mixed singleton method body unsupported shape appeared clean")
     AnalysisRunner.assert_unsupported(actual, "TooManyStatements mixed singleton method body")
   end
 
@@ -881,11 +1002,12 @@ class DefaultArgumentApiContract
   end
 
   # :reek:TooManyStatements
-  def self.verify_too_many_statements_partial_findings(source, unsupported_shape)
+  def self.verify_too_many_statements_partial_findings(source, unsupported_shape,
+    finding_message = "Fleek dropped supported finding beside #{unsupported_shape}")
     reference = run_reek(source, "TooManyStatements")
     actual = run_fleek(source, "", "reek:TooManyStatements")
     verify(mixed_too_many_statements_finding?(reference), "pinned Reek #{unsupported_shape} fixture lost supported finding")
-    verify(mixed_too_many_statements_finding?(actual), "Fleek dropped supported finding beside #{unsupported_shape}")
+    verify(mixed_too_many_statements_finding?(actual), finding_message)
     AnalysisRunner.assert_unsupported(actual, "TooManyStatements #{unsupported_shape}")
   end
 

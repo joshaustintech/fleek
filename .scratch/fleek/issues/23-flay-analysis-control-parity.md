@@ -2,7 +2,7 @@
 
 **What to build:** Flay-specific settings and analysis-affecting controls produce the same structural duplication result and selected source set as pinned Flay 2.14.4.
 
-**Blocked by:** 121; 128; 129.
+**Blocked by:** 121; 128.
 
 **Status:** claimed
 **Type:** task  

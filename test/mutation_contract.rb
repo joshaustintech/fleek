@@ -431,12 +431,13 @@ class MutationCase
 
   # :reek:TooManyStatements
   def verify_contract
-    contract = CONTRACTS.fetch(@configuration.label)
+    label = @configuration.label
+    contract = CONTRACTS.fetch(label)
     executable = compile_contract(contract)
     contract_directory = ENV["FLEEK_MUTATION_CONTRACT_DIRECTORY"]
     verify_shared_contract(executable, contract, contract_directory) if contract_directory
     Dir.mkdir("build/mutation-reference-cache") unless Dir.exist?("build/mutation-reference-cache")
-    status = MutationProcess.run_contract(executable)
+    status = MutationProcess.run_contract(executable, label)
     verify_contract_temp_root if contract_directory
     verify_failure(status)
   end
@@ -614,8 +615,8 @@ class MutationProcess
   end
 
   # :reek:TooManyStatements
-  def self.run_contract(executable)
-    process_id = Process.spawn("env", "FLEEK_REFERENCE_CACHE=build/mutation-reference-cache", executable,
+  def self.run_contract(executable, label)
+    process_id = Process.spawn("env", "FLEEK_REFERENCE_CACHE=build/mutation-reference-cache", "FLEEK_MUTATION_LABEL=#{label}", executable,
       out: temporary_path("fleek-mutation-out"), err: temporary_path("fleek-mutation-err"))
     _, status = wait(process_id)
     status
@@ -2340,7 +2341,7 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "!fleek_matches_any_pattern((const uint8_t *) name->start, name->length, state->patterns->reject)) return true;",
   "fleek_matches_any_pattern((const uint8_t *) name->start, name->length, state->patterns->reject)) return true;",
   "missing UncommunicativeVariableName finding",
-  "UncommunicativeModuleName findings differ from Reek")).run
+  "UncommunicativeVariableName findings differ from Reek")).run
 
 process_id = Process.spawn("make", "build/fleek", out: MutationProcess.temporary_path("fleek-mutation-restore-out"), err: MutationProcess.temporary_path("fleek-mutation-restore-err"))
 _, status = Process.waitpid2(process_id)
