@@ -857,12 +857,12 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "if (block->depth != depth || depth <= state->maximum) continue;",
   "if (true) continue;",
   "missing NestedIterators finding",
-  "NestedIterators findings differ from Reek")).run
+  "three-level NestedIterators status differs from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   'ignored = configuration.detector_setting("NestedIterators", "ignore_iterators", path) || "Tempfile.create\\ntap"',
   'ignored = ""',
   "ignored NestedIterators list entry",
-  "NestedIterators findings differ from Reek")).run
+  "ignored map did not produce a complete clean result")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "if (!fleek_name_is(state->parser, call->name, \"respond_to?\")) return true;",
   "if (true) return true;",

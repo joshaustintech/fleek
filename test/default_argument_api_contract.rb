@@ -35,6 +35,7 @@ class DefaultArgumentApiContract
     verify_default_detector("RepeatedConditional", "test/fixtures/repeated_conditional.rb")
     verify_configured_detector("RepeatedConditional", "test/fixtures/repeated_conditional.rb", "test/fixtures/config_repeated_conditional.yml")
     verify_repeated_conditional_nested_classes
+    verify_nested_iterator_ignored_name
     verify_default_detector("NestedIterators", "test/fixtures/nested_iterators.rb")
     verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators.yml")
     verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators_ignore.yml")
@@ -454,6 +455,27 @@ class DefaultArgumentApiContract
       "pinned per-class RepeatedConditional findings were merged")
     AnalysisRunner.assert_status(actual, reference, "per-class RepeatedConditional")
     AnalysisRunner.assert_detector_findings(actual, reference, "RepeatedConditional")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_nested_iterator_ignored_name
+    source = "test/fixtures/nested_iterators_ignored_name.rb"
+    reference = run_reek(source, "NestedIterators")
+    actual = run_fleek(source, "test/fixtures/config_nested_iterators.yml", "reek:NestedIterators")
+    verify(AnalysisRunner.detector_warnings(reference, "NestedIterators").length == 1 &&
+      reference[1].include?("[5]:NestedIterators: Parcel#walk contains iterators nested 3 deep"),
+      "pinned three-level NestedIterators finding changed")
+    AnalysisRunner.assert_status(actual, reference, "three-level NestedIterators")
+    AnalysisRunner.assert_detector_findings(actual, reference, "NestedIterators")
+
+    config = "test/fixtures/config_nested_iterators_ignore_map.yml"
+    ignored_reference = run_reek(source, "NestedIterators", config)
+    ignored_actual = run_fleek(source, config, "reek:NestedIterators")
+    verify(AnalysisRunner.detector_warnings(ignored_reference, "NestedIterators").empty?,
+      "pinned ignored map nesting depth changed")
+    verify(ignored_actual[0] == 0 && ignored_actual[1].include?("Status: complete"),
+      "ignored map did not produce a complete clean result")
+    AnalysisRunner.assert_detector_findings(ignored_actual, ignored_reference, "NestedIterators")
   end
 
   def self.verify_configured_detector(detector, source, config)

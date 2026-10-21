@@ -1,0 +1,5 @@
+detectors:
+  NestedIterators:
+    max_allowed_nesting: 2
+    ignore_iterators:
+      - map
