@@ -2179,7 +2179,65 @@ class Fleek
       fleek_repeated_conditional_state_t state = { 0 };
       state.source = (const uint8_t *) source;
       state.maximum = maximum;
-      return fleek_scan_method_scope(source, length, fleek_repeated_conditional_method, &state);
+      if (memchr(source, 0, length) != NULL) return -2;
+      fleek_class_count = fleek_module_count = 0;
+      fleek_only_scope = NULL;
+      fleek_source_start = (const uint8_t *) source;
+      pm_options_t options = {0};
+      options.line = 1;
+      options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
+      pm_parser_t parser;
+      pm_parser_init(&parser, (const uint8_t *) source, length, &options);
+      pm_node_t *root = pm_parse(&parser);
+      if (parser.error_list.head != NULL) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1; }
+      pm_visit_node(root, fleek_collect_classes, NULL);
+      if (fleek_class_count <= 1) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
+        return fleek_scan_method_scope(source, length, fleek_repeated_conditional_method, &state);
+      }
+      if (fleek_module_count != 0 || !PM_NODE_TYPE_P(root, PM_PROGRAM_NODE) ||
+          ((const pm_program_node_t *) root)->statements == NULL) {
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+      }
+      size_t total_classes = fleek_class_count;
+      const pm_statements_node_t *program = (const pm_statements_node_t *) ((const pm_program_node_t *) root)->statements;
+      size_t direct_classes = 0;
+      size_t analyzed = 0;
+      int findings = 0;
+      for (size_t index = 0; index < program->body.size; index++) {
+        const pm_node_t *statement = program->body.nodes[index];
+        if (!PM_NODE_TYPE_P(statement, PM_CLASS_NODE)) continue;
+        direct_classes++;
+        const pm_class_node_t *class_node = (const pm_class_node_t *) statement;
+        if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) ||
+            !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool,
+          ((const pm_constant_read_node_t *) class_node->constant_path)->name);
+        fleek_only_scope = statement;
+        fleek_class_count = 1;
+        fleek_module_count = 0;
+        state.count = 0;
+        state.unsupported = false;
+        state.class_name = (const char *) class_name->start;
+        state.class_name_length = class_name->length;
+        const pm_statements_node_t *class_body = (const pm_statements_node_t *) class_node->body;
+        for (size_t method_index = 0; method_index < class_body->body.size; method_index++) {
+          const pm_node_t *method = class_body->body.nodes[method_index];
+          if (!PM_NODE_TYPE_P(method, PM_DEF_NODE)) continue;
+          int result = fleek_repeated_conditional_method(&parser, (const uint8_t *) source,
+            state.class_name, state.class_name_length, method, &state);
+          if (result < 0) findings = -1;
+          else findings += result;
+        }
+        analyzed++;
+      }
+      if (direct_classes != total_classes || analyzed != total_classes) findings = -1;
+      pm_node_destroy(&parser, root);
+      pm_parser_free(&parser);
+      pm_options_free(&options);
+      return findings < 0 ? -4 : findings;
     }
     const char *fleek_repeated_conditional_finding(void) { return fleek_repeated_conditional_buffer; }
     typedef struct { const uint8_t *start; const uint8_t *end; int line; bool increments; size_t depth; } fleek_iterator_block_t;
@@ -5816,7 +5874,7 @@ class Fleek
     "ManualDispatch" => ["simple method bodies containing respond_to?", "%s manually dispatches method call"],
     "NilCheck" => ["simple method bodies with nil? or nil comparisons", "%s performs a nil-check"],
     "MissingSafeMethod" => ["direct bang methods without matching non-bang methods", "%s has missing safe method '%s'"],
-    "RepeatedConditional" => ["simple method conditions compared across one class", "%s tests '%s' at least %s times"],
+    "RepeatedConditional" => ["simple method conditions compared within direct top-level classes", "%s tests '%s' at least %s times"],
     "NestedIterators" => ["simple method bodies with block iterators", "%s contains iterators nested %s deep"],
     "FeatureEnvy" => ["simple methods with local-variable receiver calls and self references", "%s refers to '%s' more than self (maybe move it to another class?)"],
     "DataClump" => ["direct instance methods with matching parameter names", "%s takes parameters %s to %s methods"],

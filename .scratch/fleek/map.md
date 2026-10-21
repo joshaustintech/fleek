@@ -12,6 +12,7 @@
 
 ## Decisions-so-far
 
+- Ticket 78 analyzes RepeatedConditional separately in each direct top-level class; thresholds and findings stay class-local. See [ADR 0215](../../docs/adr/0215-isolate-repeated-conditional-class-scopes.md).
 - Ticket 77 matches MissingSafeMethod singleton scope: `class << self` bang methods require a companion in the same singleton body; instance companions do not count. See [ADR 0214](../../docs/adr/0214-match-singleton-missing-safe-method.md).
 - Ticket 53 enables default distance-one Flay fuzzy matching for bounded method candidates, preserving default output without `--fuzzy` and enforcing Flay's 10-element and average-mass limits. See [issue 53](issues/53-fuzzy-default-distance.md) and [ADR 0191](../../docs/adr/0191-match-bounded-flay-fuzzy-method-candidates.md).
 - Ticket 54 extends bounded fuzzy matching to explicit Flay distances, optional/repeated-value parsing, and zero/negative validation. See [issue 54](issues/54-fuzzy-distance-controls.md) and [ADR 0192](../../docs/adr/0192-match-explicit-flay-fuzzy-distance.md).

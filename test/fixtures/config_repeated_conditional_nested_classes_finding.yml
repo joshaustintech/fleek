@@ -1,0 +1,3 @@
+detectors:
+  RepeatedConditional:
+    max_ifs: 1

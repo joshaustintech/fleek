@@ -34,6 +34,7 @@ class DefaultArgumentApiContract
     verify_manual_dispatch_nested_guard
     verify_default_detector("RepeatedConditional", "test/fixtures/repeated_conditional.rb")
     verify_configured_detector("RepeatedConditional", "test/fixtures/repeated_conditional.rb", "test/fixtures/config_repeated_conditional.yml")
+    verify_repeated_conditional_nested_classes
     verify_default_detector("NestedIterators", "test/fixtures/nested_iterators.rb")
     verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators.yml")
     verify_configured_detector("NestedIterators", "test/fixtures/nested_iterators.rb", "test/fixtures/config_nested_iterators_ignore.yml")
@@ -432,6 +433,27 @@ class DefaultArgumentApiContract
     AnalysisRunner.assert_status(actual, reference, "singleton MissingSafeMethod")
     AnalysisRunner.assert_detector_findings(actual, reference, "MissingSafeMethod")
     verify_configured_detector("MissingSafeMethod", source, "test/fixtures/config_missing_safe_method_singleton_exclude.yml")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_repeated_conditional_nested_classes
+    source = "test/fixtures/repeated_conditional_nested_classes.rb"
+    clean_config = "test/fixtures/config_repeated_conditional_nested_classes.yml"
+    clean_reference = run_reek(source, "RepeatedConditional", clean_config)
+    clean_actual = run_fleek(source, clean_config, "reek:RepeatedConditional")
+    verify(AnalysisRunner.detector_warnings(clean_reference, "RepeatedConditional").empty?,
+      "pinned per-class RepeatedConditional threshold changed")
+    verify(clean_actual[0] == 0 && clean_actual[1].include?("Status: complete"),
+      "per-class RepeatedConditional threshold was not clean and complete")
+    AnalysisRunner.assert_detector_findings(clean_actual, clean_reference, "RepeatedConditional")
+
+    finding_config = "test/fixtures/config_repeated_conditional_nested_classes_finding.yml"
+    reference = run_reek(source, "RepeatedConditional", finding_config)
+    actual = run_fleek(source, finding_config, "reek:RepeatedConditional")
+    verify(AnalysisRunner.detector_warnings(reference, "RepeatedConditional").length == 2,
+      "pinned per-class RepeatedConditional findings were merged")
+    AnalysisRunner.assert_status(actual, reference, "per-class RepeatedConditional")
+    AnalysisRunner.assert_detector_findings(actual, reference, "RepeatedConditional")
   end
 
   def self.verify_configured_detector(detector, source, config)
