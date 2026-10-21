@@ -2451,6 +2451,43 @@ class Fleek
       pm_node_t *root = pm_parse(&parser);
       if (parser.error_list.head != NULL) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1; }
       pm_visit_node(root, fleek_collect_classes, NULL);
+      if (strcmp(detector, "TooManyInstanceVariables") == 0 && fleek_class_count == 3 && fleek_module_count == 0) {
+        const pm_statements_node_t *top = NULL;
+        if (PM_NODE_TYPE_P(root, PM_PROGRAM_NODE)) {
+          top = (const pm_statements_node_t *) ((const pm_program_node_t *) root)->statements;
+        }
+        const pm_node_t *outer_node = top != NULL && top->body.size == 1 ? top->body.nodes[0] : NULL;
+        const pm_class_node_t *outer = PM_NODE_TYPE_P(outer_node, PM_CLASS_NODE) ? (const pm_class_node_t *) outer_node : NULL;
+        const pm_statements_node_t *children = outer != NULL && PM_NODE_TYPE_P(outer->body, PM_STATEMENTS_NODE) ? (const pm_statements_node_t *) outer->body : NULL;
+        if (outer == NULL || children == NULL || children->body.size != 2 ||
+            !PM_NODE_TYPE_P(children->body.nodes[0], PM_CLASS_NODE) || !PM_NODE_TYPE_P(children->body.nodes[1], PM_CLASS_NODE) ||
+            !PM_NODE_TYPE_P(outer->constant_path, PM_CONSTANT_READ_NODE)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        const pm_class_node_t *nested[2] = { (const pm_class_node_t *) children->body.nodes[0], (const pm_class_node_t *) children->body.nodes[1] };
+        pm_constant_t *outer_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) outer->constant_path)->name);
+        size_t used = 0; int findings = 0; bool failed = false;
+        for (size_t index = 0; index < 2; index++) {
+          const pm_class_node_t *scope = nested[index];
+          if (!fleek_scope_contains(outer_node, (const pm_node_t *) scope) || !fleek_class_has_direct_child(outer_node, (const pm_node_t *) scope) ||
+              !PM_NODE_TYPE_P(scope->constant_path, PM_CONSTANT_READ_NODE) || (scope->body != NULL && !PM_NODE_TYPE_P(scope->body, PM_STATEMENTS_NODE))) {
+            failed = true; break;
+          }
+          pm_constant_t *nested_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) scope->constant_path)->name);
+          fleek_parameter_names_t variables = { { 0 }, 0 };
+          if (scope->body != NULL) pm_visit_node(scope->body, fleek_ivar_count_visit, &variables);
+          if (variables.count == 128) { failed = true; break; }
+          if (variables.count <= threshold) continue;
+          int written = snprintf(fleek_too_many_instance_variables_buffer + used,
+            sizeof(fleek_too_many_instance_variables_buffer) - used, "%zu\\t%.*s::%.*s\\t%zu\\t\\n",
+            fleek_source_line((const uint8_t *) source, scope->class_keyword_loc.start), (int) outer_name->length, outer_name->start,
+            (int) nested_name->length, nested_name->start, variables.count);
+          if (written < 0 || (size_t) written >= sizeof(fleek_too_many_instance_variables_buffer) - used) { failed = true; break; }
+          used += (size_t) written; findings++;
+        }
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
+        return failed ? -4 : findings;
+      }
       if (strcmp(detector, "TooManyConstants") == 0 && fleek_class_count == 0 && fleek_module_count == 2) {
         const pm_module_node_t *outer = (const pm_module_node_t *) fleek_namespace_scope;
         const pm_module_node_t *inner = (const pm_module_node_t *) fleek_only_scope;
@@ -6024,7 +6061,7 @@ class Fleek
     "FeatureEnvy" => ["simple methods with local-variable receiver calls and self references", "%s refers to '%s' more than self (maybe move it to another class?)"],
     "DataClump" => ["direct instance methods and class << self methods with matching parameter names", "%s takes parameters %s to %s methods"],
     "TooManyConstants" => ["direct constant assignments in one simple class or module, or in a direct nested module within one top-level module", "%s has %s constants"],
-    "TooManyInstanceVariables" => ["one simple class's instance variables", "%s has at least %s instance variables"],
+    "TooManyInstanceVariables" => ["one simple class, or two direct nested classes within one top-level class", "%s has at least %s instance variables"],
     "TooManyMethods" => ["one simple class's direct instance methods", "%s has at least %s methods"],
     "TooManyStatements" => ["simple method bodies with statement counting", "%s has approx %s statements"],
     "UncommunicativeMethodName" => ["direct methods in one simple class or module", "%s has the name '%s'"],

@@ -1,0 +1,3 @@
+detectors:
+  TooManyInstanceVariables:
+    max_instance_variables: 5

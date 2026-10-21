@@ -51,6 +51,7 @@ class DefaultArgumentApiContract
     verify_too_many_constants_nested_modules
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variable_operator_writes.rb")
+    verify_too_many_instance_variables_nested_classes
     verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
     verify_too_many_methods_mixed_nested_definition
     verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
@@ -139,6 +140,33 @@ class DefaultArgumentApiContract
       configured_output.include?("Status: complete"),
       "pinned configured TooManyConstants nested threshold changed")
     AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "nested TooManyConstants configured threshold")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_too_many_instance_variables_nested_classes
+    source = "test/fixtures/too_many_instance_variables_nested_classes.rb"
+    reference = run_reek(source, "TooManyInstanceVariables")
+    actual = run_fleek(source, "", "reek:TooManyInstanceVariables")
+    findings = AnalysisRunner.detector_warnings(reference, "TooManyInstanceVariables")
+    verify(reference[0] == 2 && findings.size == 1 && findings.first.include?("Fleet::Shipment has at least 5 instance variables"),
+      "pinned TooManyInstanceVariables nested class isolation changed")
+    AnalysisRunner.assert_status(actual, reference, "nested TooManyInstanceVariables default threshold")
+    AnalysisRunner.assert_detector_findings(actual, reference, "nested TooManyInstanceVariables default threshold")
+    unsupported = run_fleek("test/fixtures/too_many_instance_variables_deep_classes.rb", "", "reek:TooManyInstanceVariables")
+    unsupported_output = unsupported[1]
+    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
+      unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
+      "unsupported nested TooManyInstanceVariables scope was not reported incomplete")
+
+    config = "test/fixtures/config_too_many_instance_variables_nested_threshold.yml"
+    configured_reference = run_reek(source, "TooManyInstanceVariables", config)
+    configured_actual = run_fleek(source, config, "reek:TooManyInstanceVariables")
+    configured_output = configured_actual[1]
+    verify(configured_reference[0] == 0 && configured_actual[0] == 0 &&
+      AnalysisRunner.warning_lines(configured_reference[1]).empty? && AnalysisRunner.warning_lines(configured_output).empty? &&
+      configured_output.include?("Status: complete"),
+      "pinned configured TooManyInstanceVariables nested threshold changed")
+    AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "nested TooManyInstanceVariables configured threshold")
   end
 
   def self.verify_long_yield_list
