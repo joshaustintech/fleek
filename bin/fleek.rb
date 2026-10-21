@@ -1163,6 +1163,7 @@ class Fleek
     static int fleek_utility_function_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     static int fleek_missing_safe_method_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     static int fleek_too_many_statements_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
+    static int fleek_uncommunicative_method_name_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
 
     static int fleek_scan_method_scope(const char *source, size_t length, fleek_method_analyzer_t analyze, void *state) {
       fleek_class_count = fleek_module_count = 0;
@@ -1177,6 +1178,49 @@ class Fleek
       pm_node_t *root = pm_parse(&parser);
       if (parser.error_list.head != NULL) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1; }
       pm_visit_node(root, fleek_collect_classes, NULL);
+      if (analyze == fleek_uncommunicative_method_name_method && fleek_class_count == 2 && fleek_module_count == 0) {
+        const pm_statements_node_t *top = NULL;
+        if (PM_NODE_TYPE_P(root, PM_PROGRAM_NODE)) top = (const pm_statements_node_t *) ((const pm_program_node_t *) root)->statements;
+        const pm_node_t *outer_node = top != NULL && top->body.size == 1 ? top->body.nodes[0] : NULL;
+        const pm_class_node_t *outer = PM_NODE_TYPE_P(outer_node, PM_CLASS_NODE) ? (const pm_class_node_t *) outer_node : NULL;
+        const pm_statements_node_t *outer_body = outer != NULL && PM_NODE_TYPE_P(outer->body, PM_STATEMENTS_NODE) ? (const pm_statements_node_t *) outer->body : NULL;
+        const pm_node_t *nested_node = NULL;
+        if (outer_body != NULL) for (size_t index = 0; index < outer_body->body.size; index++) {
+          const pm_node_t *statement = outer_body->body.nodes[index];
+          if (!PM_NODE_TYPE_P(statement, PM_CLASS_NODE)) continue;
+          if (nested_node != NULL) { nested_node = NULL; break; }
+          nested_node = statement;
+        }
+        const pm_class_node_t *nested = PM_NODE_TYPE_P(nested_node, PM_CLASS_NODE) ? (const pm_class_node_t *) nested_node : NULL;
+        if (outer == NULL || nested == NULL || !fleek_class_has_direct_child(outer_node, nested_node) ||
+            !PM_NODE_TYPE_P(outer->constant_path, PM_CONSTANT_READ_NODE) || !PM_NODE_TYPE_P(nested->constant_path, PM_CONSTANT_READ_NODE) ||
+            (nested->body != NULL && !PM_NODE_TYPE_P(nested->body, PM_STATEMENTS_NODE))) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        pm_constant_t *outer_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) outer->constant_path)->name);
+        pm_constant_t *nested_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) nested->constant_path)->name);
+        char qualified_name[512];
+        int qualified_length = snprintf(qualified_name, sizeof(qualified_name), "%.*s::%.*s", (int) outer_name->length, outer_name->start,
+          (int) nested_name->length, nested_name->start);
+        if (qualified_length < 0 || (size_t) qualified_length >= sizeof(qualified_name)) {
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
+        }
+        const pm_statements_node_t *nested_body = nested->body == NULL ? NULL : (const pm_statements_node_t *) nested->body;
+        int findings = 0; bool unsupported = false;
+        if (nested_body != NULL) for (size_t index = 0; index < nested_body->body.size; index++) {
+          const pm_node_t *statement = nested_body->body.nodes[index];
+          if (PM_NODE_TYPE_P(statement, PM_DEF_NODE)) {
+            int result = analyze(&parser, (const uint8_t *) source, qualified_name, (size_t) qualified_length, statement, state);
+            if (result < 0) unsupported = true;
+            else findings += result;
+          } else {
+            fleek_nested_method_state_t nested_method = { false }; pm_visit_node(statement, fleek_find_nested_method, &nested_method);
+            if (nested_method.found) unsupported = true;
+          }
+        }
+        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
+        return unsupported ? -4 : findings;
+      }
       if (fleek_class_count + fleek_module_count > 1 || (fleek_class_count + fleek_module_count == 1 && fleek_only_scope == NULL)) {
         pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
       }
@@ -6143,7 +6187,7 @@ class Fleek
     "TooManyInstanceVariables" => ["one simple class, or two direct nested classes within one top-level class", "%s has at least %s instance variables"],
     "TooManyMethods" => ["direct instance methods in one simple class, or in one class with a single direct nested class", "%s has at least %s methods"],
     "TooManyStatements" => ["simple direct and singleton-class method bodies with statement counting", "%s has approx %s statements"],
-    "UncommunicativeMethodName" => ["direct methods in one simple class or module", "%s has the name '%s'"],
+    "UncommunicativeMethodName" => ["direct methods in one simple class or module, including one direct nested class", "%s has the name '%s'"],
     "UncommunicativeModuleName" => ["simple class and module constant names", "%s has the name '%s'"],
     "UncommunicativeParameterName" => ["simple method parameters", "%s has the parameter name '%s'"],
     "UncommunicativeVariableName" => ["simple local assignments in direct methods", "%s has the variable name '%s'"]

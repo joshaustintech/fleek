@@ -17,6 +17,7 @@
 - Ticket 83 counts TooManyInstanceVariables independently in two direct nested classes under one top-level class. See [ADR 0220](../../docs/adr/0220-count-too-many-instance-variables-per-nested-class.md).
 - Ticket 84 counts TooManyMethods independently in one top-level class and its direct nested class, preserving findings beside unsupported syntax. See [ADR 0221](../../docs/adr/0221-count-too-many-methods-per-nested-class.md).
 - Ticket 85 analyzes direct `class << self` method bodies for TooManyStatements and keeps findings when another method body is unsupported. See [ADR 0222](../../docs/adr/0222-count-too-many-statements-in-singleton-class.md).
+- Ticket 86 matches UncommunicativeMethodName for singleton methods in one direct nested class, including configured accept/reject patterns. See [ADR 0223](../../docs/adr/0223-match-nested-singleton-method-names.md).
 - Ticket 80 extends FeatureEnvy receiver counting through one supported method block; multiple blocks stay incomplete. See [ADR 0217](../../docs/adr/0217-analyze-feature-envy-inside-one-block.md).
 - Ticket 79 confirms configured ignored iterator names reduce NestedIterators depth; three-level chain at line 5 becomes depth two when `map` is ignored. See [ADR 0216](../../docs/adr/0216-verify-nested-iterator-ignore-depth.md).
 - Ticket 78 analyzes RepeatedConditional separately in each direct top-level class; thresholds and findings stay class-local. See [ADR 0215](../../docs/adr/0215-isolate-repeated-conditional-class-scopes.md).

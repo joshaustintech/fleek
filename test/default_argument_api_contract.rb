@@ -58,6 +58,7 @@ class DefaultArgumentApiContract
     verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
     verify_supported_default_detector("UncommunicativeMethodName", "test/fixtures/uncommunicative_method_name.rb")
     verify_configured_detector("UncommunicativeMethodName", "test/fixtures/uncommunicative_method_name.rb", "test/fixtures/config_uncommunicative_method_name.yml")
+    verify_uncommunicative_method_name_nested_singleton
     verify_supported_default_detector("UncommunicativeModuleName", "test/fixtures/uncommunicative_module_name.rb")
     verify_configured_detector("UncommunicativeModuleName", "test/fixtures/uncommunicative_module_name.rb", "test/fixtures/config_uncommunicative_module_name.yml")
     verify_supported_default_detector("UncommunicativeParameterName", "test/fixtures/uncommunicative_parameter_name.rb")
@@ -683,6 +684,39 @@ class DefaultArgumentApiContract
     source = "test/fixtures/uncommunicative_names_unsupported.rb"
     verify_unsupported_names(source)
     verify_partial_variable_names
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_uncommunicative_method_name_nested_singleton
+    source = "test/fixtures/uncommunicative_method_name_nested_singleton.rb"
+    reference = run_reek(source, "UncommunicativeMethodName")
+    actual = run_fleek(source, "", "reek:UncommunicativeMethodName")
+    findings = AnalysisRunner.detector_warnings(reference, "UncommunicativeMethodName")
+    actual_findings = AnalysisRunner.detector_warnings(actual, "UncommunicativeMethodName")
+    verify(findings.size == 1 && findings.first.include?("Fleet::Shipment#self.x has the name 'x'"),
+      "pinned nested singleton UncommunicativeMethodName finding changed")
+    verify(actual_findings.size == 1 && actual_findings.first.include?("Fleet::Shipment#self.x has the name 'x'"),
+      "nested singleton UncommunicativeMethodName context differs from Reek")
+    AnalysisRunner.assert_status(actual, reference, "nested singleton UncommunicativeMethodName default patterns")
+    AnalysisRunner.assert_detector_findings(actual, reference, "nested singleton UncommunicativeMethodName default patterns")
+
+    config = "test/fixtures/config_uncommunicative_method_name.yml"
+    configured_reference = run_reek(source, "UncommunicativeMethodName", config)
+    configured_actual = run_fleek(source, config, "reek:UncommunicativeMethodName")
+    configured_findings = AnalysisRunner.detector_warnings(configured_reference, "UncommunicativeMethodName")
+    configured_actual_findings = AnalysisRunner.detector_warnings(configured_actual, "UncommunicativeMethodName")
+    verify(configured_findings.size == 1 && configured_findings.first.include?("Fleet::Shipment#self.dispatch has the name 'dispatch'"),
+      "pinned configured nested singleton method-name patterns changed")
+    verify(configured_actual_findings.size == 1 && configured_actual_findings.first.include?("Fleet::Shipment#self.dispatch has the name 'dispatch'"),
+      "configured nested singleton method-name context differs from Reek")
+    AnalysisRunner.assert_status(configured_actual, configured_reference, "nested singleton UncommunicativeMethodName configured patterns")
+    AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "nested singleton UncommunicativeMethodName configured patterns")
+
+    unsupported = run_fleek("test/fixtures/uncommunicative_method_name_deep_singleton.rb", "", "reek:UncommunicativeMethodName")
+    unsupported_output = unsupported[1]
+    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
+      unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
+      "unsupported deeply nested singleton method-name scope was not reported incomplete")
   end
 
   def self.verify_partial_variable_names
