@@ -25,6 +25,7 @@ class DefaultArgumentApiContract
     verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_multiple_allow.yml")
     verify_duplicate_method_call_nested_branches
     verify_default_detector("ManualDispatch", "test/fixtures/manual_dispatch.rb")
+    verify_nil_check_nested_block
     verify_default_detector("NilCheck", "test/fixtures/nil_check.rb")
     verify_default_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb")
     verify_configured_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb", "test/fixtures/config_missing_safe_method_exclude.yml")
@@ -394,6 +395,30 @@ class DefaultArgumentApiContract
     verify(reference[0] == 0 && AnalysisRunner.detector_warnings(reference, "ManualDispatch").empty?, "pinned ManualDispatch context exclusion changed")
     verify(actual[0] == 0 && actual[1].include?("Status: complete"), "ManualDispatch context exclusion was not complete and clean")
     AnalysisRunner.assert_detector_findings(actual, reference, "ManualDispatch")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_nil_check_nested_block
+    source = "test/fixtures/nil_check_nested_block.rb"
+    reference = run_reek(source, "NilCheck")
+    actual = run_fleek(source, "", "reek:NilCheck")
+    reference_output = reference[1]
+    verify(reference[0] == 2 && reference_output.include?("[4, 5]:NilCheck: Parcel#retrieve performs a nil-check") &&
+      !reference_output.include?("value&.save"), "pinned nested NilCheck lines or safe-navigation control changed")
+    AnalysisRunner.assert_status(actual, reference, "nested NilCheck block")
+    AnalysisRunner.assert_detector_findings(actual, reference, "NilCheck")
+    verify_nil_check_block_exclusion(source)
+    AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/control_parameter_multiple_blocks.rb", "", "reek:NilCheck"), "multiple NilCheck blocks")
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_nil_check_block_exclusion(source)
+    config = "test/fixtures/config_nil_check_nested_exclusion.yml"
+    reference = run_reek(source, "NilCheck", config)
+    actual = run_fleek(source, config, "reek:NilCheck")
+    verify(reference[0] == 0 && AnalysisRunner.detector_warnings(reference, "NilCheck").empty?, "pinned NilCheck block exclusion changed")
+    verify(actual[0] == 0 && actual[1].include?("Status: complete"), "NilCheck block exclusion was not clean and complete")
+    AnalysisRunner.assert_detector_findings(actual, reference, "NilCheck")
   end
 
   def self.verify_configured_detector(detector, source, config)

@@ -1578,9 +1578,9 @@ class Fleek
       pm_visit_node(body, fleek_method_body_node_supported, &supported);
       return supported;
     }
-    typedef struct { bool supported; size_t blocks; } fleek_control_body_state_t;
-    static bool fleek_control_body_node_supported(const pm_node_t *node, void *data) {
-      fleek_control_body_state_t *state = (fleek_control_body_state_t *) data;
+    typedef struct { bool supported; size_t blocks; } fleek_single_block_body_state_t;
+    static bool fleek_single_block_body_node_supported(const pm_node_t *node, void *data) {
+      fleek_single_block_body_state_t *state = (fleek_single_block_body_state_t *) data;
       if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) {
         state->blocks++;
         if (state->blocks > 1) { state->supported = false; return false; }
@@ -1592,10 +1592,10 @@ class Fleek
           PM_NODE_TYPE_P(node, PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) return true;
       return fleek_method_body_node_supported(node, &state->supported);
     }
-    static bool fleek_control_body_supported(const pm_node_t *body) {
+    static bool fleek_single_block_body_supported(const pm_node_t *body) {
       if (body == NULL) return true;
-      fleek_control_body_state_t state = { true, 0 };
-      pm_visit_node(body, fleek_control_body_node_supported, &state);
+      fleek_single_block_body_state_t state = { true, 0 };
+      pm_visit_node(body, fleek_single_block_body_node_supported, &state);
       return state.supported;
     }
     static bool fleek_find_implicit_super(const pm_node_t *node, void *data) {
@@ -1771,7 +1771,7 @@ class Fleek
         size_t class_name_length, const pm_node_t *node, void *data) {
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       if (method->receiver != NULL) return -1;
-      if (data != NULL ? !fleek_control_body_supported(method->body) : !fleek_method_body_supported(method->body)) return -1;
+      if (data != NULL ? !fleek_single_block_body_supported(method->body) : !fleek_method_body_supported(method->body)) return -1;
       if (method->parameters == NULL) return 0;
       if (!PM_NODE_TYPE_P((const pm_node_t *) method->parameters, PM_PARAMETERS_NODE)) return -1;
       const pm_parameters_node_t *parameters = method->parameters;
@@ -2023,7 +2023,7 @@ class Fleek
       (void) data;
       const pm_def_node_t *method = (const pm_def_node_t *) node;
       if (method->receiver != NULL || method->body == NULL) return 0;
-      if (!fleek_method_body_supported(method->body)) return -1;
+      if (!fleek_single_block_body_supported(method->body)) return -1;
       fleek_nil_check_state_t state = { parser, source, { 0 }, 0, false };
       pm_visit_node(method->body, fleek_nil_check_visit, &state);
       if (state.overflow) return -1;
