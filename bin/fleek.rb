@@ -3566,6 +3566,22 @@ class Fleek
       ast->method->data.ast.tree_ends[index] = ast->method->data.ast.tree_count;
       ast->method->data.ast.node_ends[index] = ast->method->shape_count;
     }
+    static bool fleek_duplication_optional_hash_value_supported(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_INTEGER_NODE)) return false;
+      const pm_integer_node_t *value = (const pm_integer_node_t *) node;
+      return value->base.location.end - value->base.location.start == 2 &&
+        memcmp(value->base.location.start, "80", 2) == 0;
+    }
+    static bool fleek_duplication_optional_hash_default_supported(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_HASH_NODE)) return false;
+      const pm_hash_node_t *hash = (const pm_hash_node_t *) node;
+      if (hash->elements.size != 1 || !PM_NODE_TYPE_P(hash->elements.nodes[0], PM_ASSOC_NODE)) return false;
+      const pm_assoc_node_t *association = (const pm_assoc_node_t *) hash->elements.nodes[0];
+      if (!PM_NODE_TYPE_P(association->key, PM_SYMBOL_NODE) ||
+          !fleek_duplication_optional_hash_value_supported(association->value)) return false;
+      const pm_symbol_node_t *key = (const pm_symbol_node_t *) association->key;
+      return key->value_loc.end - key->value_loc.start == 4 && memcmp(key->value_loc.start, "size", 4) == 0;
+    }
     static bool fleek_duplication_optional_default_supported(const pm_node_t *node, bool allow_integer_call_argument) {
       if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
         const pm_call_node_t *call = (const pm_call_node_t *) node;
@@ -3577,6 +3593,7 @@ class Fleek
       return PM_NODE_TYPE_P(node, PM_INTEGER_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) ||
         PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) || PM_NODE_TYPE_P(node, PM_TRUE_NODE) ||
         PM_NODE_TYPE_P(node, PM_FALSE_NODE) || PM_NODE_TYPE_P(node, PM_NIL_NODE) ||
+        fleek_duplication_optional_hash_default_supported(node) ||
         PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE);
     }
     static int8_t fleek_duplication_parameter_mass_adjustment(const pm_node_t *node) {

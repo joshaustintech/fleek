@@ -57,3 +57,5 @@ The next gap is pinned `ApplicationMailer`'s `default from: <string>` and `layou
 Issue 135 resolves the pinned `ApplicationMailer` gap. Only literal `default from:` and `layout` declarations are accepted; the other call shapes remain incomplete. The 25-file manifest is still explicitly incomplete because of residual model and helper shapes.
 
 The next residual is `UsersHelper#gravatar_for`'s optional `{ size: 80 }` default. [Issue 136](136-rails-flay-helper-hash-default.md) bounds that parameter shape; [ADR 0250](../../../docs/adr/0250-bound-rails-helper-hash-default.md) records the fail-closed boundary.
+
+Issue 136 resolves the pinned `UsersHelper` gap. Only the single-entry `{ size: 80 }` default is supported; other hash shapes remain incomplete. The remaining manifest gaps are in `Micropost`, `Relationship`, and `User` model files.
