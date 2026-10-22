@@ -75,3 +75,5 @@ Issue 139 resolves only the exact default scope. Micropost attachment and valida
 The next residual is the `Micropost` Active Storage attachment and its `display` variant. [Issue 140](140-rails-flay-micropost-attachment.md) limits support to its exact receiver, block, keyword, and literal shape; [ADR 0254](../../../docs/adr/0254-bound-rails-micropost-attachment.md) records the boundary.
 
 Issue 140 resolves only the attachment declaration. Micropost validations remain partial, and `User` remains the other manifest gap.
+
+The next slice is Micropost's exact `user_id` presence and `content` presence/length validations. [Issue 141](141-rails-flay-micropost-basic-validations.md) bounds these declarations; [ADR 0255](../../../docs/adr/0255-bound-rails-micropost-basic-validations.md) records the decision.
