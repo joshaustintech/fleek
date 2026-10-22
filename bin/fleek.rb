@@ -4104,6 +4104,43 @@ class Fleek
       const pm_symbol_node_t *key = (const pm_symbol_node_t *) association->key;
       return key->value_loc.end - key->value_loc.start == 4 && memcmp(key->value_loc.start, "from", 4) == 0;
     }
+    static bool fleek_duplication_relationship_symbol(const pm_node_t *node, const char *name, size_t length) {
+      if (!PM_NODE_TYPE_P(node, PM_SYMBOL_NODE)) return false;
+      const pm_symbol_node_t *symbol = (const pm_symbol_node_t *) node;
+      return symbol->value_loc.end - symbol->value_loc.start == length &&
+        memcmp(symbol->value_loc.start, name, length) == 0;
+    }
+    static bool fleek_duplication_relationship_user_string(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_STRING_NODE)) return false;
+      const pm_string_node_t *string = (const pm_string_node_t *) node;
+      return string->content_loc.end - string->content_loc.start == 4 &&
+        memcmp(string->content_loc.start, "User", 4) == 0;
+    }
+    static bool fleek_duplication_is_relationship_declaration(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return false;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      const uint8_t *name = call->message_loc.start;
+      if (call->receiver != NULL || call->block != NULL || name == NULL || call->arguments == NULL ||
+          call->arguments->arguments.size != 2 || !PM_NODE_TYPE_P(call->arguments->arguments.nodes[1], PM_KEYWORD_HASH_NODE)) return false;
+      size_t name_length = (size_t) (call->message_loc.end - name);
+      const pm_node_t *attribute = call->arguments->arguments.nodes[0];
+      const pm_keyword_hash_node_t *keywords = (const pm_keyword_hash_node_t *) call->arguments->arguments.nodes[1];
+      if (keywords->elements.size != 1 || !PM_NODE_TYPE_P(keywords->elements.nodes[0], PM_ASSOC_NODE)) return false;
+      const pm_assoc_node_t *association = (const pm_assoc_node_t *) keywords->elements.nodes[0];
+      if (name_length == 10 && memcmp(name, "belongs_to", 10) == 0) {
+        bool valid_name = fleek_duplication_relationship_symbol(attribute, "follower", 8) ||
+          fleek_duplication_relationship_symbol(attribute, "followed", 8);
+        return valid_name && fleek_duplication_relationship_symbol(association->key, "class_name", 10) &&
+          fleek_duplication_relationship_user_string(association->value);
+      }
+      if (name_length == 9 && memcmp(name, "validates", 9) == 0) {
+        bool valid_attribute = fleek_duplication_relationship_symbol(attribute, "follower_id", 11) ||
+          fleek_duplication_relationship_symbol(attribute, "followed_id", 11);
+        return valid_attribute && fleek_duplication_relationship_symbol(association->key, "presence", 8) &&
+          PM_NODE_TYPE_P(association->value, PM_TRUE_NODE);
+      }
+      return false;
+    }
 
     static bool fleek_duplication_collect_class_methods(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set, bool collect_nested_sibling_scopes) {
       if (!PM_NODE_TYPE_P(node, PM_CLASS_NODE)) return false;
@@ -4169,7 +4206,8 @@ class Fleek
                   !fleek_duplication_is_visibility_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&
-                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index])) fleek_duplication_partial = 1;
+                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&
+                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index])) fleek_duplication_partial = 1;
               continue;
             }
             class_child_count++;
@@ -4295,7 +4333,8 @@ class Fleek
                 !fleek_duplication_is_visibility_declaration(child) &&
                 !fleek_duplication_is_include_declaration(child) &&
                 !fleek_duplication_is_primary_abstract_class_declaration(child) &&
-                !fleek_duplication_is_mailer_declaration(child)) fleek_duplication_partial = 1;
+                !fleek_duplication_is_mailer_declaration(child) &&
+                !fleek_duplication_is_relationship_declaration(child)) fleek_duplication_partial = 1;
             continue;
           }
           if (!fleek_duplication_reserve_next_class_candidate(set) ||

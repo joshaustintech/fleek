@@ -1108,7 +1108,7 @@ DuplicationProcess.verify_output(mailer_declarations_actual, DuplicationProcess:
 DuplicationProcess.verify_output(mailer_declarations_reference, DuplicationProcess::OutputExpectation.new(0,
   ["Total score (lower is better) = 0"], "Flay mailer setup result changed"))
 
-mailer_unsupported_paths = [
+unsupported_declaration_paths = [
   ["test/fixtures/duplication_class_methods_mailer_default_value.rb", "dynamic mailer default was accepted"],
   ["test/fixtures/duplication_class_methods_mailer_default_key.rb", "unsupported mailer default key was accepted"],
   ["test/fixtures/duplication_class_methods_mailer_layout_arguments.rb", "extra layout arguments were accepted"],
@@ -1116,11 +1116,25 @@ mailer_unsupported_paths = [
   ["test/fixtures/duplication_class_methods_mailer_block.rb", "mailer declaration block was accepted"],
   ["test/fixtures/duplication_class_methods_other_mailer_macro.rb", "unrecognized mailer macro was accepted"]
 ]
-mailer_unsupported_paths.each do |path, message|
-  actual = DuplicationProcess.run(DuplicationProcess::Input.new(path, "fleek", ""))
-  DuplicationProcess.verify_output(actual, DuplicationProcess::OutputExpectation.new(1,
-    ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"], message))
-end
+
+relationship_declarations_path = "test/fixtures/duplication_class_methods_relationship_declarations.rb"
+relationship_declarations_actual = DuplicationProcess.run(DuplicationProcess::Input.new(relationship_declarations_path, "fleek", ""))
+relationship_declarations_reference = DuplicationProcess.run(DuplicationProcess::Input.new(relationship_declarations_path, "flay", ""))
+DuplicationProcess.verify_output(relationship_declarations_actual, DuplicationProcess::OutputExpectation.new(0,
+  ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+  "pinned Relationship declarations made a supported source incomplete"))
+DuplicationProcess.verify_output(relationship_declarations_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay Relationship declarations changed"))
+
+unsupported_declaration_paths += [
+  ["test/fixtures/duplication_class_methods_relationship_association_key.rb", "unsupported association name was accepted"],
+  ["test/fixtures/duplication_class_methods_relationship_association_value.rb", "dynamic association value was accepted"],
+  ["test/fixtures/duplication_class_methods_relationship_validation_value.rb", "false presence validation was accepted"],
+  ["test/fixtures/duplication_class_methods_relationship_extra_keyword.rb", "extra validation keyword was accepted"],
+  ["test/fixtures/duplication_class_methods_relationship_receiver.rb", "receiver-qualified association was accepted"],
+  ["test/fixtures/duplication_class_methods_relationship_block.rb", "association block was accepted"],
+  ["test/fixtures/duplication_class_methods_relationship_other_macro.rb", "unrecognized relationship macro was accepted"]
+]
 
 helper_hash_default_path = "test/fixtures/duplication_helper_hash_default.rb"
 helper_hash_default_actual = DuplicationProcess.run(DuplicationProcess::Input.new(helper_hash_default_path, "fleek", ""))
@@ -1131,12 +1145,12 @@ DuplicationProcess.verify_output(helper_hash_default_actual, DuplicationProcess:
 DuplicationProcess.verify_output(helper_hash_default_reference, DuplicationProcess::OutputExpectation.new(0,
   ["Total score (lower is better) = 0"], "Flay helper hash default result changed"))
 
-helper_hash_default_unsupported_paths = [
+unsupported_declaration_paths += [
   ["test/fixtures/duplication_helper_hash_default_key.rb", "unsupported helper hash key was accepted"],
   ["test/fixtures/duplication_helper_hash_default_value.rb", "dynamic helper hash default was accepted"],
   ["test/fixtures/duplication_helper_hash_default_extra_entry.rb", "extra helper hash entry was accepted"]
 ]
-helper_hash_default_unsupported_paths.each do |path, message|
+unsupported_declaration_paths.each do |path, message|
   actual = DuplicationProcess.run(DuplicationProcess::Input.new(path, "fleek", ""))
   DuplicationProcess.verify_output(actual, DuplicationProcess::OutputExpectation.new(1,
     ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"], message))
@@ -1195,6 +1209,11 @@ if rails_corpus_root && !rails_corpus_root.empty?
   DuplicationProcess.verify_output(rails_users_helper_actual, DuplicationProcess::OutputExpectation.new(0,
     ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
     "pinned Rails UsersHelper hash default was incomplete"))
+  rails_relationship = File.join(rails_corpus_root, "app/models/relationship.rb")
+  rails_relationship_actual = DuplicationProcess.run(DuplicationProcess::Input.new(rails_relationship, "fleek", ""))
+  DuplicationProcess.verify_output(rails_relationship_actual, DuplicationProcess::OutputExpectation.new(0,
+    ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+    "pinned Rails Relationship declarations were incomplete"))
 end
 
 include_dynamic_path = "test/fixtures/duplication_class_methods_include_dynamic.rb"

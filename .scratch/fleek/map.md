@@ -473,7 +473,7 @@ Every feature child below additionally depends on harness handoff 115; original 
 - [134: Analyze Rails primary_abstract_class declarations for Flay](issues/134-rails-flay-primary-abstract-class.md) — resolved; parent 97; blocked by 115 (resolved).
 - [135: Analyze Rails ApplicationMailer declarations for Flay](issues/135-rails-flay-mailer-declarations.md) — resolved; parent 97; blocked by 115 (resolved).
 - [136: Analyze the Rails helper hash default for Flay](issues/136-rails-flay-helper-hash-default.md) — resolved; parent 97; blocked by 115 (resolved).
-- [137: Analyze the Rails Relationship model declarations for Flay](issues/137-rails-flay-relationship-declarations.md) — parent 97; blocked by 115 (resolved).
+- [137: Analyze the Rails Relationship model declarations for Flay](issues/137-rails-flay-relationship-declarations.md) — resolved; parent 97; blocked by 115 (resolved).
 - [128: Preserve per-file results after Flay timeout](issues/128-flay-per-file-timeout-continuation.md) — resolved; parent 23; blocked by 120; 115.
 - [129: Avoid timeout supervisor overhead on untimed Flay runs](issues/129-flay-timeout-supervisor-overhead.md) — parent 23; resolved.
 - [121: Inventory and support Flay presentation controls](issues/121-flay-presentation-controls.md) — resolved; parent 23; blocked by 58 (resolved); 115 (resolved).

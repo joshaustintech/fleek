@@ -61,3 +61,5 @@ The next residual is `UsersHelper#gravatar_for`'s optional `{ size: 80 }` defaul
 Issue 136 resolves the pinned `UsersHelper` gap. Only the single-entry `{ size: 80 }` default is supported; other hash shapes remain incomplete. The remaining manifest gaps are in `Micropost`, `Relationship`, and `User` model files.
 
 The next residual is the four direct declarations in pinned `Relationship`: two `belongs_to` and two presence validations. [Issue 137](137-rails-flay-relationship-declarations.md) bounds those forms; [ADR 0251](../../../docs/adr/0251-bound-rails-relationship-declarations.md) records the fail-closed boundary.
+
+Issue 137 resolves the pinned `Relationship` model gap. Only the specified follower/followed associations and their presence validations are accepted. The remaining manifest gaps are in `Micropost` and `User`.
