@@ -73,3 +73,5 @@ The next residual is Micropost's `default_scope -> { order(created_at: :desc) }`
 Issue 139 resolves only the exact default scope. Micropost attachment and validation declarations remain partial; the `User` model remains the other manifest gap.
 
 The next residual is the `Micropost` Active Storage attachment and its `display` variant. [Issue 140](140-rails-flay-micropost-attachment.md) limits support to its exact receiver, block, keyword, and literal shape; [ADR 0254](../../../docs/adr/0254-bound-rails-micropost-attachment.md) records the boundary.
+
+Issue 140 resolves only the attachment declaration. Micropost validations remain partial, and `User` remains the other manifest gap.

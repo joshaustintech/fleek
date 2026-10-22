@@ -4174,6 +4174,51 @@ class Fleek
       return fleek_duplication_relationship_symbol(association->key, "created_at", 10) &&
         fleek_duplication_relationship_symbol(association->value, "desc", 4);
     }
+    static bool fleek_duplication_is_micropost_attachment(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return false;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      const uint8_t *name = call->message_loc.start;
+      if (call->receiver != NULL || name == NULL || call->block == NULL || call->arguments == NULL ||
+          call->arguments->arguments.size != 1 || call->message_loc.end - name != 16 ||
+          memcmp(name, "has_one_attached", 16) != 0 ||
+          !fleek_duplication_relationship_symbol(call->arguments->arguments.nodes[0], "image", 5) ||
+          !PM_NODE_TYPE_P(call->block, PM_BLOCK_NODE)) return false;
+      const pm_block_node_t *block = (const pm_block_node_t *) call->block;
+      if (!PM_NODE_TYPE_P(block->parameters, PM_BLOCK_PARAMETERS_NODE) || !PM_NODE_TYPE_P(block->body, PM_STATEMENTS_NODE)) return false;
+      const pm_block_parameters_node_t *block_parameters = (const pm_block_parameters_node_t *) block->parameters;
+      if (block_parameters->parameters == NULL || block_parameters->locals.size != 0 ||
+          block_parameters->parameters->requireds.size != 1 || block_parameters->parameters->optionals.size != 0 ||
+          block_parameters->parameters->rest != NULL || block_parameters->parameters->posts.size != 0 ||
+          block_parameters->parameters->keywords.size != 0 || block_parameters->parameters->keyword_rest != NULL ||
+          block_parameters->parameters->block != NULL) return false;
+      const pm_node_t *parameter = block_parameters->parameters->requireds.nodes[0];
+      if (!PM_NODE_TYPE_P(parameter, PM_REQUIRED_PARAMETER_NODE)) return false;
+      const pm_location_t parameter_location = parameter->location;
+      if (parameter_location.end - parameter_location.start != 10 || memcmp(parameter_location.start, "attachable", 10) != 0) return false;
+      const pm_statements_node_t *body = (const pm_statements_node_t *) block->body;
+      if (body->body.size != 1 || !PM_NODE_TYPE_P(body->body.nodes[0], PM_CALL_NODE)) return false;
+      const pm_call_node_t *variant = (const pm_call_node_t *) body->body.nodes[0];
+      const uint8_t *variant_name = variant->message_loc.start;
+      if (!PM_NODE_TYPE_P(variant->receiver, PM_LOCAL_VARIABLE_READ_NODE) || variant_name == NULL ||
+          variant->block != NULL || variant->arguments == NULL || variant->arguments->arguments.size != 2 ||
+          variant->message_loc.end - variant_name != 7 || memcmp(variant_name, "variant", 7) != 0 ||
+          !fleek_duplication_relationship_symbol(variant->arguments->arguments.nodes[0], "display", 7) ||
+          !PM_NODE_TYPE_P(variant->arguments->arguments.nodes[1], PM_KEYWORD_HASH_NODE)) return false;
+      const pm_local_variable_read_node_t *receiver = (const pm_local_variable_read_node_t *) variant->receiver;
+      if (receiver->base.location.end - receiver->base.location.start != 10 ||
+          memcmp(receiver->base.location.start, parameter_location.start, 10) != 0) return false;
+      const pm_keyword_hash_node_t *keywords = (const pm_keyword_hash_node_t *) variant->arguments->arguments.nodes[1];
+      if (keywords->elements.size != 1 || !PM_NODE_TYPE_P(keywords->elements.nodes[0], PM_ASSOC_NODE)) return false;
+      const pm_assoc_node_t *resize = (const pm_assoc_node_t *) keywords->elements.nodes[0];
+      if (!fleek_duplication_relationship_symbol(resize->key, "resize_to_limit", 15) || !PM_NODE_TYPE_P(resize->value, PM_ARRAY_NODE)) return false;
+      const pm_array_node_t *limits = (const pm_array_node_t *) resize->value;
+      if (limits->elements.size != 2 || !PM_NODE_TYPE_P(limits->elements.nodes[0], PM_INTEGER_NODE) ||
+          !PM_NODE_TYPE_P(limits->elements.nodes[1], PM_INTEGER_NODE)) return false;
+      const pm_location_t first_limit = limits->elements.nodes[0]->location;
+      const pm_location_t second_limit = limits->elements.nodes[1]->location;
+      return first_limit.end - first_limit.start == 3 && memcmp(first_limit.start, "500", 3) == 0 &&
+        second_limit.end - second_limit.start == 3 && memcmp(second_limit.start, "500", 3) == 0;
+    }
 
     static bool fleek_duplication_collect_class_methods(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set, bool collect_nested_sibling_scopes) {
       if (!PM_NODE_TYPE_P(node, PM_CLASS_NODE)) return false;
@@ -4242,7 +4287,8 @@ class Fleek
                   !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index]) &&
-                  !fleek_duplication_is_micropost_default_scope(body->body.nodes[index])) fleek_duplication_partial = 1;
+                  !fleek_duplication_is_micropost_default_scope(body->body.nodes[index]) &&
+                  !fleek_duplication_is_micropost_attachment(body->body.nodes[index])) fleek_duplication_partial = 1;
               continue;
             }
             class_child_count++;
@@ -4371,7 +4417,8 @@ class Fleek
                 !fleek_duplication_is_mailer_declaration(child) &&
                 !fleek_duplication_is_relationship_declaration(child) &&
                 !fleek_duplication_is_micropost_belongs_to(child) &&
-                !fleek_duplication_is_micropost_default_scope(child)) fleek_duplication_partial = 1;
+                !fleek_duplication_is_micropost_default_scope(child) &&
+                !fleek_duplication_is_micropost_attachment(child)) fleek_duplication_partial = 1;
             continue;
           }
           if (!fleek_duplication_reserve_next_class_candidate(set) ||
