@@ -63,3 +63,5 @@ Issue 136 resolves the pinned `UsersHelper` gap. Only the single-entry `{ size: 
 The next residual is the four direct declarations in pinned `Relationship`: two `belongs_to` and two presence validations. [Issue 137](137-rails-flay-relationship-declarations.md) bounds those forms; [ADR 0251](../../../docs/adr/0251-bound-rails-relationship-declarations.md) records the fail-closed boundary.
 
 Issue 137 resolves the pinned `Relationship` model gap. Only the specified follower/followed associations and their presence validations are accepted. The remaining manifest gaps are in `Micropost` and `User`.
+
+The next slice is pinned `Micropost`'s bare `belongs_to :user` call. [Issue 138](138-rails-flay-micropost-belongs-to.md) bounds this declaration; [ADR 0252](../../../docs/adr/0252-bound-rails-micropost-association.md) records that it leaves the other Micropost shapes incomplete.
