@@ -55,3 +55,5 @@ Issue 134 resolves the pinned `ApplicationRecord` gap. Calls with arguments, rec
 The next gap is pinned `ApplicationMailer`'s `default from: <string>` and `layout <string>` declarations. [Issue 135](135-rails-flay-mailer-declarations.md) bounds those two call forms; [ADR 0249](../../../docs/adr/0249-bound-rails-flay-mailer-declarations.md) records the fail-closed shapes.
 
 Issue 135 resolves the pinned `ApplicationMailer` gap. Only literal `default from:` and `layout` declarations are accepted; the other call shapes remain incomplete. The 25-file manifest is still explicitly incomplete because of residual model and helper shapes.
+
+The next residual is `UsersHelper#gravatar_for`'s optional `{ size: 80 }` default. [Issue 136](136-rails-flay-helper-hash-default.md) bounds that parameter shape; [ADR 0250](../../../docs/adr/0250-bound-rails-helper-hash-default.md) records the fail-closed boundary.
