@@ -4141,6 +4141,17 @@ class Fleek
       }
       return false;
     }
+    static bool fleek_duplication_is_micropost_belongs_to(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return false;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      const uint8_t *name = call->message_loc.start;
+      if (call->receiver != NULL || call->block != NULL || name == NULL || call->arguments == NULL ||
+          call->arguments->arguments.size != 1 || !PM_NODE_TYPE_P(call->arguments->arguments.nodes[0], PM_SYMBOL_NODE) ||
+          call->message_loc.end - name != 10 || memcmp(name, "belongs_to", 10) != 0) return false;
+      const pm_symbol_node_t *association = (const pm_symbol_node_t *) call->arguments->arguments.nodes[0];
+      return association->value_loc.end - association->value_loc.start == 4 &&
+        memcmp(association->value_loc.start, "user", 4) == 0;
+    }
 
     static bool fleek_duplication_collect_class_methods(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set, bool collect_nested_sibling_scopes) {
       if (!PM_NODE_TYPE_P(node, PM_CLASS_NODE)) return false;
@@ -4207,7 +4218,8 @@ class Fleek
                   !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&
-                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index])) fleek_duplication_partial = 1;
+                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&
+                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index])) fleek_duplication_partial = 1;
               continue;
             }
             class_child_count++;
@@ -4334,7 +4346,8 @@ class Fleek
                 !fleek_duplication_is_include_declaration(child) &&
                 !fleek_duplication_is_primary_abstract_class_declaration(child) &&
                 !fleek_duplication_is_mailer_declaration(child) &&
-                !fleek_duplication_is_relationship_declaration(child)) fleek_duplication_partial = 1;
+                !fleek_duplication_is_relationship_declaration(child) &&
+                !fleek_duplication_is_micropost_belongs_to(child)) fleek_duplication_partial = 1;
             continue;
           }
           if (!fleek_duplication_reserve_next_class_candidate(set) ||

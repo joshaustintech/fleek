@@ -65,3 +65,5 @@ The next residual is the four direct declarations in pinned `Relationship`: two 
 Issue 137 resolves the pinned `Relationship` model gap. Only the specified follower/followed associations and their presence validations are accepted. The remaining manifest gaps are in `Micropost` and `User`.
 
 The next slice is pinned `Micropost`'s bare `belongs_to :user` call. [Issue 138](138-rails-flay-micropost-belongs-to.md) bounds this declaration; [ADR 0252](../../../docs/adr/0252-bound-rails-micropost-association.md) records that it leaves the other Micropost shapes incomplete.
+
+Issue 138 resolves only the bare `Micropost.belongs_to :user` call. Its attachment block, default scope, and validations remain partial, and `User` remains the other manifest gap.

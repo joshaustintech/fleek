@@ -1150,6 +1150,21 @@ unsupported_declaration_paths += [
   ["test/fixtures/duplication_helper_hash_default_value.rb", "dynamic helper hash default was accepted"],
   ["test/fixtures/duplication_helper_hash_default_extra_entry.rb", "extra helper hash entry was accepted"]
 ]
+micropost_belongs_to_path = "test/fixtures/duplication_class_methods_micropost_belongs_to.rb"
+micropost_belongs_to_actual = DuplicationProcess.run(DuplicationProcess::Input.new(micropost_belongs_to_path, "fleek", ""))
+micropost_belongs_to_reference = DuplicationProcess.run(DuplicationProcess::Input.new(micropost_belongs_to_path, "flay", ""))
+DuplicationProcess.verify_output(micropost_belongs_to_actual, DuplicationProcess::OutputExpectation.new(0,
+  ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+  "Micropost belongs_to declaration made a supported source incomplete"))
+DuplicationProcess.verify_output(micropost_belongs_to_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay Micropost belongs_to result changed"))
+unsupported_declaration_paths += [
+  "test/fixtures/duplication_class_methods_micropost_association_name.rb", "unsupported Micropost association name was accepted",
+  "test/fixtures/duplication_class_methods_micropost_association_arguments.rb", "Micropost association arguments were accepted",
+  "test/fixtures/duplication_class_methods_micropost_association_receiver.rb", "receiver-qualified Micropost association was accepted",
+  "test/fixtures/duplication_class_methods_micropost_association_block.rb", "Micropost association block was accepted",
+  "test/fixtures/duplication_class_methods_micropost_other_macro.rb", "unrecognized Micropost macro was accepted"
+].each_slice(2).to_a
 unsupported_declaration_paths.each do |path, message|
   actual = DuplicationProcess.run(DuplicationProcess::Input.new(path, "fleek", ""))
   DuplicationProcess.verify_output(actual, DuplicationProcess::OutputExpectation.new(1,
@@ -1214,6 +1229,11 @@ if rails_corpus_root && !rails_corpus_root.empty?
   DuplicationProcess.verify_output(rails_relationship_actual, DuplicationProcess::OutputExpectation.new(0,
     ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
     "pinned Rails Relationship declarations were incomplete"))
+  rails_micropost = File.join(rails_corpus_root, "app/models/micropost.rb")
+  rails_micropost_actual = DuplicationProcess.run(DuplicationProcess::Input.new(rails_micropost, "fleek", ""))
+  DuplicationProcess.verify_output(rails_micropost_actual, DuplicationProcess::OutputExpectation.new(1,
+    ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
+    "pinned Rails Micropost residual declarations were incorrectly complete"))
 end
 
 include_dynamic_path = "test/fixtures/duplication_class_methods_include_dynamic.rb"
