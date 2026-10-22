@@ -1165,6 +1165,23 @@ unsupported_declaration_paths += [
   "test/fixtures/duplication_class_methods_micropost_association_block.rb", "Micropost association block was accepted",
   "test/fixtures/duplication_class_methods_micropost_other_macro.rb", "unrecognized Micropost macro was accepted"
 ].each_slice(2).to_a
+micropost_default_scope_path = "test/fixtures/duplication_class_methods_micropost_default_scope.rb"
+micropost_default_scope_actual = DuplicationProcess.run(DuplicationProcess::Input.new(micropost_default_scope_path, "fleek", ""))
+micropost_default_scope_reference = DuplicationProcess.run(DuplicationProcess::Input.new(micropost_default_scope_path, "flay", ""))
+DuplicationProcess.verify_output(micropost_default_scope_actual, DuplicationProcess::OutputExpectation.new(0,
+  ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+  "Micropost default scope made a supported source incomplete"))
+DuplicationProcess.verify_output(micropost_default_scope_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay Micropost default scope result changed"))
+unsupported_declaration_paths += [
+  "test/fixtures/duplication_class_methods_micropost_default_scope_key.rb", "unsupported Micropost scope key was accepted",
+  "test/fixtures/duplication_class_methods_micropost_default_scope_direction.rb", "unsupported Micropost scope direction was accepted",
+  "test/fixtures/duplication_class_methods_micropost_default_scope_body.rb", "additional Micropost scope body statement was accepted",
+  "test/fixtures/duplication_class_methods_micropost_default_scope_parameters.rb", "Micropost scope lambda parameters were accepted",
+  "test/fixtures/duplication_class_methods_micropost_default_scope_receiver.rb", "receiver-qualified Micropost scope was accepted",
+  "test/fixtures/duplication_class_methods_micropost_default_scope_block.rb", "Micropost scope block was accepted",
+  "test/fixtures/duplication_class_methods_micropost_default_scope_other_macro.rb", "unrecognized Micropost scope macro was accepted"
+].each_slice(2).to_a
 unsupported_declaration_paths.each do |path, message|
   actual = DuplicationProcess.run(DuplicationProcess::Input.new(path, "fleek", ""))
   DuplicationProcess.verify_output(actual, DuplicationProcess::OutputExpectation.new(1,

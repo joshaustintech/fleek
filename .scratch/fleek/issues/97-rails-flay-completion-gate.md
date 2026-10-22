@@ -69,3 +69,5 @@ The next slice is pinned `Micropost`'s bare `belongs_to :user` call. [Issue 138]
 Issue 138 resolves only the bare `Micropost.belongs_to :user` call. Its attachment block, default scope, and validations remain partial, and `User` remains the other manifest gap.
 
 The next residual is Micropost's `default_scope -> { order(created_at: :desc) }`. [Issue 139](139-rails-flay-micropost-default-scope.md) bounds that lambda form; [ADR 0253](../../../docs/adr/0253-bound-rails-micropost-default-scope.md) records its fail-closed body rule.
+
+Issue 139 resolves only the exact default scope. Micropost attachment and validation declarations remain partial; the `User` model remains the other manifest gap.

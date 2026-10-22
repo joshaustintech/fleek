@@ -4152,6 +4152,28 @@ class Fleek
       return association->value_loc.end - association->value_loc.start == 4 &&
         memcmp(association->value_loc.start, "user", 4) == 0;
     }
+    static bool fleek_duplication_is_micropost_default_scope(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return false;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      const uint8_t *name = call->message_loc.start;
+      if (call->receiver != NULL || call->block != NULL || name == NULL || call->arguments == NULL ||
+          call->arguments->arguments.size != 1 || call->message_loc.end - name != 13 ||
+          memcmp(name, "default_scope", 13) != 0 || !PM_NODE_TYPE_P(call->arguments->arguments.nodes[0], PM_LAMBDA_NODE)) return false;
+      const pm_lambda_node_t *lambda = (const pm_lambda_node_t *) call->arguments->arguments.nodes[0];
+      if (lambda->parameters != NULL || !PM_NODE_TYPE_P(lambda->body, PM_STATEMENTS_NODE)) return false;
+      const pm_statements_node_t *body = (const pm_statements_node_t *) lambda->body;
+      if (body->body.size != 1 || !PM_NODE_TYPE_P(body->body.nodes[0], PM_CALL_NODE)) return false;
+      const pm_call_node_t *order = (const pm_call_node_t *) body->body.nodes[0];
+      const uint8_t *order_name = order->message_loc.start;
+      if (order->receiver != NULL || order->block != NULL || order_name == NULL || order->arguments == NULL ||
+          order->message_loc.end - order_name != 5 || memcmp(order_name, "order", 5) != 0 ||
+          order->arguments->arguments.size != 1 || !PM_NODE_TYPE_P(order->arguments->arguments.nodes[0], PM_KEYWORD_HASH_NODE)) return false;
+      const pm_keyword_hash_node_t *keywords = (const pm_keyword_hash_node_t *) order->arguments->arguments.nodes[0];
+      if (keywords->elements.size != 1 || !PM_NODE_TYPE_P(keywords->elements.nodes[0], PM_ASSOC_NODE)) return false;
+      const pm_assoc_node_t *association = (const pm_assoc_node_t *) keywords->elements.nodes[0];
+      return fleek_duplication_relationship_symbol(association->key, "created_at", 10) &&
+        fleek_duplication_relationship_symbol(association->value, "desc", 4);
+    }
 
     static bool fleek_duplication_collect_class_methods(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set, bool collect_nested_sibling_scopes) {
       if (!PM_NODE_TYPE_P(node, PM_CLASS_NODE)) return false;
@@ -4219,7 +4241,8 @@ class Fleek
                   !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&
-                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index])) fleek_duplication_partial = 1;
+                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index]) &&
+                  !fleek_duplication_is_micropost_default_scope(body->body.nodes[index])) fleek_duplication_partial = 1;
               continue;
             }
             class_child_count++;
@@ -4347,7 +4370,8 @@ class Fleek
                 !fleek_duplication_is_primary_abstract_class_declaration(child) &&
                 !fleek_duplication_is_mailer_declaration(child) &&
                 !fleek_duplication_is_relationship_declaration(child) &&
-                !fleek_duplication_is_micropost_belongs_to(child)) fleek_duplication_partial = 1;
+                !fleek_duplication_is_micropost_belongs_to(child) &&
+                !fleek_duplication_is_micropost_default_scope(child)) fleek_duplication_partial = 1;
             continue;
           }
           if (!fleek_duplication_reserve_next_class_candidate(set) ||

@@ -359,6 +359,12 @@ class MutationCase
     "Flay Micropost association arguments boundary" => "test/duplication_contract.rb",
     "Flay Micropost association receiver boundary" => "test/duplication_contract.rb",
     "Flay Micropost association block boundary" => "test/duplication_contract.rb",
+    "Flay Micropost default scope support" => "test/duplication_contract.rb",
+    "Flay Micropost default scope key boundary" => "test/duplication_contract.rb",
+    "Flay Micropost default scope direction boundary" => "test/duplication_contract.rb",
+    "Flay Micropost default scope body boundary" => "test/duplication_contract.rb",
+    "Flay Micropost default scope parameters boundary" => "test/duplication_contract.rb",
+    "Flay Micropost default scope receiver boundary" => "test/duplication_contract.rb",
     "Flay unrelated class macro rejected" => "test/duplication_contract.rb",
     "Flay empty class methods rejected" => "test/duplication_contract.rb",
     "Flay empty method class mass" => "test/duplication_contract.rb",
@@ -2100,8 +2106,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay partial class candidates",
   "direct callback declarations made supported class methods incomplete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "!fleek_duplication_is_callback_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_visibility_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index])) fleek_duplication_partial = 1;",
-  "!fleek_duplication_is_visibility_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index])) fleek_duplication_partial = 1;",
+  "!fleek_duplication_is_callback_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_visibility_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index]) \&\&\n                  !fleek_duplication_is_micropost_default_scope(body->body.nodes[index])) fleek_duplication_partial = 1;",
+  "!fleek_duplication_is_visibility_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index]) \&\&\n                  !fleek_duplication_is_micropost_default_scope(body->body.nodes[index])) fleek_duplication_partial = 1;",
   "Flay callback declaration support",
   "direct callback declarations made supported class methods incomplete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -2235,6 +2241,26 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay Micropost association block boundary",
   "Micropost association block was accepted")).run
 MutationCase.new(MutationCase::Configuration.new(source,
+  "!fleek_duplication_is_micropost_default_scope(child)", "true",
+  "Flay Micropost default scope support", "Micropost default scope made a supported source incomplete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "fleek_duplication_relationship_symbol(association->key, \"created_at\", 10)", "true",
+  "Flay Micropost default scope key boundary", "unsupported Micropost scope key was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "fleek_duplication_relationship_symbol(association->value, \"desc\", 4)", "true",
+  "Flay Micropost default scope direction boundary", "unsupported Micropost scope direction was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (body->body.size != 1 || !PM_NODE_TYPE_P(body->body.nodes[0], PM_CALL_NODE)) return false;",
+  "if (body->body.size == 0 || !PM_NODE_TYPE_P(body->body.nodes[0], PM_CALL_NODE)) return false;",
+  "Flay Micropost default scope body boundary", "exit status differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "lambda->parameters != NULL", "false",
+  "Flay Micropost default scope parameters boundary", "Micropost scope lambda parameters were accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "call->receiver != NULL || call->block != NULL || name == NULL || call->arguments == NULL ||\n          call->arguments->arguments.size != 1 || call->message_loc.end - name != 13",
+  "false || call->block != NULL || name == NULL || call->arguments == NULL ||\n          call->arguments->arguments.size != 1 || call->message_loc.end - name != 13",
+  "Flay Micropost default scope receiver boundary", "receiver-qualified Micropost scope was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
   "if (method->body == NULL) {",
   "if (false) {",
   "Flay empty class methods rejected",
@@ -2290,8 +2316,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method pair ordering",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (!fleek_duplication_is_callback_declaration(child) &&\n                !fleek_duplication_is_visibility_declaration(child) &&\n                !fleek_duplication_is_include_declaration(child) &&\n                !fleek_duplication_is_primary_abstract_class_declaration(child) &&\n                !fleek_duplication_is_mailer_declaration(child) &&\n                !fleek_duplication_is_relationship_declaration(child) &&\n                !fleek_duplication_is_micropost_belongs_to(child)) fleek_duplication_partial = 1;",
-  "if (!fleek_duplication_is_callback_declaration(child) &&\n                !fleek_duplication_is_visibility_declaration(child) &&\n                !fleek_duplication_is_include_declaration(child) &&\n                !fleek_duplication_is_primary_abstract_class_declaration(child) &&\n                !fleek_duplication_is_mailer_declaration(child) &&\n                !fleek_duplication_is_relationship_declaration(child) &&\n                !fleek_duplication_is_micropost_belongs_to(child)) fleek_duplication_partial = 0;",
+  "if (!fleek_duplication_is_callback_declaration(child) &&\n                !fleek_duplication_is_visibility_declaration(child) &&\n                !fleek_duplication_is_include_declaration(child) &&\n                !fleek_duplication_is_primary_abstract_class_declaration(child) &&\n                !fleek_duplication_is_mailer_declaration(child) &&\n                !fleek_duplication_is_relationship_declaration(child) &&\n                !fleek_duplication_is_micropost_belongs_to(child) \&\&\n                !fleek_duplication_is_micropost_default_scope(child)) fleek_duplication_partial = 1;",
+  "if (!fleek_duplication_is_callback_declaration(child) &&\n                !fleek_duplication_is_visibility_declaration(child) &&\n                !fleek_duplication_is_include_declaration(child) &&\n                !fleek_duplication_is_primary_abstract_class_declaration(child) &&\n                !fleek_duplication_is_mailer_declaration(child) &&\n                !fleek_duplication_is_relationship_declaration(child) &&\n                !fleek_duplication_is_micropost_belongs_to(child) \&\&\n                !fleek_duplication_is_micropost_default_scope(child)) fleek_duplication_partial = 0;",
   "Flay class method partial status",
   "callback blocks were incorrectly accepted as direct declarations")).run
 MutationCase.new(MutationCase::Configuration.new(source,
