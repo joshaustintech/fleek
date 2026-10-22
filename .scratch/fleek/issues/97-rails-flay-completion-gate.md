@@ -53,3 +53,5 @@ The next residual is the direct `primary_abstract_class` call in pinned `Applica
 Issue 134 resolves the pinned `ApplicationRecord` gap. Calls with arguments, receivers, blocks, and unrecognized names remain incomplete. The combined Rails manifest still fails its full Flay completeness gate; remaining gaps are in `UsersHelper`, `ApplicationMailer`, and models `Micropost`, `Relationship`, and `User`.
 
 The next gap is pinned `ApplicationMailer`'s `default from: <string>` and `layout <string>` declarations. [Issue 135](135-rails-flay-mailer-declarations.md) bounds those two call forms; [ADR 0249](../../../docs/adr/0249-bound-rails-flay-mailer-declarations.md) records the fail-closed shapes.
+
+Issue 135 resolves the pinned `ApplicationMailer` gap. Only literal `default from:` and `layout` declarations are accepted; the other call shapes remain incomplete. The 25-file manifest is still explicitly incomplete because of residual model and helper shapes.

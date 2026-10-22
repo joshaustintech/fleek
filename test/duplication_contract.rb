@@ -1099,6 +1099,29 @@ DuplicationProcess.verify_output(other_class_macro_actual, DuplicationProcess::O
   ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
   "unrecognized class macro was accepted"))
 
+mailer_declarations_path = "test/fixtures/duplication_class_methods_mailer_declarations.rb"
+mailer_declarations_actual = DuplicationProcess.run(DuplicationProcess::Input.new(mailer_declarations_path, "fleek", ""))
+mailer_declarations_reference = DuplicationProcess.run(DuplicationProcess::Input.new(mailer_declarations_path, "flay", ""))
+DuplicationProcess.verify_output(mailer_declarations_actual, DuplicationProcess::OutputExpectation.new(0,
+  ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+  "direct mailer setup declarations made a supported source incomplete"))
+DuplicationProcess.verify_output(mailer_declarations_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay mailer setup result changed"))
+
+mailer_unsupported_paths = [
+  ["test/fixtures/duplication_class_methods_mailer_default_value.rb", "dynamic mailer default was accepted"],
+  ["test/fixtures/duplication_class_methods_mailer_default_key.rb", "unsupported mailer default key was accepted"],
+  ["test/fixtures/duplication_class_methods_mailer_layout_arguments.rb", "extra layout arguments were accepted"],
+  ["test/fixtures/duplication_class_methods_mailer_receiver.rb", "receiver-qualified mailer call was accepted"],
+  ["test/fixtures/duplication_class_methods_mailer_block.rb", "mailer declaration block was accepted"],
+  ["test/fixtures/duplication_class_methods_other_mailer_macro.rb", "unrecognized mailer macro was accepted"]
+]
+mailer_unsupported_paths.each do |path, message|
+  actual = DuplicationProcess.run(DuplicationProcess::Input.new(path, "fleek", ""))
+  DuplicationProcess.verify_output(actual, DuplicationProcess::OutputExpectation.new(1,
+    ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"], message))
+end
+
 rails_corpus_root = ENV["FLEEK_RAILS_CORPUS"]
 if ENV["FLEEK_REQUIRE_RAILS_CORPUS"] == "1" && (!rails_corpus_root || rails_corpus_root.empty?)
   raise "FLEEK_RAILS_CORPUS is required for the pinned Rails controller contract"
@@ -1142,6 +1165,11 @@ if rails_corpus_root && !rails_corpus_root.empty?
   DuplicationProcess.verify_output(rails_application_record_actual, DuplicationProcess::OutputExpectation.new(0,
     ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
     "pinned Rails ApplicationRecord primary_abstract_class result was incomplete"))
+  rails_application_mailer = File.join(rails_corpus_root, "app/mailers/application_mailer.rb")
+  rails_application_mailer_actual = DuplicationProcess.run(DuplicationProcess::Input.new(rails_application_mailer, "fleek", ""))
+  DuplicationProcess.verify_output(rails_application_mailer_actual, DuplicationProcess::OutputExpectation.new(0,
+    ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+    "pinned Rails ApplicationMailer declarations remained incomplete"))
 end
 
 include_dynamic_path = "test/fixtures/duplication_class_methods_include_dynamic.rb"

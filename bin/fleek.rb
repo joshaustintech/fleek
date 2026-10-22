@@ -4069,6 +4069,25 @@ class Fleek
       return call->arguments == NULL || call->arguments->arguments.size == 0;
     }
 
+    static bool fleek_duplication_is_mailer_declaration(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return false;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      const uint8_t *name = call->message_loc.start;
+      if (call->receiver != NULL || call->block != NULL || name == NULL || call->arguments == NULL ||
+          call->arguments->arguments.size != 1) return false;
+      size_t name_length = (size_t) (call->message_loc.end - name);
+      const pm_node_t *argument = call->arguments->arguments.nodes[0];
+      if (name_length == 6 && memcmp(name, "layout", 6) == 0)
+        return PM_NODE_TYPE_P(argument, PM_STRING_NODE);
+      if (name_length != 7 || memcmp(name, "default", 7) != 0 || !PM_NODE_TYPE_P(argument, PM_KEYWORD_HASH_NODE)) return false;
+      const pm_keyword_hash_node_t *keywords = (const pm_keyword_hash_node_t *) argument;
+      if (keywords->elements.size != 1 || !PM_NODE_TYPE_P(keywords->elements.nodes[0], PM_ASSOC_NODE)) return false;
+      const pm_assoc_node_t *association = (const pm_assoc_node_t *) keywords->elements.nodes[0];
+      if (!PM_NODE_TYPE_P(association->key, PM_SYMBOL_NODE) || !PM_NODE_TYPE_P(association->value, PM_STRING_NODE)) return false;
+      const pm_symbol_node_t *key = (const pm_symbol_node_t *) association->key;
+      return key->value_loc.end - key->value_loc.start == 4 && memcmp(key->value_loc.start, "from", 4) == 0;
+    }
+
     static bool fleek_duplication_collect_class_methods(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set, bool collect_nested_sibling_scopes) {
       if (!PM_NODE_TYPE_P(node, PM_CLASS_NODE)) return false;
       const pm_class_node_t *class_node = (const pm_class_node_t *) node;
@@ -4132,7 +4151,8 @@ class Fleek
                   !fleek_duplication_is_callback_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_visibility_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&
-                  !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index])) fleek_duplication_partial = 1;
+                  !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&
+                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index])) fleek_duplication_partial = 1;
               continue;
             }
             class_child_count++;
@@ -4257,7 +4277,8 @@ class Fleek
             if (!fleek_duplication_is_callback_declaration(child) &&
                 !fleek_duplication_is_visibility_declaration(child) &&
                 !fleek_duplication_is_include_declaration(child) &&
-                !fleek_duplication_is_primary_abstract_class_declaration(child)) fleek_duplication_partial = 1;
+                !fleek_duplication_is_primary_abstract_class_declaration(child) &&
+                !fleek_duplication_is_mailer_declaration(child)) fleek_duplication_partial = 1;
             continue;
           }
           if (!fleek_duplication_reserve_next_class_candidate(set) ||
