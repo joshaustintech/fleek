@@ -143,7 +143,6 @@ class Fleek
     static char fleek_too_many_constants_buffer[4096];
     static char fleek_too_many_instance_variables_buffer[4096];
     static char fleek_too_many_methods_buffer[4096];
-    static char fleek_too_many_statements_buffer[8192];
     static char fleek_uncommunicative_method_name_buffer[8192];
     static size_t fleek_uncommunicative_method_name_used;
     static char fleek_uncommunicative_module_name_buffer[8192];
@@ -153,7 +152,6 @@ class Fleek
     static char fleek_uncommunicative_variable_name_buffer[8192];
     static size_t fleek_uncommunicative_variable_name_used;
     static size_t fleek_data_clump_used;
-    static size_t fleek_too_many_statements_used;
     static bool fleek_matches_any_pattern(const uint8_t *source, size_t length, const char *patterns) {
       const char *start = patterns;
       while (*start != 0) {
@@ -888,7 +886,6 @@ class Fleek
     typedef struct { size_t maximum; size_t initialize_maximum; const pm_node_t *scope; } fleek_long_parameter_state_t;
     static int fleek_long_parameter_list_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     typedef struct { bool public_methods_only; bool method_is_public; bool unsupported_visibility; } fleek_utility_scan_t;
-    typedef struct { size_t maximum; bool singleton_seen; } fleek_too_many_statements_scan_t;
     typedef struct { bool found; } fleek_nested_method_state_t;
     static bool fleek_find_nested_method(const pm_node_t *node, void *data) {
       fleek_nested_method_state_t *state = (fleek_nested_method_state_t *) data;
@@ -897,7 +894,6 @@ class Fleek
     }
     static int fleek_utility_function_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     static int fleek_missing_safe_method_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
-    static int fleek_too_many_statements_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     static int fleek_uncommunicative_method_name_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
 
     static int fleek_scan_method_scope(const char *source, size_t length, fleek_method_analyzer_t analyze, void *state,
@@ -1007,29 +1003,6 @@ class Fleek
               continue;
             }
             if (((fleek_utility_scan_t *) state)->public_methods_only) ((fleek_utility_scan_t *) state)->unsupported_visibility = true;
-          }
-          if (analyze == fleek_too_many_statements_method && PM_NODE_TYPE_P(statement, PM_SINGLETON_CLASS_NODE)) {
-            fleek_too_many_statements_scan_t *scan = (fleek_too_many_statements_scan_t *) state;
-            scan->singleton_seen = true;
-            const pm_singleton_class_node_t *singleton = (const pm_singleton_class_node_t *) statement;
-            if (!PM_NODE_TYPE_P(singleton->expression, PM_SELF_NODE) || !PM_NODE_TYPE_P(singleton->body, PM_STATEMENTS_NODE)) { findings = -1; continue; }
-            const pm_statements_node_t *singleton_body = (const pm_statements_node_t *) singleton->body;
-            bool singleton_unsupported = singleton_body->body.size > 128;
-            size_t singleton_findings = 0;
-            for (size_t method_index = 0; method_index < singleton_body->body.size; method_index++) {
-              const pm_node_t *singleton_statement = singleton_body->body.nodes[method_index];
-              if (PM_NODE_TYPE_P(singleton_statement, PM_DEF_NODE)) {
-                int result = analyze(&parser, (const uint8_t *) source, class_name_text, class_name_length, singleton_statement, state);
-                if (result < 0) singleton_unsupported = true;
-                else singleton_findings += (size_t) result;
-              } else {
-                fleek_nested_method_state_t nested = { false }; pm_visit_node(singleton_statement, fleek_find_nested_method, &nested);
-                if (nested.found) singleton_unsupported = true;
-              }
-            }
-            if (singleton_unsupported) findings = -1;
-            else findings += (int) singleton_findings;
-            continue;
           }
           if (analyze == fleek_missing_safe_method_method && PM_NODE_TYPE_P(statement, PM_SINGLETON_CLASS_NODE)) {
             const pm_node_t *singleton_body = ((const pm_singleton_class_node_t *) statement)->body;
@@ -2437,46 +2410,6 @@ class Fleek
     const char *fleek_too_many_methods_finding(void) { return fleek_too_many_methods_buffer; }
     int fleek_too_many_constants(const char *source, size_t length, size_t maximum) { fleek_too_many_constants_buffer[0] = 0; return fleek_count_scope(source, length, "TooManyConstants", maximum); }
     const char *fleek_too_many_constants_finding(void) { return fleek_too_many_constants_buffer; }
-    static int fleek_too_many_statements_method(pm_parser_t *parser, const uint8_t *source, const char *class_name, size_t class_name_length, const pm_node_t *node, void *data) {
-      const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->body == NULL) return 0;
-      if (!PM_NODE_TYPE_P(method->body, PM_STATEMENTS_NODE)) return -1;
-      size_t count = ((const pm_statements_node_t *) method->body)->body.size;
-      const pm_statements_node_t *body = (const pm_statements_node_t *) method->body;
-      for (size_t index = 0; index < body->body.size; index++) {
-        const pm_node_t *statement = body->body.nodes[index];
-        if (PM_NODE_TYPE_P(statement, PM_IF_NODE) || PM_NODE_TYPE_P(statement, PM_UNLESS_NODE) || PM_NODE_TYPE_P(statement, PM_WHILE_NODE) || PM_NODE_TYPE_P(statement, PM_UNTIL_NODE) || PM_NODE_TYPE_P(statement, PM_FOR_NODE) || PM_NODE_TYPE_P(statement, PM_CASE_NODE) || PM_NODE_TYPE_P(statement, PM_BEGIN_NODE)) return -1;
-      }
-      if (fleek_name_is(parser, method->name, "initialize") || count <= ((fleek_too_many_statements_scan_t *) data)->maximum) return 0;
-      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
-      int written = snprintf(fleek_too_many_statements_buffer + fleek_too_many_statements_used, sizeof(fleek_too_many_statements_buffer) - fleek_too_many_statements_used, "%d\\t%.*s#%s%.*s\\t%zu\\t\\n", fleek_source_line(source, method->def_keyword_loc.start), (int) class_name_length, class_name, method->receiver == NULL ? "" : "self.", (int) method_name->length, method_name->start, count);
-      if (written < 0 || (size_t) written >= sizeof(fleek_too_many_statements_buffer) - fleek_too_many_statements_used) return -1;
-      fleek_too_many_statements_used += (size_t) written;
-      return 1;
-    }
-    static bool fleek_has_singleton_class(const pm_node_t *node, void *data) {
-      bool *found = (bool *) data;
-      if (PM_NODE_TYPE_P(node, PM_SINGLETON_CLASS_NODE)) { *found = true; return false; }
-      return !PM_NODE_TYPE_P(node, PM_DEF_NODE);
-    }
-    static int fleek_scan_too_many_statements(const char *source, size_t length, size_t maximum) {
-      if (memchr(source, 0, length) != NULL) return -2;
-      pm_options_t options = {0}; options.line = 1; options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
-      pm_parser_t parser; pm_parser_init(&parser, (const uint8_t *) source, length, &options);
-      pm_node_t *root = pm_parse(&parser);
-      bool found = false;
-      bool parse_error = parser.error_list.head != NULL;
-      if (!parse_error) pm_visit_node(root, fleek_has_singleton_class, &found);
-      pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
-      if (parse_error) return -1;
-      fleek_too_many_statements_scan_t scan = { maximum, false };
-      int result = fleek_scan_method_scope(source, length, fleek_too_many_statements_method, &scan, NULL);
-      if (result == -4 && fleek_too_many_statements_used > 0) return -5;
-      if (found && !scan.singleton_seen) return fleek_too_many_statements_used > 0 ? -5 : -4;
-      return result;
-    }
-    int fleek_too_many_statements(const char *source, size_t length, size_t maximum) { fleek_too_many_statements_buffer[0] = 0; fleek_too_many_statements_used = 0; return fleek_scan_too_many_statements(source, length, maximum); }
-    const char *fleek_too_many_statements_finding(void) { return fleek_too_many_statements_buffer; }
     typedef struct { const char *reject; const char *accept; } fleek_name_patterns_t;
     static int fleek_uncommunicative_method_name_method(pm_parser_t *parser, const uint8_t *source, const char *class_name, size_t class_name_length, const pm_node_t *node, void *data) {
       const pm_def_node_t *method = (const pm_def_node_t *) node;
@@ -5694,8 +5627,6 @@ class Fleek
     ffi_func :fleek_too_many_instance_variables_finding, [], :str
     ffi_func :fleek_too_many_methods, [:str, :size_t, :size_t], :int
     ffi_func :fleek_too_many_methods_finding, [], :str
-    ffi_func :fleek_too_many_statements, [:str, :size_t, :size_t], :int
-    ffi_func :fleek_too_many_statements_finding, [], :str
     ffi_func :fleek_uncommunicative_method_name, [:str, :size_t, :str, :str], :int
     ffi_func :fleek_uncommunicative_method_name_finding, [], :str
     ffi_func :fleek_uncommunicative_module_name, [:str, :size_t, :str, :str], :int
@@ -6158,8 +6089,12 @@ class Fleek
       exclusions.any? { |excluded| context.include?(excluded) }
     end
 
+    # Reek default exclusions apply when configuration names none for the detector.
+    DEFAULT_DETECTOR_EXCLUDES = { "TooManyStatements" => ["initialize"] }.freeze
+
     def detector_excludes(detector)
-      @detector_excludes.select { |entry| entry.start_with?("#{detector}=") }.map { |entry| entry.split("=", 2)[1] }
+      configured = @detector_excludes.select { |entry| entry.start_with?("#{detector}=") }.map { |entry| entry.split("=", 2)[1] }
+      configured.empty? ? DEFAULT_DETECTOR_EXCLUDES.fetch(detector, []) : configured
     end
 
     def excluded_path?(path)
@@ -6927,7 +6862,7 @@ class Fleek
     "TooManyConstants" => ["direct constant assignments in one simple class or module, or in a direct nested module within one top-level module", "%s has %s constants"],
     "TooManyInstanceVariables" => ["one simple class, or two direct nested classes within one top-level class", "%s has at least %s instance variables"],
     "TooManyMethods" => ["direct instance methods in one simple class, or in one class with a single direct nested class", "%s has at least %s methods"],
-    "TooManyStatements" => ["simple direct and singleton-class method bodies with statement counting", "%s has approx %s statements"],
+    "TooManyStatements" => ["whole files through the ported Reek context engine", "%s has approx %s statements"],
     "UncommunicativeMethodName" => ["direct methods in one simple class or module, including one direct nested class", "%s has the name '%s'"],
     "UncommunicativeModuleName" => ["simple names and one-level qualified class/module constant paths", "%s has the name '%s'"],
     "UncommunicativeParameterName" => ["simple method parameters", "%s has the parameter name '%s'"],
@@ -7093,7 +7028,7 @@ class Fleek
   # :reek:LongParameterList
   # :reek:TooManyStatements
   def self.run_native_reek_detector(detector, source, settings, path)
-    return run_reek_engine_detector(source, path) if detector == "IrresponsibleModule"
+    return run_reek_engine_detector(detector, source, path, settings) if REEK_ENGINE_DETECTORS.include?(detector)
     length = source.bytesize
     maximum = settings[0]
     option = settings[1]
@@ -7125,7 +7060,6 @@ class Fleek
     when "TooManyConstants" then NativePrism.fleek_too_many_constants(source, length, maximum)
     when "TooManyInstanceVariables" then NativePrism.fleek_too_many_instance_variables(source, length, maximum)
     when "TooManyMethods" then NativePrism.fleek_too_many_methods(source, length, maximum)
-    when "TooManyStatements" then NativePrism.fleek_too_many_statements(source, length, maximum)
     when "UncommunicativeMethodName" then NativePrism.fleek_uncommunicative_method_name(source, length, option, accepted_names)
     when "UncommunicativeModuleName" then NativePrism.fleek_uncommunicative_module_name(source, length, option, accepted_names)
     when "UncommunicativeParameterName" then NativePrism.fleek_uncommunicative_parameter_name(source, length, option, accepted_names)
@@ -7136,10 +7070,14 @@ class Fleek
   # Records from the last run of a detector on the ported Reek context engine (ADR 0257).
   REEK_ENGINE_RECORDS = [""]
 
-  def self.run_reek_engine_detector(source, path)
+  # Detectors running on the ported Reek context engine.
+  REEK_ENGINE_DETECTORS = %w[IrresponsibleModule TooManyStatements].freeze
+
+  # :reek:LongParameterList
+  def self.run_reek_engine_detector(detector, source, path, settings)
     status = NativePrism.fleek_reek_ast(source, source.bytesize, path, 1)
     return status unless status.zero?
-    store_reek_engine_records(ReekEngine.irresponsible_module(reek_engine_contexts(source), source))
+    store_reek_engine_records(ReekEngine.records(detector, reek_engine_contexts(source), source, settings[0]))
   end
 
   def self.store_reek_engine_records(records)
@@ -7156,7 +7094,7 @@ class Fleek
   # :reek:TooManyStatements
   def self.native_reek_findings(detector)
     case detector
-    when "IrresponsibleModule" then REEK_ENGINE_RECORDS[0]
+    when "IrresponsibleModule", "TooManyStatements" then REEK_ENGINE_RECORDS[0]
     when "Attribute" then NativePrism.fleek_attribute_finding
     when "InstanceVariableAssumption" then NativePrism.fleek_instance_variable_assumption_finding
     when "SubclassedFromCoreClass" then NativePrism.fleek_subclassed_from_core_class_finding
@@ -7179,7 +7117,6 @@ class Fleek
     when "TooManyConstants" then NativePrism.fleek_too_many_constants_finding
     when "TooManyInstanceVariables" then NativePrism.fleek_too_many_instance_variables_finding
     when "TooManyMethods" then NativePrism.fleek_too_many_methods_finding
-    when "TooManyStatements" then NativePrism.fleek_too_many_statements_finding
     when "UncommunicativeMethodName" then NativePrism.fleek_uncommunicative_method_name_finding
     when "UncommunicativeModuleName" then NativePrism.fleek_uncommunicative_module_name_finding
     when "UncommunicativeParameterName" then NativePrism.fleek_uncommunicative_parameter_name_finding

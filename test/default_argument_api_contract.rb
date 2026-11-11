@@ -839,13 +839,16 @@ class DefaultArgumentApiContract
     verify_detector_parity(detector, source, true)
   end
 
+  # :reek:TooManyStatements
   def self.verify_unsupported_data_and_size_scopes
     source = "test/fixtures/class_variable_nested.rb"
-    detectors = %w[DataClump TooManyConstants TooManyInstanceVariables TooManyMethods TooManyStatements]
+    detectors = %w[DataClump TooManyConstants TooManyInstanceVariables TooManyMethods]
     detectors.each do |detector|
       result = run_fleek(source, "", "reek:#{detector}")
       AnalysisRunner.assert_unsupported(result, detector)
     end
+    statements = run_fleek(source, "", "reek:TooManyStatements")
+    AnalysisRunner.assert_detector_findings(statements, run_reek(source, "TooManyStatements"), "nested TooManyStatements")
   end
 
   def self.verify_unsupported_naming_scopes
@@ -1032,7 +1035,7 @@ class DefaultArgumentApiContract
     actual_text = actual_findings.join("\n")
     verify(reference_text.include?(supported_context), "pinned mixed singleton method fixture lost supported finding")
     verify(actual_text.include?(supported_context), "TooManyStatements mixed singleton method body unsupported shape appeared clean")
-    AnalysisRunner.assert_unsupported(actual, "TooManyStatements mixed singleton method body")
+    AnalysisRunner.assert_detector_findings(actual, reference, "TooManyStatements mixed singleton method body")
   end
 
   def self.mixed_too_many_statements_finding?(result)
@@ -1051,7 +1054,7 @@ class DefaultArgumentApiContract
     actual = run_fleek(source, "", "reek:TooManyStatements")
     verify(mixed_too_many_statements_finding?(reference), "pinned Reek #{unsupported_shape} fixture lost supported finding")
     verify(mixed_too_many_statements_finding?(actual), finding_message)
-    AnalysisRunner.assert_unsupported(actual, "TooManyStatements #{unsupported_shape}")
+    AnalysisRunner.assert_detector_findings(actual, reference, "TooManyStatements #{unsupported_shape}")
   end
 
   # :reek:TooManyStatements

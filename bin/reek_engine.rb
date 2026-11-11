@@ -3,7 +3,9 @@
 # The code mirrors Reek and parser gem algorithms nearly line for line so parity stays reviewable,
 # so their structure (mutable AST fields, nil checks, scanner loops) is kept rather than reshaped.
 # :reek:Attribute
+# :reek:ControlParameter
 # :reek:DuplicateMethodCall
+# :reek:LongParameterList
 # :reek:FeatureEnvy
 # :reek:NestedIterators
 # :reek:NilCheck
@@ -310,13 +312,18 @@ module ReekEngine
   # Reek::Context::CodeContext and its subclasses, reduced to what ported detectors use.
   class Context
     attr_reader :exp, :children, :kind
-    attr_accessor :parent
+    attr_accessor :parent, :statements
 
     def initialize(kind, exp)
       @kind = kind
       @exp = exp
       @children = []
       @parent = nil
+      @statements = 0
+    end
+
+    def method_context?
+      @kind == "method" || @kind == "singleton_method"
     end
 
     def register_with_parent(parent)
@@ -353,9 +360,41 @@ module ReekEngine
       when "module", "class" then inside("module", exp)
       when "sclass" then inside("ghost", exp)
       when "casgn" then defines_module?(exp) ? inside("module", exp) : process(exp)
-      when "def", "defs" then inside(exp.type == "def" ? "method" : "singleton_method", exp)
-      else process(exp)
+      when "def" then inside("method", exp) { count(exp.child(2)) }
+      when "defs" then inside("singleton_method", exp) { count(exp.child(3)) }
+      else
+        count_statements(exp)
+        process(exp)
       end
+    end
+
+    # StatementCounter updates made by ContextBuilder#process_* before descending.
+    def count_statements(exp)
+      children = exp.children
+      case exp.type
+      when "block" then count(exp.child(2))
+      when "begin", "kwbegin" then count_list(children.length - 1)
+      when "if" then count_list(count_value(exp.child(1)) + count_value(exp.child(2)) - 1)
+      when "while", "until" then count_list(count_value(exp.child(1)) - 1)
+      when "for" then count_list(count_value(exp.child(2)) - 1)
+      when "rescue" then count_list(count_value(exp.child(0)) - 1)
+      when "resbody" then count_list(children[1, children.length - 1].reject { |child| child.nil_atom? }.length)
+      when "case" then count_list(count_value(children.last) - 1)
+      when "when" then count(children.last)
+      end
+    end
+
+    # StatementCounter#increase_by: a node counts one; nil adds nothing.
+    def count_value(exp)
+      exp.nil? || exp.nil_atom? ? 0 : 1
+    end
+
+    def count(exp)
+      count_list(count_value(exp))
+    end
+
+    def count_list(amount)
+      @current.statements += amount
     end
 
     def process(exp)
@@ -367,6 +406,7 @@ module ReekEngine
       context.register_with_parent(@current)
       original = @current
       @current = context
+      yield if block_given?
       process(exp)
       @current = original
     end
@@ -395,9 +435,23 @@ module ReekEngine
       return "" if context.kind == "root"
       parent = context.parent
       outer = parent.nil? ? "" : full_name(parent)
-      name = local_name(context.exp)
+      exp = context.exp
+      return outer if exp.nil?
+      case exp.type
+      when "def" then [outer, exp.child(0).symbol_name].reject { |part| part.empty? }.join("#")
+      when "defs" then "#{outer.empty? ? "" : "#{outer}#"}#{receiver_name(exp.child(0))}.#{exp.child(1).symbol_name}"
+      else joined(outer, local_name(exp))
+      end
+    end
+
+    def joined(outer, name)
       return outer if name.empty?
       outer.empty? ? name : "#{outer}::#{name}"
+    end
+
+    # SelfNode#name and ConstNode#name for singleton method receivers.
+    def receiver_name(exp)
+      exp.type == "self" ? "self" : exp.format_to_ruby(@source)
     end
 
     private
@@ -443,6 +497,40 @@ module ReekEngine
       current = current.parent
     end
     false
+  end
+
+  # Runs one migrated detector over the context tree, returning finding records.
+  def self.records(detector, root, source, maximum)
+    return too_many_statements(root, source, maximum) if detector == "TooManyStatements"
+    irresponsible_module(root, source)
+  end
+
+  # Reek::SmellDetectors::TooManyStatements over method and singleton method contexts.
+  def self.too_many_statements(root, source, maximum)
+    names = Names.new(source)
+    records = []
+    root.each do |context|
+      next unless context.method_context?
+      next if suppressed?(context, "TooManyStatements")
+      limit = directive_integer(context, "TooManyStatements", "max_statements")
+      limit = maximum if limit.negative?
+      count = context.statements
+      records << "#{context.exp.line}\t#{names.full_name(context)}\t#{count}\t\n" if count > limit
+    end
+    records.join
+  end
+
+  # An integer option from the nearest reek directive for the detector, or -1.
+  def self.directive_integer(context, detector, key)
+    current = context
+    until current.nil?
+      exp = current.exp
+      comment = exp.nil? ? "" : exp.comments.map { |found| found.text }.join("\n")
+      option = comment.match(/:reek:#{detector}\b:?\s*\{[^}]*\b#{key}:\s*(\d+)/)
+      return option[1].to_i if option
+      current = current.parent
+    end
+    -1
   end
 
   CONSTANT_TYPES = %w[casgn class module].freeze

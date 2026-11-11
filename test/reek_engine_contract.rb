@@ -5,7 +5,8 @@ class ReekEngineContract
   ROOT = "test/fixtures/reek_engine"
   CASES = [
     ["IrresponsibleModule", "#{ROOT}/irresponsible_module.rb"],
-    ["IrresponsibleModule", "#{ROOT}/irresponsible_module_single.rb"]
+    ["IrresponsibleModule", "#{ROOT}/irresponsible_module_single.rb"],
+    ["TooManyStatements", "#{ROOT}/too_many_statements.rb"]
   ].freeze
   OUTPUT = "/tmp/fleek-reek-engine"
   # Runs "$0" with the remaining arguments, writing stdout to $1 and stderr to $1.err.

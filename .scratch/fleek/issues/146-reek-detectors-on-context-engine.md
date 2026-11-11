@@ -6,7 +6,7 @@
 
 **Blocked by:** 145
 
-**Status:** open
+**Status:** claimed
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
@@ -20,3 +20,7 @@ Start with the largest census gaps: TooManyStatements (7 missing), NestedIterato
 - [ ] The ticket 96 census shows every detector complete and identical to pinned Reek on the Rails manifest.
 - [ ] Each migrated detector has differential fixtures and caught mutations.
 - [ ] Full gate passes after every migration; record results in `## Answer`.
+
+## Progress
+
+- **TooManyStatements.** Migrated to the engine using Reek's StatementCounter rules from `ContextBuilder`: def body, `begin`/`kwbegin`, `if`, `while`/`until`, `for`, `rescue`/`resbody`, `case`/`when` and block bodies. Method names follow `def`/`defs` naming (`Outer#name`, `Outer#self.name`). Directive `max_statements` and suppression come from the context chain, and Reek's default `exclude: ['initialize']` now applies when no exclude is configured. One known gap: an explicitly empty `exclude: []` cannot be distinguished from "unset". On the Rails manifest it reports Reek's exact 7 warnings with 25/25 complete coverage, where before it had 0 of 7 and 12 sources incomplete. The bounded C detector and its 4 mutations were removed. Ten engine mutations are caught: each counting rule, the directive limit, singleton names and the default exclusion.
