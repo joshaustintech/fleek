@@ -16,7 +16,11 @@ class ReekEngineContract
     ["UnusedParameters", "#{ROOT}/unused_parameters.rb"],
     ["BooleanParameter", "#{ROOT}/parameter_lists.rb"],
     ["LongParameterList", "#{ROOT}/parameter_lists.rb"],
-    ["LongYieldList", "#{ROOT}/parameter_lists.rb"]
+    ["LongYieldList", "#{ROOT}/parameter_lists.rb"],
+    ["ModuleInitialize", "#{ROOT}/module_sizes.rb"],
+    ["TooManyConstants", "#{ROOT}/module_sizes.rb"],
+    ["TooManyInstanceVariables", "#{ROOT}/module_sizes.rb"],
+    ["TooManyMethods", "#{ROOT}/module_sizes.rb"]
   ].freeze
   OUTPUT = "/tmp/fleek-reek-engine"
   # Runs "$0" with the remaining arguments, writing stdout to $1 and stderr to $1.err.

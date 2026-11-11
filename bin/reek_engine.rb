@@ -483,7 +483,7 @@ module ReekEngine
       case exp.type
       when "module", "class" then inside(Context.new("module", exp, nil), exp)
       when "sclass" then inside(Context.new("ghost", exp, nil), exp)
-      when "casgn" then defines_module?(exp) ? inside(Context.new("module", exp, nil), exp) : process(exp)
+      when "casgn" then ReekEngine.defines_module?(exp) ? inside(Context.new("module", exp, nil), exp) : process(exp)
       when "def" then inside(Context.new(@current.method_kind, exp, parent_exp), exp) { count(exp.child(2)) }
       when "defs" then inside(Context.new("singleton_method", exp, parent_exp), exp) { count(exp.child(3)) }
       when "send" then process_send(exp)
@@ -572,20 +572,6 @@ module ReekEngine
       yield if block_given?
       process(exp)
       @current = original
-    end
-
-
-    # CasgnNode#defines_module?: Class.new / Struct.new / Data.define, with or without a block.
-    def defines_module?(exp)
-      value = exp.child(2)
-      return false if value.nil? || value.atom?
-      call = value.type == "block" ? value.child(0) : value
-      return false unless call.type == "send"
-      receiver = call.child(0)
-      return false if receiver.atom? || receiver.type != "const"
-      name = call.child(1).symbol_name
-      simple = receiver.child(1).symbol_name
-      (name == "new" && (simple == "Class" || simple == "Struct")) || (name == "define" && simple == "Data")
     end
   end
 
@@ -676,6 +662,8 @@ module ReekEngine
     return boolean_parameter(root, source) if detector == "BooleanParameter"
     return long_parameter_list(root, source, maximum, settings[3].to_s.to_i) if detector == "LongParameterList"
     return long_yield_list(root, source, maximum) if detector == "LongYieldList"
+    return module_size(root, source, detector, maximum) if SIZE_DETECTORS.key?(detector)
+    return module_initialize(root, source) if detector == "ModuleInitialize"
     irresponsible_module(root, source)
   end
 
@@ -746,8 +734,7 @@ module ReekEngine
     root.each do |context|
       next unless context.method_context?
       next if suppressed?(context, "DuplicateMethodCall")
-      limit = directive_integer(context, "DuplicateMethodCall", "max_calls")
-      limit = maximum if limit.negative?
+      limit = configured_limit(context, "DuplicateMethodCall", "max_calls", maximum)
       patterns = directive_list(context, "DuplicateMethodCall", "allow_calls", allowed)
       collect_calls(context.exp).each do |group|
         call = group[0].format_to_ruby(source)
@@ -808,9 +795,8 @@ module ReekEngine
     method_contexts(root, "LongParameterList").each do |context|
       name = names.full_name(context)
       count = parameters(context.exp).reject { |parameter| parameter.type == "blockarg" }.length
-      limit = directive_integer(context, "LongParameterList", "max_params")
-      limit = name.include?("initialize") ? initialize_maximum : maximum if limit.negative?
-      records << "#{context.exp.line}\t#{name}\t#{count}\n" if count > limit
+      limit = configured_limit(context, "LongParameterList", "max_params", name.include?("initialize") ? initialize_maximum : maximum)
+      records << count_record(context.exp.line, name, count, limit)
     end
     records.join
   end
@@ -820,11 +806,10 @@ module ReekEngine
     names = Names.new(source)
     records = []
     method_contexts(root, "LongYieldList").each do |context|
-      limit = directive_integer(context, "LongYieldList", "max_params")
-      limit = maximum if limit.negative?
+      limit = configured_limit(context, "LongYieldList", "max_params", maximum)
       each_node(context.exp, ["yield"], %w[class module]).each do |found|
         count = found.children.length
-        records << "#{found.line}\t#{names.full_name(context)}\t#{count}\n" if count > limit
+        records << count_record(found.line, names.full_name(context), count, limit)
       end
     end
     records.join
@@ -834,6 +819,67 @@ module ReekEngine
   def self.method_contexts(root, detector)
     found = []
     root.each { |context| found << context if context.method_context? && !suppressed?(context, detector) }
+    found
+  end
+
+  # CasgnNode#defines_module?: Class.new / Struct.new / Data.define, with or without a block.
+  def self.defines_module?(exp)
+    value = exp.child(2)
+    return false if value.nil? || value.atom?
+    call = value.type == "block" ? value.child(0) : value
+    return false unless call.type == "send"
+    receiver = call.child(0)
+    return false if receiver.atom? || receiver.type != "const"
+    name = call.child(1).symbol_name
+    simple = receiver.child(1).symbol_name
+    (name == "new" && (simple == "Class" || simple == "Struct")) || (name == "define" && simple == "Data")
+  end
+
+  # TooManyConstants, TooManyInstanceVariables and TooManyMethods: accepted expression types and limit key.
+  SIZE_DETECTORS = {
+    "TooManyConstants" => [%w[class module], "max_constants"],
+    "TooManyInstanceVariables" => [["class"], "max_instance_variables"],
+    "TooManyMethods" => [["class"], "max_methods"]
+  }.freeze
+
+  # Reek's module size detectors: a count above the nearest directive limit or the configured maximum.
+  def self.module_size(root, source, detector, maximum)
+    types, key = SIZE_DETECTORS.fetch(detector)
+    names = Names.new(source)
+    records = []
+    module_contexts(root, types, detector).each do |context|
+      exp = context.exp
+      count = size_count(detector, exp)
+      limit = configured_limit(context, detector, key, maximum)
+      records << count_record(exp.line, names.full_name(context), count, limit)
+    end
+    records.join
+  end
+
+  # Non-module constant assignments; distinct instance variables assigned outside ||=; def nodes. Nested classes and modules are not searched.
+  def self.size_count(detector, exp)
+    case detector
+    when "TooManyConstants" then each_node(exp, ["casgn"], %w[class module]).reject { |node| defines_module?(node) }.length
+    when "TooManyInstanceVariables" then each_node(exp, ["ivasgn"], %w[or_asgn class module]).map { |node| node.child(0).value }.uniq.length
+    else each_node(exp, ["def"], %w[class module]).length
+    end
+  end
+
+  # Reek::SmellDetectors::ModuleInitialize: a module whose instance methods include initialize.
+  def self.module_initialize(root, source)
+    names = Names.new(source)
+    records = []
+    module_contexts(root, ["module"], "ModuleInitialize").each do |context|
+      next unless context.children.any? { |child| child.instance_method? && child.name == ":initialize" }
+      records << "#{context.exp.line}\t#{names.full_name(context)}\t\n"
+    end
+    records.join
+  end
+
+  # Module contexts whose expression type the detector accepts and where it is not suppressed.
+  def self.module_contexts(root, types, detector)
+    found = []
+    root.each { |context| found << context if context.module_context? && types.include?(context.exp.type) && !suppressed?(context, detector) }
     found
   end
 
@@ -982,8 +1028,7 @@ module ReekEngine
     root.each do |context|
       next unless context.method_context?
       next if suppressed?(context, "NestedIterators")
-      limit = directive_integer(context, "NestedIterators", "max_allowed_nesting")
-      limit = maximum if limit.negative?
+      limit = configured_limit(context, "NestedIterators", "max_allowed_nesting", maximum)
       violations = scout(context.exp, 0, source, ignored).select { |pair| pair[1] > limit }
       violations.group_by { |pair| pair[1] }.each do |depth, group|
         records << "#{group.map { |pair| pair[0] }.join(", ")}\t#{names.full_name(context)}\t\t#{depth}\n"
@@ -1027,8 +1072,7 @@ module ReekEngine
     root.each do |context|
       next unless context.method_context?
       next if suppressed?(context, "TooManyStatements")
-      limit = directive_integer(context, "TooManyStatements", "max_statements")
-      limit = maximum if limit.negative?
+      limit = configured_limit(context, "TooManyStatements", "max_statements", maximum)
       count = context.statements
       records << "#{context.exp.line}\t#{names.full_name(context)}\t#{count}\t\n" if count > limit
     end
@@ -1056,6 +1100,17 @@ module ReekEngine
       options = found[2].nil? ? "{ enabled: false }" : found[2]
     end
     options
+  end
+
+  # A "line, context, count" finding record when the count exceeds the limit, else nothing.
+  def self.count_record(line, name, count, limit)
+    count > limit ? "#{line}\t#{name}\t#{count}\n" : ""
+  end
+
+  # SmellConfiguration#value for an integer limit: the nearest directive's option, else the configured maximum.
+  def self.configured_limit(context, detector, key, maximum)
+    limit = directive_integer(context, detector, key)
+    limit.negative? ? maximum : limit
   end
 
   # An integer option from the nearest reek directive for the detector, or -1.

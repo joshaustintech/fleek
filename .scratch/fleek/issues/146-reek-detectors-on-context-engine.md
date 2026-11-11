@@ -44,3 +44,11 @@ Start with the largest census gaps: TooManyStatements (7 missing), NestedIterato
   - LongYieldList checks each `yield`'s arguments, stopping at classes and modules.
 
   Directive resolution now ports `CodeComment#config`: on each context the last directive for a detector replaces earlier ones, a bare directive means `{ enabled: false }`, and options resolve key by key up the parent chain. The existing repeated-directive suppression contract caught this. On the Rails manifest all three are complete on 25/25 sources (previously 22/25) and are clean like Reek. The three bounded C detectors, eight mutations, including one whose target had become a generic visitor line, and their dispatches were removed. Ten engine mutations are caught: false and keyword boolean defaults, block arguments in counts, the initialize override, the parameter directive, the yield limit boundary, last-directive-wins, comment suppression, parent suppression and the statement directive.
+- **TooManyConstants, TooManyInstanceVariables, TooManyMethods and ModuleInitialize.** Migrated over module contexts whose expression type each detector accepts (`class`/`module`, `class` or `module`):
+  - Constants count `casgn` nodes that do not define modules.
+  - Instance variables count distinct `ivasgn` names outside `||=`.
+  - Methods count every `def` below the class, including those in `class << self`.
+  - All three counts stop at nested classes and modules.
+  - ModuleInitialize looks for an instance-method child (method or attribute) named `initialize`.
+
+  The three size detectors share one table-driven `module_size`, and the engine now has shared `configured_limit` and `count_record` helpers, which keeps bin Flay at zero. On the Rails manifest all four are complete on 25/25 sources (previously 23/25) and are clean like Reek. The bounded C size scanner, the ModuleInitialize scanner and 11 mutations were removed. The nested size contracts became rows in the pinned nested-case table, which drops the test Flay score from 1007 to 818. Eleven engine mutations are caught, including the updated limit-helper targets.

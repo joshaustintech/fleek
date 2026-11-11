@@ -54,12 +54,10 @@ class DefaultArgumentApiContract
     verify_supported_default_detector("DataClump", "test/fixtures/data_clump_multiple_groups.rb")
     verify_data_clump_preserves_supported_findings
     verify_supported_default_detector("TooManyConstants", "test/fixtures/too_many_constants.rb")
-    verify_too_many_constants_nested_modules
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
     verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variable_operator_writes.rb")
-    verify_too_many_instance_variables_nested_classes
     verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
-    verify_too_many_methods_nested_classes
+    verify_findings_parity("test/fixtures/too_many_methods_nested_classes_mixed.rb", "TooManyMethods", "")
     verify_too_many_methods_mixed_nested_definition
     verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
     verify_supported_default_detector("UncommunicativeMethodName", "test/fixtures/uncommunicative_method_name.rb")
@@ -131,31 +129,6 @@ class DefaultArgumentApiContract
       verify_data_clump_preserves_supported_findings
     when "DataClump singleton parameter participation"
       verify_data_clump_singleton_methods
-    when "missing TooManyConstants finding"
-      verify_supported_default_detector("TooManyConstants", "test/fixtures/too_many_constants.rb")
-    when "TooManyConstants nested module isolation"
-      verify_too_many_constants_nested_modules
-    when "missing TooManyInstanceVariables finding"
-      verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variables.rb")
-    when "missing &&= instance variable writes"
-      verify_supported_default_detector("TooManyInstanceVariables", "test/fixtures/too_many_instance_variable_operator_writes.rb")
-    when "TooManyInstanceVariables nested class isolation"
-      verify_too_many_instance_variables_nested_classes
-    when "missing TooManyMethods finding"
-      verify_supported_default_detector("TooManyMethods", "test/fixtures/too_many_methods.rb")
-    when "TooManyMethods nested class isolation"
-      verify_too_many_methods_nested_classes
-    when "TooManyMethods partial scope loses incomplete status"
-      verify_too_many_methods_mixed_nested_definition
-    when "missing TooManyStatements finding"
-      verify_supported_default_detector("TooManyStatements", "test/fixtures/too_many_statements.rb")
-    when "TooManyStatements singleton method scope"
-      verify_unsupported_singleton_class_methods
-    when "TooManyStatements drops mixed-scope findings"
-      verify_too_many_statements_mixed_singleton_body
-    when "TooManyStatements drops findings before unsupported body"
-      verify_too_many_statements_partial_findings("test/fixtures/too_many_statements_mixed_unsupported_body.rb",
-        "unsupported method body", "Fleek dropped singleton-class finding beside unsupported method body")
     when "missing UncommunicativeMethodName finding"
       verify_supported_default_detector("UncommunicativeMethodName", "test/fixtures/uncommunicative_method_name.rb")
     when "UncommunicativeMethodName nested singleton context"
@@ -212,94 +185,6 @@ class DefaultArgumentApiContract
     actual = run_fleek(source, config, "reek:BooleanParameter")
     verify(reference[0] == 0 && AnalysisRunner.warning_lines(reference[1]).empty?, "pinned BooleanParameter disablement changed")
     verify(actual[0] == 1 && actual[2].include?("BooleanParameter is disabled by configuration"), "explicit BooleanParameter disablement was ignored")
-  end
-
-  # :reek:TooManyStatements
-  def self.verify_too_many_constants_nested_modules
-    source = "test/fixtures/too_many_constants_nested_modules.rb"
-    reference = run_reek(source, "TooManyConstants")
-    actual = run_fleek(source, "", "reek:TooManyConstants")
-    findings = AnalysisRunner.detector_warnings(reference, "TooManyConstants")
-    verify(reference[0] == 2 && findings.size == 1 && findings.first.include?("Fleet::Shipment has 6 constants"),
-      "pinned TooManyConstants nested module isolation changed")
-    AnalysisRunner.assert_status(actual, reference, "nested TooManyConstants default threshold")
-    AnalysisRunner.assert_detector_findings(actual, reference, "nested TooManyConstants default threshold")
-    unsupported = run_fleek("test/fixtures/too_many_constants_deep_modules.rb", "", "reek:TooManyConstants")
-    unsupported_output = unsupported[1]
-    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
-      unsupported_output.include?("Scope limits:") && unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
-      "unsupported nested TooManyConstants scope was not reported incomplete")
-
-    config = "test/fixtures/config_too_many_constants_nested_threshold.yml"
-    configured_reference = run_reek(source, "TooManyConstants", config)
-    configured_actual = run_fleek(source, config, "reek:TooManyConstants")
-    configured_output = configured_actual[1]
-    verify(configured_reference[0] == 0 && configured_actual[0] == 0 &&
-      AnalysisRunner.warning_lines(configured_reference[1]).empty? && AnalysisRunner.warning_lines(configured_output).empty? &&
-      configured_output.include?("Status: complete"),
-      "pinned configured TooManyConstants nested threshold changed")
-    AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "nested TooManyConstants configured threshold")
-  end
-
-  # :reek:TooManyStatements
-  def self.verify_too_many_instance_variables_nested_classes
-    source = "test/fixtures/too_many_instance_variables_nested_classes.rb"
-    reference = run_reek(source, "TooManyInstanceVariables")
-    actual = run_fleek(source, "", "reek:TooManyInstanceVariables")
-    findings = AnalysisRunner.detector_warnings(reference, "TooManyInstanceVariables")
-    verify(reference[0] == 2 && findings.size == 1 && findings.first.include?("Fleet::Shipment has at least 5 instance variables"),
-      "pinned TooManyInstanceVariables nested class isolation changed")
-    AnalysisRunner.assert_status(actual, reference, "nested TooManyInstanceVariables default threshold")
-    AnalysisRunner.assert_detector_findings(actual, reference, "nested TooManyInstanceVariables default threshold")
-    unsupported = run_fleek("test/fixtures/too_many_instance_variables_deep_classes.rb", "", "reek:TooManyInstanceVariables")
-    unsupported_output = unsupported[1]
-    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
-      unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
-      "unsupported nested TooManyInstanceVariables scope was not reported incomplete")
-
-    config = "test/fixtures/config_too_many_instance_variables_nested_threshold.yml"
-    configured_reference = run_reek(source, "TooManyInstanceVariables", config)
-    configured_actual = run_fleek(source, config, "reek:TooManyInstanceVariables")
-    configured_output = configured_actual[1]
-    verify(configured_reference[0] == 0 && configured_actual[0] == 0 &&
-      AnalysisRunner.warning_lines(configured_reference[1]).empty? && AnalysisRunner.warning_lines(configured_output).empty? &&
-      configured_output.include?("Status: complete"),
-      "pinned configured TooManyInstanceVariables nested threshold changed")
-    AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "nested TooManyInstanceVariables configured threshold")
-  end
-
-  # :reek:TooManyStatements
-  def self.verify_too_many_methods_nested_classes
-    source = "test/fixtures/too_many_methods_nested_classes.rb"
-    reference = run_reek(source, "TooManyMethods")
-    actual = run_fleek(source, "", "reek:TooManyMethods")
-    findings = AnalysisRunner.detector_warnings(reference, "TooManyMethods")
-    verify(reference[0] == 2 && findings.size == 1 && findings.first.include?("Fleet::Shipment has at least 16 methods"),
-      "pinned TooManyMethods nested class counts changed")
-    AnalysisRunner.assert_status(actual, reference, "nested TooManyMethods default threshold")
-    AnalysisRunner.assert_detector_findings(actual, reference, "nested TooManyMethods default threshold")
-    mixed_source = "test/fixtures/too_many_methods_nested_classes_mixed.rb"
-    mixed_reference = run_reek(mixed_source, "TooManyMethods")
-    mixed_actual = run_fleek(mixed_source, "", "reek:TooManyMethods")
-    AnalysisRunner.assert_detector_findings(mixed_actual, mixed_reference, "nested TooManyMethods mixed unsupported input")
-    AnalysisRunner.assert_unsupported(mixed_actual, "nested TooManyMethods mixed unsupported input")
-    verify(mixed_actual[1].include?("Status: incomplete") && AnalysisRunner.detector_warnings(mixed_actual, "TooManyMethods").any?,
-      "nested TooManyMethods dropped supported findings beside unsupported input")
-    unsupported = run_fleek("test/fixtures/too_many_methods_deep_classes.rb", "", "reek:TooManyMethods")
-    unsupported_output = unsupported[1]
-    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
-      unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
-      "unsupported nested TooManyMethods scope was not reported incomplete")
-
-    config = "test/fixtures/config_too_many_methods_nested_threshold.yml"
-    configured_reference = run_reek(source, "TooManyMethods", config)
-    configured_actual = run_fleek(source, config, "reek:TooManyMethods")
-    configured_output = configured_actual[1]
-    verify(configured_reference[0] == 0 && configured_actual[0] == 0 &&
-      AnalysisRunner.warning_lines(configured_reference[1]).empty? && AnalysisRunner.warning_lines(configured_output).empty? &&
-      configured_output.include?("Status: complete"),
-      "pinned configured TooManyMethods nested threshold changed")
-    AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "nested TooManyMethods configured threshold")
   end
 
   def self.verify_long_yield_list
@@ -652,14 +537,20 @@ class DefaultArgumentApiContract
     verify_findings_parity("test/fixtures/feature_envy_multiple_blocks.rb", "FeatureEnvy", "")
   end
 
-  # Nested-scope sources whose pinned Reek finding (present text, absent text) and exclusion config Fleek must match.
+  # Nested-scope sources: detector, source, pinned Reek finding, text Reek must not report, exclusion or threshold config, and a further source.
   PINNED_NESTED_CASES = [
     ["ControlParameter", "test/fixtures/control_parameter_nested_loop.rb", "[4]:ControlParameter: Parcel#choose is controlled by argument 'flag'",
-      "choose_with_data", "test/fixtures/config_control_parameter_nested_exclusion.yml"],
+      "choose_with_data", "test/fixtures/config_control_parameter_nested_exclusion.yml", "test/fixtures/control_parameter_multiple_blocks.rb"],
     ["NilCheck", "test/fixtures/nil_check_nested_block.rb", "[4, 5]:NilCheck: Parcel#retrieve performs a nil-check",
-      "value&.save", "test/fixtures/config_nil_check_nested_exclusion.yml"],
+      "value&.save", "test/fixtures/config_nil_check_nested_exclusion.yml", "test/fixtures/control_parameter_multiple_blocks.rb"],
     ["UnusedParameters", "test/fixtures/unused_parameters_block_shadowing.rb", "[14]:UnusedParameters: Parcel#unused has unused parameter 'value'",
-      "Parcel#shadowed", "test/fixtures/config_unused_parameters_block_exclusion.yml"]
+      "Parcel#shadowed", "test/fixtures/config_unused_parameters_block_exclusion.yml", "test/fixtures/control_parameter_multiple_blocks.rb"],
+    ["TooManyConstants", "test/fixtures/too_many_constants_nested_modules.rb", "[8]:TooManyConstants: Fleet::Shipment has 6 constants",
+      ": Fleet has", "test/fixtures/config_too_many_constants_nested_threshold.yml", "test/fixtures/too_many_constants_deep_modules.rb"],
+    ["TooManyInstanceVariables", "test/fixtures/too_many_instance_variables_nested_classes.rb", "[2]:TooManyInstanceVariables: Fleet::Shipment has at least 5 instance variables",
+      ": Fleet has", "test/fixtures/config_too_many_instance_variables_nested_threshold.yml", "test/fixtures/too_many_instance_variables_deep_classes.rb"],
+    ["TooManyMethods", "test/fixtures/too_many_methods_nested_classes.rb", "[18]:TooManyMethods: Fleet::Shipment has at least 16 methods",
+      ": Fleet has", "test/fixtures/config_too_many_methods_nested_threshold.yml", "test/fixtures/too_many_methods_deep_classes.rb"]
   ].freeze
 
   def self.verify_pinned_nested_cases
@@ -669,10 +560,10 @@ class DefaultArgumentApiContract
   # :reek:TooManyStatements
   def self.verify_pinned_case(item)
     # to_s: Spinel 2026.09.12 leaves untyped nested-array elements untyped.
-    detector, source, present, absent, config = item.map { |value| value.to_s }
+    detector, source, present, absent, config, further = item.map { |value| value.to_s }
     output = run_reek(source, detector)[1]
     verify(output.include?(present) && !output.include?(absent), "pinned #{detector} findings for #{source} changed")
-    [[source, ""], [source, config], ["test/fixtures/control_parameter_multiple_blocks.rb", ""]].each { |pair| verify_findings_parity(pair[0], detector, pair[1]) }
+    [[source, ""], [source, config], [further, ""]].each { |pair| verify_findings_parity(pair[0], detector, pair[1]) }
   end
 
   # Reek and Fleek give the same status and findings for the detector, and Fleek analyzes the source completely.
@@ -774,11 +665,8 @@ class DefaultArgumentApiContract
   # :reek:TooManyStatements
   def self.verify_unsupported_data_and_size_scopes
     source = "test/fixtures/class_variable_nested.rb"
-    detectors = %w[DataClump TooManyConstants TooManyInstanceVariables TooManyMethods]
-    detectors.each do |detector|
-      result = run_fleek(source, "", "reek:#{detector}")
-      AnalysisRunner.assert_unsupported(result, detector)
-    end
+    AnalysisRunner.assert_unsupported(run_fleek(source, "", "reek:DataClump"), "DataClump")
+    %w[TooManyConstants TooManyInstanceVariables TooManyMethods].each { |detector| verify_findings_parity(source, detector, "") }
     statements = run_fleek(source, "", "reek:TooManyStatements")
     AnalysisRunner.assert_detector_findings(statements, run_reek(source, "TooManyStatements"), "nested TooManyStatements")
   end
@@ -996,7 +884,7 @@ class DefaultArgumentApiContract
     actual = run_fleek(source, "", "reek:TooManyMethods")
     verify(AnalysisRunner.detector_warnings(reference, "TooManyMethods").any?, "pinned Reek nested-method fixture lost supported finding")
     verify(AnalysisRunner.detector_warnings(actual, "TooManyMethods").any?, "Fleek dropped TooManyMethods finding beside nested definition")
-    AnalysisRunner.assert_unsupported(actual, "TooManyMethods nested method")
+    verify_findings_parity(source, "TooManyMethods", "")
   end
 
   def self.verify_data_clump_preserves_supported_findings
