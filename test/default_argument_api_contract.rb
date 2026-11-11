@@ -391,8 +391,14 @@ class DefaultArgumentApiContract
     verify_utility_public_method_configuration(source, "test/fixtures/config_utility_public_methods_false.yml", "false", [
       "[2]:UtilityFunction: Parcel#public_normalize doesn't depend on instance state",
       "[8]:UtilityFunction: Parcel#private_normalize doesn't depend on instance state"])
-    AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/utility_function_top_level.rb",
-      "test/fixtures/config_utility_public_methods.yml", "reek:UtilityFunction"), "top-level public_methods_only visibility")
+    verify_utility_top_level("test/fixtures/utility_function_top_level.rb", "test/fixtures/config_utility_public_methods.yml")
+  end
+
+  def self.verify_utility_top_level(source, config)
+    reference = run_reek(source, "UtilityFunction", config)
+    actual = run_fleek(source, config, "reek:UtilityFunction")
+    AnalysisRunner.assert_status(actual, reference, "top-level public_methods_only visibility")
+    AnalysisRunner.assert_detector_findings(actual, reference, "UtilityFunction")
   end
 
   # :reek:TooManyStatements
@@ -752,8 +758,12 @@ class DefaultArgumentApiContract
     AnalysisRunner.assert_status(actual, reference, "FeatureEnvy block receiver")
     AnalysisRunner.assert_detector_findings(actual, reference, "FeatureEnvy")
     verify_configured_detector("FeatureEnvy", source, "test/fixtures/config_feature_envy_block_exclude.yml")
-    AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/feature_envy_multiple_blocks.rb", "", "reek:FeatureEnvy"),
-      "multiple FeatureEnvy blocks")
+    blocks = "test/fixtures/feature_envy_multiple_blocks.rb"
+    blocks_reference = run_reek(blocks, "FeatureEnvy")
+    blocks_actual = run_fleek(blocks, "", "reek:FeatureEnvy")
+    verify(AnalysisRunner.detector_warnings(blocks_reference, "FeatureEnvy").empty?, "pinned multiple-block FeatureEnvy changed")
+    verify(blocks_actual[0] == 0 && blocks_actual[1].include?("Status: complete"), "multiple FeatureEnvy blocks were not complete and clean")
+    AnalysisRunner.assert_detector_findings(blocks_actual, blocks_reference, "FeatureEnvy")
   end
 
   # :reek:TooManyStatements

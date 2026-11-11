@@ -11,6 +11,7 @@
 # :reek:NilCheck
 # :reek:RepeatedConditional
 # :reek:TooManyInstanceVariables
+# :reek:TooManyMethods
 # :reek:TooManyStatements
 # :reek:UtilityFunction
 module ReekEngine
@@ -309,30 +310,152 @@ module ReekEngine
     end
   end
 
-  # Reek::Context::CodeContext and its subclasses, reduced to what ported detectors use.
-  class Context
-    attr_reader :exp, :children, :kind
-    attr_accessor :parent, :statements
+  # Reek::Context::VisibilityTracker over string visibilities and symbol-atom names.
+  class VisibilityTracker
+    MODIFIERS = %w[private public protected module_function].freeze
+    SINGLETON_MODIFIERS = { "public_class_method" => "public", "private_class_method" => "private" }.freeze
+    attr_reader :tracked
 
-    def initialize(kind, exp)
+    def initialize
+      @tracked = "public"
+    end
+
+    def track(children, visibility, names)
+      return unless MODIFIERS.include?(visibility)
+      if names.empty?
+        @tracked = visibility
+      else
+        children.each { |child| child.visibility = visibility if names.include?(child.name) }
+      end
+    end
+
+    def track_singleton(children, visibility, names)
+      return if names.empty?
+      track(children, SINGLETON_MODIFIERS.fetch(visibility, ""), names)
+    end
+  end
+
+  # Reek::Context::CodeContext and its subclasses, reduced to what ported detectors use.
+  # Kinds: root, module (class, module, module-defining casgn), refinement, ghost (sclass),
+  # method, singleton_method, send, attribute and singleton_attribute.
+  class Context
+    MODULE_KINDS = %w[module refinement ghost].freeze
+    attr_reader :exp, :children, :kind, :parent_exp, :refs
+    attr_accessor :parent, :statements, :visibility
+
+    def initialize(kind, exp, parent_exp)
       @kind = kind
       @exp = exp
+      @parent_exp = parent_exp
       @children = []
       @parent = nil
       @statements = 0
+      @visibility = "public"
+      @refs = {}
+      @tracker = VisibilityTracker.new
     end
 
     def method_context?
       @kind == "method" || @kind == "singleton_method"
     end
 
-    def register_with_parent(parent)
-      parent.children << self
-      @parent = parent
-    end
-
     def module_context?
       @kind == "module"
+    end
+
+    # ModuleContext and its RefinementContext and GhostContext subclasses.
+    def module_like?
+      MODULE_KINDS.include?(@kind)
+    end
+
+    def singleton_method?
+      @kind == "singleton_method"
+    end
+
+    def instance_method?
+      @kind == "method" || @kind == "attribute"
+    end
+
+    # #method_context_class: ghosts define singleton methods; methods nest their own kind.
+    def method_kind
+      return "singleton_method" if @kind == "ghost"
+      method_context? ? @kind : "method"
+    end
+
+    def attribute_kind
+      @kind == "ghost" ? "singleton_attribute" : "attribute"
+    end
+
+    # The symbol atom naming a method or attribute, compared with visibility modifier arguments.
+    def name
+      first = @exp.child(@exp.type == "defs" ? 1 : 0)
+      first.nil? || !first.atom? ? "-" : first.value
+    end
+
+    # GhostContext registers only its children, with its parent.
+    def register_with_parent(parent)
+      @parent = @kind == "ghost" ? parent : parent.append_child(self)
+    end
+
+    # #append_child_context: returns the child's parent after applying tracked visibility.
+    def append_child(child)
+      real = @kind == "ghost" ? @parent.append_child(child) : self
+      child.apply_visibility(@tracker.tracked) if module_like?
+      @children << child
+      real
+    end
+
+    def apply_visibility(current)
+      case @kind
+      when "method", "attribute", "singleton_attribute" then @visibility = current
+      when "singleton_method" then @visibility = current if @exp.type == "def"
+      end
+    end
+
+    # ModuleContext#track_visibility and the GhostContext override.
+    def track_visibility(visibility, names)
+      if @kind == "ghost"
+        @tracker.track(@children, visibility, names)
+      else
+        @tracker.track(@children.select { |child| child.instance_method? }, visibility, names)
+        @tracker.track_singleton(@children.select { |child| child.singleton_method? }, visibility, names)
+      end
+    end
+
+    # CodeContext#record_call_to: implicit or explicit self, or a local variable that is not sent new.
+    def record_call_to(exp)
+      receiver = exp.child(0)
+      type = receiver.atom? ? "self" : receiver.type
+      case type
+      when "lvar", "lvasgn" then record(receiver.child(0).symbol_name, exp.line) unless exp.child(1).value == ":new"
+      when "self" then record("self", exp.line)
+      end
+    end
+
+    def record_use_of_self
+      @kind == "ghost" ? @parent.record_use_of_self : record("self", 0)
+    end
+
+    def record(name, line)
+      lines = @refs[name]
+      lines = @refs[name] = [] if lines.nil?
+      lines << line
+    end
+
+    # GhostContext#statement_counter belongs to its parent.
+    def statement_counter
+      @kind == "ghost" ? @parent.statement_counter : self
+    end
+
+    # #full_comment: methods fall back to their parent expression; attributes use their send.
+    def full_comment
+      return comment_of(@parent_exp) if @kind.end_with?("attribute")
+      own = comment_of(@exp)
+      own.empty? && method_context? ? comment_of(@parent_exp) : own
+    end
+
+    def comment_of(exp)
+      exp.nil? ? "" : exp.comments.map { |found| found.text }.join("\n")
     end
 
     # Pre-order traversal like CodeContext#each.
@@ -348,24 +471,64 @@ module ReekEngine
 
     def initialize(tree)
       @source = tree.source
-      @root = Context.new("root", tree.root)
+      @root = Context.new("root", tree.root, nil)
       @current = @root
-      build(tree.root) if tree.root
+      build(tree.root, nil) if tree.root
     end
 
     private
 
-    def build(exp)
+    def build(exp, parent_exp)
       case exp.type
-      when "module", "class" then inside("module", exp)
-      when "sclass" then inside("ghost", exp)
-      when "casgn" then defines_module?(exp) ? inside("module", exp) : process(exp)
-      when "def" then inside("method", exp) { count(exp.child(2)) }
-      when "defs" then inside("singleton_method", exp) { count(exp.child(3)) }
+      when "module", "class" then inside(Context.new("module", exp, nil), exp)
+      when "sclass" then inside(Context.new("ghost", exp, nil), exp)
+      when "casgn" then defines_module?(exp) ? inside(Context.new("module", exp, nil), exp) : process(exp)
+      when "def" then inside(Context.new(@current.method_kind, exp, parent_exp), exp) { count(exp.child(2)) }
+      when "defs" then inside(Context.new("singleton_method", exp, parent_exp), exp) { count(exp.child(3)) }
+      when "send" then process_send(exp)
+      when "op_asgn"
+        @current.record_call_to(exp)
+        process(exp)
+      when "ivar", "ivasgn", "self", "super", "zsuper"
+        @current.record_use_of_self
+        process(exp)
       else
         count_statements(exp)
-        process(exp)
+        refinement?(exp) ? inside(Context.new("refinement", exp, nil), exp) : process(exp)
       end
+    end
+
+    # A refine block opens a RefinementContext.
+    def refinement?(exp)
+      return false unless exp.type == "block"
+      call = exp.child(0)
+      (call.type == "send" || call.type == "csend") && call.child(1).value == ":refine"
+    end
+
+    # #handle_send_for_modules and #handle_send_for_methods, after processing the arguments.
+    def process_send(exp)
+      process(exp)
+      args = exp.children[2, exp.children.length - 2]
+      if @current.module_like?
+        @current.track_visibility(exp.child(1).symbol_name, args.map { |arg| symbol_value(arg.child(0)) })
+        register_attributes(exp, args)
+      elsif @current.method_context?
+        Context.new("send", exp, nil).register_with_parent(@current)
+        @current.record_call_to(exp)
+      end
+    end
+
+    # A visibility argument's first child when it is a symbol (sym and def arguments).
+    def symbol_value(first)
+      first.nil? || !first.atom? || !first.value.start_with?(":") ? "" : first.value
+    end
+
+    # SendNode#attribute_writer?: attr_writer, attr_accessor, or attr with a trailing true.
+    def register_attributes(exp, args)
+      name = exp.child(1).value
+      writable = !args.empty? && args.last.type == "true" && name == ":attr"
+      return unless name == ":attr_writer" || name == ":attr_accessor" || writable
+      args.each { |arg| Context.new(@current.attribute_kind, arg, exp).register_with_parent(@current) }
     end
 
     # StatementCounter updates made by ContextBuilder#process_* before descending.
@@ -394,15 +557,14 @@ module ReekEngine
     end
 
     def count_list(amount)
-      @current.statements += amount
+      @current.statement_counter.statements += amount
     end
 
     def process(exp)
-      exp.children.each { |child| build(child) unless child.atom? }
+      exp.children.each { |child| build(child, exp) unless child.atom? }
     end
 
-    def inside(kind, exp)
-      context = Context.new(kind, exp)
+    def inside(context, exp)
       context.register_with_parent(@current)
       original = @current
       @current = context
@@ -410,6 +572,7 @@ module ReekEngine
       process(exp)
       @current = original
     end
+
 
     # CasgnNode#defines_module?: Class.new / Struct.new / Data.define, with or without a block.
     def defines_module?(exp)
@@ -433,6 +596,7 @@ module ReekEngine
 
     def full_name(context)
       return "" if context.kind == "root"
+      return refined_name(context.exp) if context.kind == "refinement"
       parent = context.parent
       outer = parent.nil? ? "" : full_name(parent)
       exp = context.exp
@@ -447,6 +611,12 @@ module ReekEngine
     def joined(outer, name)
       return outer if name.empty?
       outer.empty? ? name : "#{outer}::#{name}"
+    end
+
+    # RefinementContext#full_name: the refined constant alone.
+    def refined_name(exp)
+      refined = exp.child(0).child(2)
+      refined.nil? ? "" : refined.format_to_ruby(@source)
     end
 
     # SelfNode#name and ConstNode#name for singleton method receivers.
@@ -490,9 +660,7 @@ module ReekEngine
   def self.suppressed?(context, detector)
     current = context
     until current.nil?
-      exp = current.exp
-      comment = exp.nil? ? "" : exp.comments.map { |found| found.text }.join("\n")
-      directive = comment.match(/:reek:#{detector}\b(:?\s*)(\{.*?\})?/)
+      directive = current.full_comment.match(/:reek:#{detector}\b(:?\s*)(\{.*?\})?/)
       return true if directive && (directive[2].nil? || directive[2].include?("enabled: false"))
       current = current.parent
     end
@@ -504,7 +672,61 @@ module ReekEngine
     maximum = settings[0]
     return too_many_statements(root, source, maximum) if detector == "TooManyStatements"
     return nested_iterators(root, source, maximum, settings[2].to_s.split("\n")) if detector == "NestedIterators"
+    return feature_envy(root, source) if detector == "FeatureEnvy"
+    return utility_function(root, source, settings.length > 3 && settings[3] == true) if detector == "UtilityFunction"
     irresponsible_module(root, source)
+  end
+
+  # Reek::SmellDetectors::FeatureEnvy: the most referenced local receivers of instance methods using self.
+  def self.feature_envy(root, source)
+    names = Names.new(source)
+    records = []
+    root.each do |context|
+      next unless context.kind == "method" && context.visibility != "module_function"
+      next if suppressed?(context, "FeatureEnvy") || !depends_on_instance?(context.exp)
+      envious_receivers(context.refs).each do |name|
+        records << "#{context.refs[name].sort.join(", ")}\t#{names.full_name(context)}\t#{name}\n"
+      end
+    end
+    records.join
+  end
+
+  # ObjectRefs#most_popular unless ObjectRefs#self_is_max?.
+  def self.envious_receivers(refs)
+    return [] if refs.empty?
+    maximum = refs.values.map { |lines| lines.length }.max
+    popular = refs.keys.select { |name| refs[name].length == maximum }
+    popular.include?("self") ? [] : popular
+  end
+
+  # Reek::SmellDetectors::UtilityFunction over instance def contexts.
+  def self.utility_function(root, source, public_only)
+    names = Names.new(source)
+    records = []
+    root.each do |context|
+      next unless context.kind == "method" && context.visibility != "module_function"
+      exp = context.exp
+      next if suppressed?(context, "UtilityFunction") || depends_on_instance?(exp)
+      next if each_node(exp, ["send"], %w[class module]).empty?
+      next if context.visibility != "public" && (directive_value(context, "UtilityFunction", "public_methods_only") == "true" || public_only)
+      records << "#{exp.line}\t#{names.full_name(context)}\t\n"
+    end
+    records.join
+  end
+
+  SELF_TYPES = %w[self super zsuper ivar ivasgn send].freeze
+
+  # MethodNodeBase#depends_on_instance?: self, super or instance variables, or a send without a receiver.
+  def self.depends_on_instance?(exp)
+    each_node(exp, SELF_TYPES, []).any? { |node| node.type != "send" || node.child(0).atom? }
+  end
+
+  # Reek::AST::Node#each_node: matching nodes in pre-order, not descending into ignored types.
+  def self.each_node(exp, types, ignoring, found = [])
+    found << exp if types.include?(exp.type)
+    return found if ignoring.include?(exp.type)
+    exp.children.each { |child| each_node(child, types, ignoring, found) unless child.atom? }
+    found
   end
 
   # Reek::SmellDetectors::NestedIterators: one warning per nesting depth beyond the limit.
@@ -567,17 +789,21 @@ module ReekEngine
     records.join
   end
 
-  # An integer option from the nearest reek directive for the detector, or -1.
-  def self.directive_integer(context, detector, key)
+  # The value of an option from the nearest reek directive for the detector, or "".
+  def self.directive_value(context, detector, key)
     current = context
     until current.nil?
-      exp = current.exp
-      comment = exp.nil? ? "" : exp.comments.map { |found| found.text }.join("\n")
-      option = comment.match(/:reek:#{detector}\b:?\s*\{[^}]*\b#{key}:\s*(\d+)/)
-      return option[1].to_i if option
+      option = current.full_comment.match(/:reek:#{detector}\b:?\s*\{[^}]*\b#{key}:\s*(\w+)/)
+      return option[1] if option
       current = current.parent
     end
-    -1
+    ""
+  end
+
+  # An integer option from the nearest reek directive for the detector, or -1.
+  def self.directive_integer(context, detector, key)
+    value = directive_value(context, detector, key)
+    value.match?(/\A\d+\z/) ? value.to_i : -1
   end
 
   CONSTANT_TYPES = %w[casgn class module].freeze
