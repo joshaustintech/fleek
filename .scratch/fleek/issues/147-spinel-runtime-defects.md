@@ -17,3 +17,7 @@ During ticket 144's 487-file sweep, a first `File.read` of a Fleek output return
 
 - [ ] Minimal Spinel reproductions for both behaviors, or evidence that they come from Fleek's harness.
 - [ ] A decision on whether Fleek's runtime and contracts must avoid redirected spawns and regexp splits, recorded in an ADR, with any affected code updated.
+
+## Comments
+
+- 2026-11-11: `bin/ticket_check.rb` began failing deterministically on `"23: Flay analysis-control parity.".split(/[^0-9]/, 2)[0]`. It reported ticket 24's blocker "23" as invalid while the input was unchanged. The checker now uses a plain `tr`/`split(";")` and a leading-digit scan instead of regexp splits, which removes the last known regexp `split` from `bin/ticket_check.rb`.

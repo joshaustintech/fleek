@@ -95,7 +95,8 @@ class TicketDocuments
     value = field(content, "Blocked by")
     return [] if value.nil? || no_blockers?(value) || value.downcase.start_with?("every other unfinished ticket")
 
-    value.split(/[;,]/).map { |entry| blocker_reference(path, entry.strip) }.compact
+    # Plain string splits: pinned Spinel regexp splits are unreliable (ticket 147).
+    value.tr(",", ";").split(";").map { |entry| blocker_reference(path, entry.strip) }.compact
   end
 
   def no_blockers?(value)
@@ -111,12 +112,18 @@ class TicketDocuments
       text = text.sub("Default-check issue ", "")
     end
     text = text.sub("Ticket ", "").sub("issue ", "")
-    token = text.split(/[^0-9]/, 2)[0]
+    token = leading_digits(text)
     unless digits?(token)
       error(path, "invalid blocker reference #{entry}")
       return nil
     end
     [feature, token.to_i]
+  end
+
+  def leading_digits(text)
+    length = 0
+    length += 1 while length < text.length && "0123456789".include?(text[length])
+    text[0, length]
   end
 
   def check_blockers(path)
