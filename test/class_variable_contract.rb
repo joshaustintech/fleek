@@ -103,7 +103,8 @@ AnalysisProcess.assert_incomplete_namespace("test/fixtures/class_variable_namesp
   ["[4]:ClassVariable: ApplicationCable::Connection declares the class variable '@@connection_count'"])
 
 unselected = AnalysisProcess.unselected("test/fixtures/class_variable.rb")
-raise "omitted check selection was accepted" unless unselected[0] == 1 && unselected[2].include?("unsupported")
+raise "default check selection differed from pinned analyzers" unless unselected[0] == 2 && !unselected[2].include?("unsupported")
+raise "default check selection lost the ClassVariable finding" unless unselected[1].include?("name=\"@@count\"")
 
 File.binwrite("/tmp/fleek-class-variable-nul.rb", "class Counter\n\0@@count = 0\nend\n")
 nul = AnalysisProcess.fleek("/tmp/fleek-class-variable-nul.rb")

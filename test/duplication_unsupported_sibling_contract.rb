@@ -13,8 +13,8 @@ flay_process = Process.spawn(ENV["BUNDLE"] || "bundle", "exec", "flay", unsuppor
   out: flay_output, err: flay_error)
 reference = AnalysisRunner.observe(flay_process, flay_output, flay_error)
 group = "node=\"class\" kind=\"similar\" locations=\"#{unsupported_sibling_path}:2,#{unsupported_sibling_path}:11\" mass=50 score=50"
-actual_fields = [group, "Total duplication score: 50", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+actual_fields = [group, "Total duplication score: 50", "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"]
 reference_fields = ["Similar code found in :class (mass = 50)", "#{unsupported_sibling_path}:2", "#{unsupported_sibling_path}:11", "Total score (lower is better) = 50"]
-AnalysisRunner.assert_report_contains(actual, [1, actual_fields, "unsupported class sibling hid the verified Flay group"])
+AnalysisRunner.assert_report_contains(actual, [2, actual_fields, "class sibling hid the verified Flay group"])
 AnalysisRunner.assert_report_contains(reference, [0, reference_fields, "unsupported sibling Flay reference changed"])
 puts "Unsupported sibling duplication contract: pass"

@@ -27,9 +27,9 @@ Select every check explicitly. Fleek never treats an omitted or unsupported chec
 
 Exit status is 0 for complete clean analysis, 2 for complete analysis with findings, and 1 for invalid or incomplete analysis. Findings can remain visible when coverage is partial, but partial analysis exits 1. Reports separate duplication groups and smell findings, list selected checks and source coverage, and put diagnostics on stderr.
 
-Flay supports bounded syntax: selected top-level parameterless methods and simple class or module methods with required positional parameters, plus documented bounded expressions and control flow. Unsupported candidates make coverage partial. Reek support is limited to ClassVariable with the documented configuration subset. Unsupported checks, options, settings, formats, and syntax are reported explicitly. See [the supported language and parity boundaries](docs/research/rails-project-parity.md) and [ADRs](docs/adr/).
+Flay analysis translates whole files into the same sexps Flay 2.14.4 builds with its default parser (Prism 1.9.0 `Translation::RubyParser`) and reproduces Flay grouping, pruning, liberal and fuzzy modes, and scoring. A source that cannot be translated is reported as incomplete. Reek support is limited to ClassVariable with the documented configuration subset. Unsupported checks, options, settings, formats, and syntax are reported explicitly. See [the supported language and parity boundaries](docs/research/rails-project-parity.md) and [ADRs](docs/adr/).
 
-The pinned 25-file Rails corpus demonstrates exact Flay group, mass, score, and locations plus clean Reek ClassVariable findings. Fleek reports all 25 Flay sources as partial because class-level declarations and other syntax remain unsupported; it reports 0/25 fully analyzed, warns about omitted candidates, and exits 1. This is useful partial coverage, not full Rails Flay parity.
+The pinned 25-file Rails corpus analyzes completely (25/25) with the exact Flay group, mass, score, and locations, plus clean Reek ClassVariable findings.
 
 ## Build and verify
 

@@ -38,6 +38,7 @@
 - Ticket 126 supports the pinned `LongParameterList.overrides.initialize.max_params` threshold with context-specific precedence and keeps unsupported override shapes as configuration errors. See [ADR 0242](../../docs/adr/0242-support-initializer-parameter-threshold-override.md).
 - Ticket 127 treats a null class body as an empty supported scope in `UnusedPrivateMethod`, preventing the framework-subclass crash while keeping unsupported non-null shapes incomplete. See [ADR 0243](../../docs/adr/0243-handle-empty-class-in-unused-private-method.md).
 - Ticket 132 supports direct constant and constant-path `include` declarations for Rails Flay analysis; the pinned `ApplicationController` is complete alone, while the 25-file gate stays explicitly incomplete. See [issue 132](issues/132-rails-flay-include-declarations.md) and [ADR 0246](../../docs/adr/0246-bound-rails-flay-include-declarations.md).
+- Ticket 142 replaces the candidate Flay engine with a port of Flay 2.14.4's default Prism `Translation::RubyParser` translation plus Flay's own grouping, pruning, fuzzy and scoring. All 299 duplication fixtures and the 25-file Rails manifest match Flay exactly, which resolves ticket 97. See [ADR 0256](../../docs/adr/0256-generic-flay-sexp-engine.md).
 - Ticket 133 models empty class method bodies in class candidates without method-level groups; paired class-group mass and locations match Flay. See [issue 133](issues/133-rails-flay-empty-method-bodies.md) and [ADR 0247](../../docs/adr/0247-bound-rails-flay-empty-method-bodies.md).
 - Ticket 134 accepts only the pinned Rails `primary_abstract_class` no-argument declaration; other macros remain partial. See [issue 134](issues/134-rails-flay-primary-abstract-class.md) and [ADR 0248](../../docs/adr/0248-bound-rails-flay-primary-abstract-class.md).
 - Ticket 135 is the next issue 97 child: accept only the pinned `ApplicationMailer`'s direct `default from: <string>` and `layout <string>` calls. See [issue 135](issues/135-rails-flay-mailer-declarations.md) and [ADR 0249](../../docs/adr/0249-bound-rails-flay-mailer-declarations.md).
@@ -452,7 +453,7 @@ Every feature child below additionally depends on harness handoff 115; original 
 - [94: Verify default, subset and combined outcomes](issues/94-combined-selection-and-outcomes.md) — parent 24; blocked by 59; 61; 90; 91; 92; 93; 115.
 - [95: Separate extension evidence and prove non-execution](issues/95-extension-and-nonexecution-evidence.md) — parent 24; blocked by 52; 115.
 - [96: Record exact gaps on the pinned Rails manifest](issues/96-rails-residual-gap-census.md) — parent 24; blocked by 115.
-- [97: Require complete Flay analysis of pinned Rails sources](issues/97-rails-flay-completion-gate.md) — parent 24; blocked by 96; 22; 23; 115.
+- [97: Require complete Flay analysis of pinned Rails sources](issues/97-rails-flay-completion-gate.md) — resolved; parent 24; blocked by 96; 22; 23; 115.
 - [98: Verify Rails Reek object scopes results](issues/98-rails-reek-object-scopes.md) — parent 24; blocked by 96; 62; 63; 64; 65; 66; 67; 115.
 - [99: Verify Rails Reek method api results](issues/99-rails-reek-method-api.md) — parent 24; blocked by 96; 60; 61; 68; 69; 70; 71; 72; 73; 115.
 - [100: Verify Rails Reek calls and flow results](issues/100-rails-reek-calls-and-flow.md) — parent 24; blocked by 96; 74; 75; 76; 77; 78; 79; 80; 115.
@@ -478,7 +479,8 @@ Every feature child below additionally depends on harness handoff 115; original 
 - [139: Analyze the Rails Micropost default scope for Flay](issues/139-rails-flay-micropost-default-scope.md) — resolved; parent 97; blocked by 115 (resolved).
 - [140: Analyze the Rails Micropost attachment declaration for Flay](issues/140-rails-flay-micropost-attachment.md) — resolved; parent 97; blocked by 115 and 139 (resolved).
 - [141: Analyze the Rails Micropost presence and length validations for Flay](issues/141-rails-flay-micropost-basic-validations.md) — resolved; parent 97; blocked by 115 and 140 (resolved).
-- [142: Generic Flay sexp engine for core syntax](issues/142-generic-flay-core-engine.md) — parent 97; blocked by 141. Follows ADR 0256.
+- [142: Generic Flay sexp engine for core syntax](issues/142-generic-flay-core-engine.md) — resolved; parent 97. Replaces the candidate engine; Rails Flay 25/25 complete. See ADR 0256.
+- [143: Analyze remaining Flay sources when one source fails to parse](issues/143-flay-skip-unparseable-sources.md) — parent 24; blocked by 142 (resolved).
 - [128: Preserve per-file results after Flay timeout](issues/128-flay-per-file-timeout-continuation.md) — resolved; parent 23; blocked by 120; 115.
 - [129: Avoid timeout supervisor overhead on untimed Flay runs](issues/129-flay-timeout-supervisor-overhead.md) — parent 23; resolved.
 - [121: Inventory and support Flay presentation controls](issues/121-flay-presentation-controls.md) — resolved; parent 23; blocked by 58 (resolved); 115 (resolved).

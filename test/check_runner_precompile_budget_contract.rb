@@ -7,10 +7,10 @@
 # :reek:TooManyStatements
 
 class CheckRunnerPrecompileBudgetContract
-  LABELS = ["Flay method call splat candidates", "Flay generated descriptor support", "Flay method array expression",
-    "Flay method while loop candidates", "Flay method for loop candidates", "Flay required keyword parameter candidates",
-    "Flay next expression candidates", "Flay regular expression candidates", "Flay generated descriptor mass",
-    "Flay class method candidate collection"].join(",").freeze
+  LABELS = ["Flay generic call name identity", "Flay generic class variable scope", "Flay generic fuzzy marking",
+    "Flay generic legacy syntax", "Flay group ordering", "Flay keyword-rest parameter candidates",
+    "Flay optional positional constant default identity", "Flay dynamic duplication report buffer",
+    "Flay fuzzy explicit distance parsing", "Flay only missing repeated value"].join(",").freeze
 
   def self.run
     fake_compiler = compile_fake_compiler

@@ -97,7 +97,7 @@ combined = CombinedProcess.run(inputs)
 CombinedProcess.verify(combined[1].include?("check=\"reek:ClassVariable\""), "combined findings were lost")
 CombinedProcess.verify(combined[1].include?("Duplication section:") && combined[1].include?("Smell section:"), "combined sections missing")
 CombinedProcess.verify(combined[1].include?("Checks selected: flay:StructuralDuplication,reek:ClassVariable"), "combined checks were not selected")
-CombinedProcess.verify(combined[0] == 1 && combined[1].end_with?("Overall status: incomplete\n"), "combined unsupported input implied success")
+CombinedProcess.verify(combined[0] == 2 && combined[1].end_with?("Overall status: findings\n") && combined[1].include?("node=\"defn\" kind=\"identical\" locations=\"test/fixtures/duplication_file_a.rb:1,test/fixtures/duplication_file_b.rb:1\" mass=32 score=64"), "combined generic analysis differed from Flay")
 CombinedProcess.verify(!combined[1].include?("Combined score:"), "combined score was invented")
 
 opposing = CombinedProcess.run_with_opposing_exclusions(inputs)
@@ -116,6 +116,10 @@ CombinedProcess.verify(!reek_reference[1].include?("duplication_file_a.rb") && !
 clean = CombinedProcess.run_clean
 CombinedProcess.verify(clean[0] == 0, "combined clean exit status differed")
 CombinedProcess.verify(clean[1].end_with?("Overall status: complete\n"), "combined clean report status differed")
+
+failed = CombinedProcess.run(CombinedProcess::Input.new("flay:StructuralDuplication,reek:ClassVariable", "test/fixtures/duplication_file_a.rb", "test/fixtures/bad_syntax.rb", "test/fixtures/class_variable.rb"))
+CombinedProcess.verify(failed[0] == 1, "combined failed source implied success")
+CombinedProcess.verify(failed[1].include?("check=\"reek:ClassVariable\""), "combined failed source hid Reek findings")
 
 unsupported = CombinedProcess.run(CombinedProcess::Input.new("flay:StructuralDuplication,unknown:Check", "test/fixtures/duplication_file_a.rb", "test/fixtures/duplication_file_b.rb", "test/fixtures/class_variable.rb"))
 CombinedProcess.verify(unsupported[0] == 1, "unsupported combined check exit status differed")

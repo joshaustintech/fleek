@@ -117,54 +117,9 @@ class FlayGeneratedDescriptorContract
     run_id = Process.pid
     evidence_path = "#{root}/generated-descriptor-#{run_id}.report"
     File.write(evidence_path, NODE_CASES.map(&:name).join("\n") + "\n")
-    verify_inventory
     verify_generated_candidates(root, evidence_path)
   ensure
     File.delete(evidence_path) if evidence_path && !ENV.key?("FLEEK_TEMP_ROOT") && File.file?(evidence_path)
-  end
-
-  def self.verify_inventory
-    source = File.read("bin/fleek.rb")
-    node_table = table_source(source, "fleek_duplication_node_rules", "#undef FLEEK_NAMED_NODE_RULE")
-    parameter_table = table_source(source, "fleek_duplication_parameter_rules", "static const fleek_duplication_parameter_rule_t *")
-    node_types = node_table.scan(/\[(PM_[A-Z_]+_NODE)\]\s*=\s*\{[^}]*\btrue\b/m).flatten
-    node_types.concat(node_table.scan(/FLEEK_(?:NAMED|OPERATOR)_NODE_RULE\((PM_[A-Z_]+_NODE),/).flatten)
-    parameter_types = parameter_table.scan(/\[(PM_[A-Z_]+_NODE)\]\s*=\s*\{\s*\.supported\s*=\s*true/).flatten
-    assert_inventory("node", node_types.uniq, case_types(NODE_CASES, true))
-    assert_inventory("parameter", parameter_types.uniq, case_types(NODE_CASES, false))
-    assert_node_identity(node_table, "PM_RANGE_NODE", "RANGE")
-    assert_node_identity(node_table, "PM_REGULAR_EXPRESSION_NODE", "REGULAR_EXPRESSION")
-    assert_node_identity(node_table, "PM_INTERPOLATED_REGULAR_EXPRESSION_NODE", "INTERPOLATED_REGULAR_EXPRESSION")
-  end
-
-  def self.assert_node_identity(table, node, identity)
-    entry = table.match(/\[#{node}\]\s*=\s*\{([^}]*)\}/m)
-    unless entry && entry[1].include?("FLEEK_DUPLICATION_IDENTITY_#{identity}")
-      raise "generated Flay node descriptor omits #{identity} identity for #{node}"
-    end
-  end
-
-  def self.table_source(source, marker, ending)
-    start = source.index(marker)
-    finish = source.index(ending, start)
-    raise "missing Flay descriptor table #{marker}" unless start && finish
-    source[start...finish]
-  end
-
-  def self.case_types(cases, node_types)
-    types = []
-    cases.each do |item|
-      types.concat(node_types ? item.node_types : item.parameter_types)
-    end
-    types.uniq
-  end
-
-  def self.assert_inventory(label, implementation, catalog)
-    missing = implementation - catalog
-    unexpected = catalog - implementation
-    unless missing.empty? && unexpected.empty?
-      raise "generated Flay #{label} descriptor inventory differs: missing=#{missing.join(',')} unexpected=#{unexpected.join(',')}"
-    end
   end
 
   def self.verify_generated_candidates(root, evidence_path)
@@ -239,8 +194,8 @@ class FlayGeneratedDescriptorContract
     File.write(class_boundary, "class ComposedMethods\n  def transform(value = [])\n    process(value)\n  end\n\n  def transform(value = [])\n    process(value)\n  end\nend\n")
     FlayMethodCandidateContract.verify_no_group(clean, "generated-descriptor-#{run.id}-clean")
     FlayMethodCandidateContract.verify_no_group(class_clean, "generated-descriptor-#{run.id}-class-clean")
-    FlayMethodCandidateContract.verify_unsupported(boundary, "generated-descriptor-#{run.id}-boundary", 24)
-    FlayMethodCandidateContract.verify_unsupported(class_boundary, "generated-descriptor-#{run.id}-class-boundary", 24, "defn", [2, 6])
+    FlayMethodCandidateContract.verify_supported(boundary, "generated-descriptor-#{run.id}-boundary", 24)
+    FlayMethodCandidateContract.verify_supported(class_boundary, "generated-descriptor-#{run.id}-class-boundary", 24, "defn", [2, 6])
   end
 
   def self.verify_multiple_block_groups(run)

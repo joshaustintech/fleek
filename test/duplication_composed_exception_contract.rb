@@ -34,13 +34,13 @@ begin
   reference_report = File.read(reference_output)
   reference_diagnostic = File.read(reference_error)
   actual_fields = [
-    "scope=partial", "node=\"defn\" kind=\"similar\"",
+    "scope=included", "node=\"defn\" kind=\"similar\"",
     "locations=\"#{path}:2,#{path}:12\" mass=36 score=36",
-    "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"
+    "Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Status: findings"
   ]
   reference_fields = ["code found in :defn", "#{path}:2", "#{path}:12", "Total score (lower is better) = 36"]
-  raise "composed exception partial finding or streams differed" unless actual_status == 1 &&
-    actual_fields.all? { |field| actual_report.include?(field) } && actual_diagnostic.include?("Partial results") &&
+  raise "composed exception finding or streams differed" unless actual_status == 2 &&
+    actual_fields.all? { |field| actual_report.include?(field) } && actual_diagnostic.empty? &&
     !actual_report.include?("Partial results") && reference_status.success? &&
     reference_fields.all? { |field| reference_report.include?(field) } && reference_diagnostic.empty?
 ensure

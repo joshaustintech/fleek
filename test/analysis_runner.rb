@@ -121,9 +121,10 @@ end
 
 # Compares one compiled Flay method-candidate report with pinned Flay.
 class FlayMethodCandidateContract
+  # Asserts complete generic-engine analysis whose group matches pinned Flay.
   # :reek:TooManyStatements
   # :reek:LongParameterList
-  def self.verify_unsupported(path, label, reference_score, reference_node = "defn", reference_lines = [1, 5])
+  def self.verify_supported(path, label, reference_score, reference_node = "defn", reference_lines = [1, 5])
     root = ENV["FLEEK_TEMP_ROOT"] || "/tmp"
     actual_output_path = "#{root}/#{label}-actual.out"
     actual_error_path = "#{root}/#{label}-actual.err"
@@ -133,13 +134,14 @@ class FlayMethodCandidateContract
     reference_status = run_flay(path, reference_output_path, reference_error_path)
     actual_output = File.read(actual_output_path)
     reference_output = File.read(reference_output_path)
-    actual_diagnostic = actual_output + File.read(actual_error_path)
-    partial_boundary = actual_diagnostic.include?("unsupported Flay candidate syntax") || actual_output.include?("scope=partial")
-    actual_valid = actual_status == 1 && actual_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded") && actual_output.include?("Status: incomplete") && partial_boundary
+    locations = reference_lines.map { |line| "#{path}:#{line}" }.join(",")
+    actual_valid = actual_status == 2 && actual_output.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") &&
+      actual_output.include?("node=\"#{reference_node}\"") && actual_output.include?("locations=\"#{locations}\"") &&
+      actual_output.include?("Total duplication score: #{reference_score}")
     reference_valid = reference_status.success? && reference_output.include?("code found in :#{reference_node}") &&
       reference_lines.all? { |line| reference_output.include?("#{path}:#{line}") } &&
       reference_output.include?("Total score (lower is better) = #{reference_score}")
-    raise "#{label} unsupported result differed from Flay: #{actual_output} #{reference_output}" unless actual_valid && reference_valid
+    raise "#{label} supported result differed from Flay: #{actual_output} #{reference_output}" unless actual_valid && reference_valid
     puts "#{label} contract: pass"
   ensure
     AnalysisRunner.cleanup_contract_outputs([actual_error_path, reference_output_path, reference_error_path], actual_output_path)

@@ -17,5 +17,5 @@ cases.each do |name, calls|
   DuplicationMethodPairContract.verify(input)
 end
 
-FlayMethodCandidateContract.verify_unsupported("test/fixtures/duplication_methods_call_forwarding.rb", "forwarding-call", 20)
+FlayMethodCandidateContract.verify_supported("test/fixtures/duplication_methods_call_forwarding.rb", "forwarding-call", 20)
 puts "Method call contract: pass"

@@ -65,7 +65,8 @@ AnalysisRunner.assert_same_report(spinel, spinel_reference, "Spinel FFI ClassVar
 raise "Fleek loaded the Spinel require or application code" if File.exist?(spinel_side_effect) || File.exist?(require_side_effect)
 
 spinel_flay = AnalysisRunner.fleek_with_check("flay:StructuralDuplication", spinel_path)
-raise "unsupported Spinel duplication module implied success" unless spinel_flay[0] == 1 && spinel_flay[1].include?("Status: incomplete")
+raise "Spinel duplication module differed from Flay" unless spinel_flay[0] == 0
+raise "Spinel duplication module score changed" unless spinel_flay[1].include?("Total duplication score: 0")
 spinel_flay_reference = AnalysisRunner.flay(spinel_path)
 raise "Spinel Flay reference behavior changed" unless spinel_flay_reference[0] == 0 && spinel_flay_reference[1].include?("Total score (lower is better) = 0")
 spinel_duplication_path = "test/fixtures/spinel_duplicate.rb"
@@ -77,7 +78,7 @@ reordered_module_path = "/tmp/fleek-spinel-module-after-methods.rb"
 reordered_module_source = spinel_source.drop(4).join + "\n" + spinel_source.first(3).join
 File.write(reordered_module_path, reordered_module_source)
 reordered_module = AnalysisRunner.fleek_with_check("flay:StructuralDuplication", reordered_module_path)
-raise "Spinel FFI module after methods was not rejected as incomplete" unless reordered_module[0] == 1 && reordered_module[1].include?("Status: incomplete")
+raise "Spinel FFI module after methods differed from Flay" unless reordered_module[0] == 2 && reordered_module[1].include?("Status: findings") && reordered_module[1].include?("locations=\"#{reordered_module_path}:1,#{reordered_module_path}:18\" mass=32 score=32")
 
 ruby4_path = "test/fixtures/ruby4.rb"
 ruby4_reference = AnalysisRunner.reek(ruby4_path)

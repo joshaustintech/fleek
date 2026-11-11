@@ -6,7 +6,7 @@
 
 **Blocked by:** 96; 22; 23; 115 — Verify harness savings before resuming feature work.
 
-**Status:** claimed
+**Status:** resolved
 **Type:** task
 **Category:** enhancement
 **Triage:** ready-for-agent
@@ -21,10 +21,10 @@ Existing exact-manifest Rails Flay contract and make rails-manifest-parity.
 
 ## Acceptance criteria
 
-- [ ] Listed behavior cases have reproducible inputs, pinned expected results and matching public behavior. Inventory-only work records evidence and concrete child links; completion gates remain open until every required residual gap resolves.
-- [ ] Semantic findings, coverage, streams and normalized outcome are asserted where applicable; evidence-only inventories distinguish verified rows from unresolved work.
-- [ ] Relevant regression/mutation or evidence checks pass; Answer records exact commands and remaining issue links.
-- [ ] Stop after this behavior is proven; parent acceptance is not reduced by this child.
+- [x] Listed behavior cases have reproducible inputs, pinned expected results and matching public behavior. Inventory-only work records evidence and concrete child links; completion gates remain open until every required residual gap resolves.
+- [x] Semantic findings, coverage, streams and normalized outcome are asserted where applicable; evidence-only inventories distinguish verified rows from unresolved work.
+- [x] Relevant regression/mutation or evidence checks pass; Answer records exact commands and remaining issue links.
+- [x] Stop after this behavior is proven; parent acceptance is not reduced by this child.
 
 ## Execution and stop condition
 
@@ -79,3 +79,5 @@ Issue 140 resolves only the attachment declaration. Micropost validations remain
 The next slice is Micropost's exact `user_id` presence and `content` presence/length validations. [Issue 141](141-rails-flay-micropost-basic-validations.md) bounds these declarations; [ADR 0255](../../../docs/adr/0255-bound-rails-micropost-basic-validations.md) records the decision.
 
 Issue 141 resolves the two basic Micropost validations; the image validation and `User` remain. Rather than continue one exact shape per issue, [issue 142](142-generic-flay-core-engine.md) adopts a generic sexp engine ([ADR 0256](../../../docs/adr/0256-generic-flay-sexp-engine.md)) that analyzes any translated syntax.
+
+Issue 142 resolves this gate. The generic engine analyzes all 25 pinned Rails sources completely and reproduces Flay's exact score-48 group. `make rails-manifest-parity` now fails if any manifest source is incomplete.

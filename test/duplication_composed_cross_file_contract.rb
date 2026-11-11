@@ -133,12 +133,12 @@ class ComposedCrossFileContract
     fields = [
       "Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=\"similar\" locations=\"#{first_path}:2,#{second_path}:2\" mass=32 score=32",
       "Group: check=\"flay:StructuralDuplication\" node=\"defn\" kind=\"identical\" locations=\"#{first_path}:12,#{second_path}:12\" mass=6 score=12",
-      "Coverage: 2 selected; 0 analyzed; 2 failed; 0 excluded", "Status: incomplete"
+      "Coverage: 2 selected; 2 analyzed; 0 failed; 0 excluded", "Status: findings"
     ]
     reference_fields = "Similar code found in :defn (mass = 32)\n#{first_path}:2\n#{second_path}:2" +
       "\n--group--\nIDENTICAL code found in :defn (mass*2 = 12)\n#{first_path}:12\n#{second_path}:12"
-    raise "unsupported sibling hid cross-file findings: #{actual} #{diagnostic}" unless actual_status == 1 &&
-      native_groups == fields.take(2) && fields.drop(2).all? { |field| actual.include?(field) } && diagnostic.include?("Partial results") &&
+    raise "sibling class hid cross-file findings: #{actual} #{diagnostic}" unless actual_status == 2 &&
+      native_groups == fields.take(2) && fields.drop(2).all? { |field| actual.include?(field) } && diagnostic.empty? &&
       !actual.include?("Partial results")
     raise "unsupported sibling Flay reference changed: #{reference} #{reference_diagnostic}" unless reference_status.zero? &&
       reference_fields == reference_groups && reference_diagnostic.empty?

@@ -25,7 +25,7 @@ class RailsManifestParityContract
     puts "Rails manifest Fleek status: #{fleek[0]}"
     verify_flay(flay, fleek, paths)
     verify_reek([reek, fleek_reek, fleek], paths)
-    puts "Pinned Rails 25-file parity contract: pass (Flay explicitly incomplete)"
+    puts "Pinned Rails 25-file parity contract: pass (Flay complete)"
   end
 
   # :reek:TooManyStatements
@@ -93,8 +93,9 @@ class RailsManifestParityContract
     expected_group = ["node=\"defn\"", "kind=\"similar\"", "locations=\"#{first_location},#{second_location}\"", "mass=48", "score=48"]
     raise "Fleek changed the pinned Flay group" unless expected_group.all? { |field| actual[1].include?(field) } && actual[1].include?("Total duplication score: 48")
     raise "Fleek did not run both selected checks" unless actual[1].include?("Checks selected: flay:StructuralDuplication,reek:ClassVariable") && actual[1].include?("Checks run: flay:StructuralDuplication,reek:ClassVariable")
-    raise "Fleek Flay result must stay explicitly incomplete" unless actual[0] == 1 && actual[1].include?("Duplication coverage: 25 selected; 0 analyzed; 25 failed; 0 excluded") && actual[1].include?("Overall status: incomplete") && actual[2].include?("Partial results may omit Flay candidates")
-    raise "Fleek Flay manifest omitted sources" unless paths.all? { |path| actual[1].include?("Source: \"#{path}\" scope=partial") }
+    raise "Fleek Flay manifest was not complete" unless actual[1].include?("Duplication coverage: 25 selected; 25 analyzed; 0 failed; 0 excluded")
+    raise "Fleek Flay manifest status changed" unless actual[0] != 0 && actual[1].include?("Overall status: findings")
+    raise "Fleek Flay manifest omitted sources" unless paths.all? { |path| actual[1].include?("Source: \"#{path}\" scope=included") }
   end
 
   # :reek:DuplicateMethodCall

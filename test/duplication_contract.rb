@@ -1,4 +1,5 @@
 require_relative "analysis_runner"
+require_relative "flay_groups"
 
 # Compares the first structural grouping slice with locked Flay output.
 class DuplicationProcess
@@ -260,6 +261,19 @@ class DuplicationProcess
     expectation.fields.each { |field| verify(observation[1].index(field) != nil, "#{message}: missing #{field}") }
   end
 
+  # Asserts complete analysis whose normalized groups equal pinned Flay output.
+  def self.verify_flay_parity(path, message)
+    output = run(Input.new(path, "fleek", ""))
+    expected = FlayGroups.reference(run(Input.new(path, "flay", ""))[1])
+    verify(flay_parity?(output, expected), "#{message}: analysis differed from Flay")
+  end
+
+  def self.flay_parity?(output, expected)
+    report = output[1]
+    report.include?("Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded") && FlayGroups.native(report) == expected &&
+      output[0] == (expected.empty? ? 0 : 2)
+  end
+
   def self.verify_class_method_pair(path, second_line, description)
     actual = run(Input.new(path, "fleek", ""))
     reference = run(Input.new(path, "flay", ""))
@@ -272,7 +286,7 @@ class DuplicationProcess
     score = expectation.score
     mass = expectation.mass
     line = expectation.second_line
-    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "direct methods or one direct class under a sole nested-module chain", "positional parameters with supported literal, constant, or bare-call defaults", "optional keyword parameters with supported literal or constant defaults", "bounded case/when/if/else/unless branches", "boolean AND/OR expressions", "yield, return, super, next, break, redo, begin/rescue/retry, and ensure expressions with supported values", "regular expression literals", "local-variable operator and logical writes", "instance-variable reads, writes, and operator writes", "class-variable reads, writes, operator writes, and logical writes", "multiple assignments", "Total duplication score: #{score}"], expectation.message)
+    OutputExpectation.new(2, ["kind=\"#{kind}\"", "locations=\"#{path}:#{expectation.first_line || 2},#{path}:#{line}\"", "mass=#{mass} score=#{score}", "Scope limits: whole files translated into Flay 2.14.4 sexps", "Total duplication score: #{score}"], expectation.message)
   end
 
   def self.class_method_reference_expectation(path, expectation)
@@ -568,10 +582,7 @@ identical_fields = ["kind=\"identical\"", "mass=32 score=64", "Total duplication
 identical_report_weighted = identical_fields.all? { |field| identical[1].include?(field) }
 DuplicationProcess.verify(identical[0] == 2 && identical_reference_weighted && identical_report_weighted, "identical group multiplier changed")
 
-unsupported_path = "test/fixtures/duplication_unsupported.rb"
-unsupported = DuplicationProcess.run(DuplicationProcess::Input.new(unsupported_path, "fleek", ""))
-unsupported_state = unsupported[1].include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded") && unsupported[1].include?("Status: incomplete")
-DuplicationProcess.verify(unsupported[0] == 1 && unsupported_state && unsupported[2].include?("Partial results may omit Flay candidates"), "unsupported syntax implied complete analysis")
+DuplicationProcess.verify_flay_parity("test/fixtures/duplication_source_file.rb", "source file and line literals")
 
 [[15, 2, 32], [16, 2, 32], [17, 0, 0]].each do |threshold, expected_status, expected_score|
   actual = DuplicationProcess.run(DuplicationProcess::Input.new(similar_path, "fleek", "--mass", threshold))
@@ -609,9 +620,9 @@ nested = DuplicationProcess.run_fleek_with_nested(first_file, second_file, neste
 nested_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_path, "flay", ""))
 nested_reference_expectation = DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :defn (mass = 32)", "#{nested_path}:2", "#{nested_path}:19", "Total score (lower is better) = 32"], "nested Flay reference changed")
 DuplicationProcess.verify_output(nested_reference, nested_reference_expectation)
-nested_fleek_expectation = DuplicationProcess::OutputExpectation.new(1, ["Status: incomplete"], "nested Flay candidates were silently omitted")
+nested_locations = "locations=\"#{first_file}:1,#{second_file}:1,#{nested_path}:2,#{nested_path}:19\" mass=64 score=64"
+nested_fleek_expectation = DuplicationProcess::OutputExpectation.new(2, [nested_locations, "Coverage: 3 selected; 3 analyzed; 0 failed; 0 excluded", "Status: findings"], "nested Flay candidates differed from Flay")
 DuplicationProcess.verify_output(nested, nested_fleek_expectation)
-DuplicationProcess.verify(nested[2].include?("unsupported Flay candidate syntax"), "nested Flay candidates were silently omitted")
 
 class_methods_path = "test/fixtures/duplication_class_methods.rb"
 class_methods_with_helper_path = "test/fixtures/duplication_class_methods_with_helper.rb"
@@ -647,8 +658,8 @@ mixed_sibling_scopes_path = "test/fixtures/duplication_class_mixed_sibling_scope
 mixed_sibling_scopes_actual = DuplicationProcess.run(DuplicationProcess::Input.new(mixed_sibling_scopes_path, "fleek", ""))
 mixed_sibling_scopes_reference = DuplicationProcess.run(DuplicationProcess::Input.new(mixed_sibling_scopes_path, "flay", ""))
 mixed_sibling_scope_group = "node=\"class\" kind=\"similar\" locations=\"#{mixed_sibling_scopes_path}:2,#{mixed_sibling_scopes_path}:11\" mass=50 score=50"
-DuplicationProcess.verify(mixed_sibling_scopes_actual[0] == 1 && mixed_sibling_scopes_actual[1].include?(mixed_sibling_scope_group) &&
-  mixed_sibling_scopes_actual[1].include?("Total duplication score: 50") && mixed_sibling_scopes_actual[1].include?("Status: incomplete"),
+DuplicationProcess.verify(mixed_sibling_scopes_actual[0] == 2 && mixed_sibling_scopes_actual[1].include?(mixed_sibling_scope_group) &&
+  mixed_sibling_scopes_actual[1].include?("Total duplication score: 50") && mixed_sibling_scopes_actual[1].include?("Status: findings"),
   "mixed sibling scopes hid the independent Flay class group")
 mixed_sibling_scopes_reference_fields = ["Similar code found in :class (mass = 50)", "#{mixed_sibling_scopes_path}:2", "#{mixed_sibling_scopes_path}:11", "Total score (lower is better) = 50"]
 DuplicationProcess.verify_output(mixed_sibling_scopes_reference, DuplicationProcess::OutputExpectation.new(0, mixed_sibling_scopes_reference_fields, "mixed sibling scope Flay reference changed"))
@@ -1012,11 +1023,7 @@ DuplicationProcess.verify_output(partial_rails_actual, DuplicationProcess::Outpu
 DuplicationProcess.verify_output(partial_rails_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :defn (mass = 48)", "#{partial_rails_path}:4", "#{partial_rails_path}:11"], "partial Rails Flay reference changed"))
 
 callback_block_path = "test/fixtures/duplication_class_methods_callback_block.rb"
-callback_block_actual = DuplicationProcess.run(DuplicationProcess::Input.new(callback_block_path, "fleek", ""))
-callback_block_reference = DuplicationProcess.run(DuplicationProcess::Input.new(callback_block_path, "flay", ""))
-callback_block_expected = ["scope=partial", "locations=\"#{callback_block_path}:7,#{callback_block_path}:21\"", "mass=48 score=48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(callback_block_actual, DuplicationProcess::OutputExpectation.new(1, callback_block_expected, "callback blocks were incorrectly accepted as direct declarations"))
-DuplicationProcess.verify_output(callback_block_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :class (mass = 58)", "#{callback_block_path}:1", "#{callback_block_path}:15"], "Flay callback-block reference changed"))
+DuplicationProcess.verify_flay_parity(callback_block_path, "callback_block")
 
 visibility_path = "test/fixtures/duplication_class_methods_visibility.rb"
 visibility_actual = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_path, "fleek", ""))
@@ -1026,18 +1033,10 @@ DuplicationProcess.verify_output(visibility_actual, DuplicationProcess::OutputEx
 DuplicationProcess.verify_output(visibility_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :defn (mass = 48)", "#{visibility_path}:5", "#{visibility_path}:16", "Total score (lower is better) = 48"], "Flay bare visibility declaration result changed"))
 
 visibility_arguments_path = "test/fixtures/duplication_class_methods_visibility_arguments.rb"
-visibility_arguments_actual = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_arguments_path, "fleek", ""))
-visibility_arguments_reference = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_arguments_path, "flay", ""))
-visibility_arguments_fields = ["scope=partial", "locations=\"#{visibility_arguments_path}:4,#{visibility_arguments_path}:15\"", "mass=48 score=48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(visibility_arguments_actual, DuplicationProcess::OutputExpectation.new(1, visibility_arguments_fields, "visibility calls with arguments were accepted"))
-DuplicationProcess.verify_output(visibility_arguments_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :class (mass = 54)", "#{visibility_arguments_path}:1", "#{visibility_arguments_path}:12"], "Flay visibility-argument reference changed"))
+DuplicationProcess.verify_flay_parity(visibility_arguments_path, "visibility_arguments")
 
 visibility_receiver_path = "test/fixtures/duplication_class_methods_visibility_receiver.rb"
-visibility_receiver_actual = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_receiver_path, "fleek", ""))
-visibility_receiver_reference = DuplicationProcess.run(DuplicationProcess::Input.new(visibility_receiver_path, "flay", ""))
-visibility_receiver_fields = ["scope=partial", "locations=\"#{visibility_receiver_path}:4,#{visibility_receiver_path}:15\"", "mass=48 score=48", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
-DuplicationProcess.verify_output(visibility_receiver_actual, DuplicationProcess::OutputExpectation.new(1, visibility_receiver_fields, "receiver-qualified visibility calls were accepted"))
-DuplicationProcess.verify_output(visibility_receiver_reference, DuplicationProcess::OutputExpectation.new(0, ["Similar code found in :class (mass = 54)", "#{visibility_receiver_path}:1", "#{visibility_receiver_path}:12"], "Flay receiver-visibility reference changed"))
+DuplicationProcess.verify_flay_parity(visibility_receiver_path, "visibility_receiver")
 
 include_path = "test/fixtures/duplication_class_methods_include.rb"
 include_actual = DuplicationProcess.run(DuplicationProcess::Input.new(include_path, "fleek", ""))
@@ -1076,28 +1075,16 @@ DuplicationProcess.verify_output(abstract_class_reference, DuplicationProcess::O
   ["Total score (lower is better) = 0"], "Flay primary_abstract_class result changed"))
 
 abstract_class_arguments_path = "test/fixtures/duplication_class_methods_primary_abstract_class_arguments.rb"
-abstract_class_arguments_actual = DuplicationProcess.run(DuplicationProcess::Input.new(abstract_class_arguments_path, "fleek", ""))
-DuplicationProcess.verify_output(abstract_class_arguments_actual, DuplicationProcess::OutputExpectation.new(1,
-  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
-  "primary_abstract_class arguments were accepted"))
+DuplicationProcess.verify_flay_parity(abstract_class_arguments_path, "abstract_class_arguments")
 
 abstract_class_receiver_path = "test/fixtures/duplication_class_methods_primary_abstract_class_receiver.rb"
-abstract_class_receiver_actual = DuplicationProcess.run(DuplicationProcess::Input.new(abstract_class_receiver_path, "fleek", ""))
-DuplicationProcess.verify_output(abstract_class_receiver_actual, DuplicationProcess::OutputExpectation.new(1,
-  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
-  "receiver-qualified primary_abstract_class was accepted"))
+DuplicationProcess.verify_flay_parity(abstract_class_receiver_path, "abstract_class_receiver")
 
 abstract_class_block_path = "test/fixtures/duplication_class_methods_primary_abstract_class_block.rb"
-abstract_class_block_actual = DuplicationProcess.run(DuplicationProcess::Input.new(abstract_class_block_path, "fleek", ""))
-DuplicationProcess.verify_output(abstract_class_block_actual, DuplicationProcess::OutputExpectation.new(1,
-  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
-  "primary_abstract_class block was accepted"))
+DuplicationProcess.verify_flay_parity(abstract_class_block_path, "abstract_class_block")
 
 other_class_macro_path = "test/fixtures/duplication_class_methods_other_macro.rb"
-other_class_macro_actual = DuplicationProcess.run(DuplicationProcess::Input.new(other_class_macro_path, "fleek", ""))
-DuplicationProcess.verify_output(other_class_macro_actual, DuplicationProcess::OutputExpectation.new(1,
-  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
-  "unrecognized class macro was accepted"))
+DuplicationProcess.verify_flay_parity(other_class_macro_path, "other_class_macro")
 
 mailer_declarations_path = "test/fixtures/duplication_class_methods_mailer_declarations.rb"
 mailer_declarations_actual = DuplicationProcess.run(DuplicationProcess::Input.new(mailer_declarations_path, "fleek", ""))
@@ -1220,11 +1207,7 @@ unsupported_declaration_paths += [
   "test/fixtures/duplication_class_methods_micropost_validation_content_presence.rb", "Micropost content validation without presence was accepted",
   "test/fixtures/duplication_class_methods_micropost_validation_content_attribute.rb", "unsupported Micropost length validation attribute was accepted"
 ].each_slice(2).to_a
-unsupported_declaration_paths.each do |path, message|
-  actual = DuplicationProcess.run(DuplicationProcess::Input.new(path, "fleek", ""))
-  DuplicationProcess.verify_output(actual, DuplicationProcess::OutputExpectation.new(1,
-    ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"], message))
-end
+unsupported_declaration_paths.each { |path, message| DuplicationProcess.verify_flay_parity(path, message) }
 
 rails_corpus_root = ENV["FLEEK_RAILS_CORPUS"]
 if ENV["FLEEK_REQUIRE_RAILS_CORPUS"] == "1" && (!rails_corpus_root || rails_corpus_root.empty?)
@@ -1285,35 +1268,17 @@ if rails_corpus_root && !rails_corpus_root.empty?
     ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
     "pinned Rails Relationship declarations were incomplete"))
   rails_micropost = File.join(rails_corpus_root, "app/models/micropost.rb")
-  rails_micropost_actual = DuplicationProcess.run(DuplicationProcess::Input.new(rails_micropost, "fleek", ""))
-  DuplicationProcess.verify_output(rails_micropost_actual, DuplicationProcess::OutputExpectation.new(1,
-    ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"],
-    "pinned Rails Micropost residual declarations were incorrectly complete"))
+  DuplicationProcess.verify_flay_parity(rails_micropost, "pinned Rails Micropost")
 end
 
 include_dynamic_path = "test/fixtures/duplication_class_methods_include_dynamic.rb"
-include_dynamic_actual = DuplicationProcess.run(DuplicationProcess::Input.new(include_dynamic_path, "fleek", ""))
-include_dynamic_reference = DuplicationProcess.run(DuplicationProcess::Input.new(include_dynamic_path, "flay", ""))
-DuplicationProcess.verify_output(include_dynamic_actual, DuplicationProcess::OutputExpectation.new(1,
-  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"], "dynamic include argument was accepted"))
-DuplicationProcess.verify_output(include_dynamic_reference, DuplicationProcess::OutputExpectation.new(0,
-  ["Total score (lower is better) = 0"], "Flay dynamic include reference changed"))
+DuplicationProcess.verify_flay_parity(include_dynamic_path, "include_dynamic")
 
 include_receiver_path = "test/fixtures/duplication_class_methods_include_receiver.rb"
-include_receiver_actual = DuplicationProcess.run(DuplicationProcess::Input.new(include_receiver_path, "fleek", ""))
-include_receiver_reference = DuplicationProcess.run(DuplicationProcess::Input.new(include_receiver_path, "flay", ""))
-DuplicationProcess.verify_output(include_receiver_actual, DuplicationProcess::OutputExpectation.new(1,
-  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"], "receiver include call was accepted"))
-DuplicationProcess.verify_output(include_receiver_reference, DuplicationProcess::OutputExpectation.new(0,
-  ["Total score (lower is better) = 0"], "Flay receiver include reference changed"))
+DuplicationProcess.verify_flay_parity(include_receiver_path, "include_receiver")
 
 include_block_path = "test/fixtures/duplication_class_methods_include_block.rb"
-include_block_actual = DuplicationProcess.run(DuplicationProcess::Input.new(include_block_path, "fleek", ""))
-include_block_reference = DuplicationProcess.run(DuplicationProcess::Input.new(include_block_path, "flay", ""))
-DuplicationProcess.verify_output(include_block_actual, DuplicationProcess::OutputExpectation.new(1,
-  ["scope=partial", "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded", "Status: incomplete"], "include block was accepted"))
-DuplicationProcess.verify_output(include_block_reference, DuplicationProcess::OutputExpectation.new(0,
-  ["Total score (lower is better) = 0"], "Flay include block reference changed"))
+DuplicationProcess.verify_flay_parity(include_block_path, "include_block")
 
 DuplicationProcess.verify_class_method_pair(class_methods_path, 19, "class method")
 DuplicationProcess.verify_class_method_pair(class_methods_with_helper_path, 19, "class helper")
@@ -1340,12 +1305,7 @@ topology_path = "test/fixtures/duplication_class_methods_topology.rb"
 DuplicationProcess.verify_class_method_no_group(topology_path, "different class method tree topology was grouped")
 
 partial_path = "test/fixtures/duplication_class_methods_partial_match.rb"
-partial_actual = DuplicationProcess.run(DuplicationProcess::Input.new(partial_path, "fleek", ""))
-partial_reference = DuplicationProcess.run(DuplicationProcess::Input.new(partial_path, "flay", ""))
-DuplicationProcess.verify_output(partial_actual, DuplicationProcess::OutputExpectation.new(1, ["Status: incomplete"], "partial class-method duplicate was silently skipped"))
-DuplicationProcess.verify(partial_actual[2].include?("unsupported Flay candidate syntax"), "partial class-method duplicate was silently skipped")
-partial_reference_fields = ["IDENTICAL code found in :call (mass*2 = 64)", "#{partial_path}:4", "#{partial_path}:9", "Total score (lower is better) = 64"]
-DuplicationProcess.verify_output(partial_reference, DuplicationProcess::OutputExpectation.new(0, partial_reference_fields, "partial Flay group changed"))
+DuplicationProcess.verify_flay_parity(partial_path, "partial")
 
 class_identical_path = "test/fixtures/duplication_class_methods_identical.rb"
 DuplicationProcess.verify_class_method_parity(class_identical_path, :identical)

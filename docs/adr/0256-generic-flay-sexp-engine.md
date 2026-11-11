@@ -2,29 +2,28 @@
 
 ## Status
 
-Accepted
+Accepted. Supersedes the shape-specific boundaries of ADRs 0244–0255.
 
 ## Context
 
-Flay 2.14.4 parses each file with RubyParser and hashes every sexp node that has at least one sexp child and a mass at or above the threshold. The root sexp of each file is never hashed, because `Sexp#deep_each` yields only descendants. Groups are keyed by structural hash, which ignores atoms. Identity compares full values. Conservative pruning removes every group whose hash occurs below the first node of another group, and the score is `mass × count`, multiplied by `count` again when identical.
+Flay 2.14.4 parses each file with its default parser, `Prism::Translation::RubyParser` from prism 1.9.0, using `partial_script: true`. It hashes every sexp node that has at least one sexp child and a mass at or above the threshold. The root sexp of each file is never hashed, because `Sexp#deep_each` yields only descendants. Groups are keyed by structural hash, which ignores atoms. Identity compares full values with Ruby `==`. Conservative pruning removes every group whose hash occurs below the first node of another group. The score is `mass × count`, multiplied by `count` again when identical.
 
-Fleek's current engine only recognizes method "candidates" and a growing list of exact class-body shapes (ADRs 0244–0255). Each new real-world file needs another bespoke predicate, fixture set and mutation group, and the 25-file Rails manifest still reports 0/25 complete. The approach does not converge on parity.
+Fleek's original engine only recognized method "candidates" and a growing list of exact class-body shapes (ADRs 0244–0255). Each new real-world file needed another bespoke predicate, fixture set and mutation group, and the 25-file Rails manifest reported 0/25 complete. That approach could not converge on parity.
 
 ## Decision
 
-Add a generic engine beside the candidate engine:
+Replace the candidate engine with one generic engine:
 
-1. Parse each selected file separately with pinned Prism. Use Prism's start line so node lines match the combined-source numbering the reporter already uses.
-2. Translate every Prism node into a RubyParser-shaped sexp: a type, ordered children and atom values. A node with no translation rule makes the run untranslatable.
-3. Hash-cons sexp shapes (type plus child shapes) and values (type plus children and atoms). This gives exact structural grouping and identity without Flay's 32-bit hash collisions.
-4. Reproduce Flay's mass, root exclusion, singleton pruning, conservative and liberal pruning, identical bonus and scoring. Emit the existing tab-separated group records.
-5. When every selected file translates, the generic engine's result is authoritative. Otherwise the candidate engine runs unchanged. Fuzzy and legacy-parser modes stay on the candidate engine until generic support for them is proven.
-
-Coverage grows by adding translation rules per Prism node family, each verified against `ruby_parse` output and pinned Flay results. When the generic engine covers everything the candidate engine accepts, plus fuzzy and legacy modes, the candidate engine and the shape predicates from ADRs 0244–0255 are deleted.
+1. Parse each selected file separately with pinned Prism, starting line numbers at the file's line in the combined source the reporter uses.
+2. Port `Prism::Translation::RubyParser` node by node into C. That covers every node type, `in_def`/`in_pattern` state, line and `line_max` attribution, interpolated-part merging, `and`/`or` right-nesting, `svalue` write values, and `__FILE__` from the selected path.
+3. Hash-cons sexp shapes (type plus child shapes) and values (type plus children and canonical atoms). This gives exact structural grouping without Flay's 32-bit hash collisions. Atoms follow Ruby `==`; for example, `1` equals `1.0` and `1r`.
+4. Reproduce Flay's processing: mass, root exclusion, singleton and all-fuzzy pruning, conservative and liberal pruning, fuzzy template combinations, identity and scoring. Emit the existing tab-separated group records.
+5. Delete the candidate engine. `--legacy` keeps its existing syntax rejection check, then uses the same translation. A source the engine cannot translate is reported incomplete, never silently skipped.
 
 ## Consequences
 
-- Rails-style class bodies, top-level statements and nested scopes need no shape-specific code; any translated syntax is analyzed.
-- Existing public contracts double as differential tests: a file the generic engine accepts must still match Flay exactly.
-- Some fixtures that asserted incomplete coverage become complete when their syntax gains a translation rule. Those expectations are updated to the pinned Flay result, never weakened.
-- RubyParser quirks (branch swapping for `unless`, `s(:nil)` empty bodies, `args` atoms such as `:"*rest"`, `iter` with `0` for no params) live in one translator, not across detached predicates.
+- Rails-style class bodies, top-level statements, nested scopes and every Ruby construct shared with Flay need no shape-specific code.
+- The differential contract compares whole-file fixtures with pinned Flay. All 299 existing duplication fixtures and the 25-file Rails manifest match exactly.
+- Fixtures that asserted incomplete coverage for now-translated syntax assert Flay parity instead. Expectations were updated to the pinned Flay result, never weakened.
+- Mutation coverage moves from candidate predicates to the engine's mass, root exclusion, pruning, identity, fuzzy and representative translation rules.
+- `--legacy` assumes RubyParser 3.22 and the Prism translation produce the same sexps for syntax both accept. Any difference found later is a translation bug to fix, not a reason to restore the candidate engine.
