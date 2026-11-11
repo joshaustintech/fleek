@@ -60,3 +60,8 @@ Start with the largest census gaps: TooManyStatements (7 missing), NestedIterato
   - ManualDispatch collects `respond_to?` send lines per method.
 
   On the Rails manifest all five are complete on 25/25 sources (Attribute was already complete; the rest were previously 19 to 23 of 25) and match Reek, including Attribute 3/3 and InstanceVariableAssumption 4/4. The bounded C scanners, the MissingSafeMethod singleton branch in the shared method scanner, the dead `fleek_parameter_count` and 13 mutations were removed. Object-scope contracts that expected incomplete coverage now assert complete Reek parity through a shared `AnalysisRunner.assert_complete_parity`. Nine engine mutations are caught.
+- **RepeatedConditional and DataClump.**
+  - RepeatedConditional groups `if` and then `case` conditions in a class by structural equality. It skips bare `block_given?` and subjectless `case`, and reports groups above `max_ifs`.
+  - DataClump ports `candidate_clumps`: every `combination(max_copies + 1)` of the class's or module's `def` nodes is intersected on named non-block arguments, kept when sorted and at least `min_clump_size` long, de-duplicated, and reported against every method containing it. `combinations` reimplements `Array#combination` order for Spinel.
+
+  On the Rails manifest both are complete on 25/25 sources (previously 19 and 23) and are clean like Reek. The bounded C detectors, the dead `fleek_parameter_names_t`, seven mutations and five dead mutation-label dispatches were removed. Five engine mutations are caught.

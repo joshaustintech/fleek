@@ -106,9 +106,6 @@ class Fleek
     static int fleek_duplication_total_score;
     static char fleek_unused_private_method_buffer[8192];
     static size_t fleek_unused_private_method_used;
-    static char fleek_repeated_conditional_buffer[8192];
-    static size_t fleek_repeated_conditional_used;
-    static char fleek_data_clump_buffer[8192];
     static char fleek_uncommunicative_method_name_buffer[8192];
     static size_t fleek_uncommunicative_method_name_used;
     static char fleek_uncommunicative_module_name_buffer[8192];
@@ -117,7 +114,6 @@ class Fleek
     static size_t fleek_uncommunicative_parameter_name_used;
     static char fleek_uncommunicative_variable_name_buffer[8192];
     static size_t fleek_uncommunicative_variable_name_used;
-    static size_t fleek_data_clump_used;
     static bool fleek_matches_any_pattern(const uint8_t *source, size_t length, const char *patterns) {
       const char *start = patterns;
       while (*start != 0) {
@@ -600,31 +596,6 @@ class Fleek
     }
     const char *fleek_unused_private_method_finding(void) { return fleek_unused_private_method_buffer; }
 
-    typedef struct { pm_constant_id_t names[128]; size_t count; } fleek_parameter_names_t;
-    typedef struct { size_t max_copies; size_t min_clump; pm_constant_id_t names[128][64]; size_t counts[128]; size_t lines[128]; size_t methods; bool unsupported; bool singleton_methods; } fleek_data_clump_state_t;
-    static bool fleek_data_clump_method(const pm_node_t *node, const uint8_t *source, fleek_data_clump_state_t *state) {
-      if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
-      const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver != NULL) return true;
-      if (method->parameters == NULL) { if (state->methods == 128) { state->unsupported = true; return false; } state->methods++; return true; }
-      if (!PM_NODE_TYPE_P((const pm_node_t *) method->parameters, PM_PARAMETERS_NODE)) { state->unsupported = true; return false; }
-      const pm_parameters_node_t *parameters = method->parameters;
-      if (parameters->requireds.size + parameters->optionals.size > 64 || parameters->rest != NULL || parameters->posts.size != 0 || parameters->keywords.size != 0 || parameters->keyword_rest != NULL || parameters->block != NULL) { state->unsupported = true; return true; }
-      if (state->methods == 128) { state->unsupported = true; return true; }
-      size_t method_index = state->methods++;
-      state->lines[method_index] = 1;
-      for (const uint8_t *cursor = source; cursor < method->def_keyword_loc.start; cursor++) if (*cursor == '\\n') state->lines[method_index]++;
-      for (size_t index = 0; index < parameters->requireds.size; index++) {
-        if (!PM_NODE_TYPE_P(parameters->requireds.nodes[index], PM_REQUIRED_PARAMETER_NODE)) { state->unsupported = true; return false; }
-        state->names[method_index][state->counts[method_index]++] = ((const pm_required_parameter_node_t *) parameters->requireds.nodes[index])->name;
-      }
-      for (size_t index = 0; index < parameters->optionals.size; index++) {
-        if (!PM_NODE_TYPE_P(parameters->optionals.nodes[index], PM_OPTIONAL_PARAMETER_NODE)) { state->unsupported = true; return false; }
-        state->names[method_index][state->counts[method_index]++] = ((const pm_optional_parameter_node_t *) parameters->optionals.nodes[index])->name;
-      }
-      return true;
-    }
-
 
     static bool fleek_constants_equal(pm_parser_t *parser, pm_constant_id_t left, pm_constant_id_t right);
     typedef struct { pm_parser_t *parser; pm_constant_id_t name; bool found; } fleek_name_search_t;
@@ -694,144 +665,6 @@ class Fleek
       if (PM_NODE_TYPE_P(parameter, PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) return ((const pm_optional_keyword_parameter_node_t *) parameter)->name;
       return 0;
     }
-    typedef struct { const uint8_t *expression; size_t length; int lines[64]; size_t count; } fleek_conditional_group_t;
-    typedef struct { pm_parser_t *parser; const uint8_t *source; const char *class_name; size_t class_name_length; size_t maximum; fleek_conditional_group_t groups[128]; size_t count; bool unsupported; } fleek_repeated_conditional_state_t;
-    static bool fleek_conditional_is_block_given(pm_parser_t *parser, const pm_node_t *condition) {
-      if (!PM_NODE_TYPE_P(condition, PM_CALL_NODE)) return false;
-      const pm_call_node_t *call = (const pm_call_node_t *) condition;
-      return call->receiver == NULL && call->arguments == NULL && fleek_name_is(parser, call->name, "block_given?");
-    }
-    static bool fleek_record_conditional(fleek_repeated_conditional_state_t *state, pm_parser_t *parser, const pm_node_t *condition) {
-      if (condition == NULL || fleek_conditional_is_block_given(parser, condition)) return true;
-      size_t length = (size_t) (condition->location.end - condition->location.start);
-      size_t group = 0;
-      while (group < state->count && (state->groups[group].length != length || memcmp(state->groups[group].expression, condition->location.start, length) != 0)) group++;
-      if (group == state->count) {
-        if (state->count >= 128) { state->unsupported = true; return false; }
-        state->groups[group].expression = condition->location.start;
-        state->groups[group].length = length;
-        state->groups[group].count = 0;
-        state->count++;
-      }
-      fleek_conditional_group_t *entry = &state->groups[group];
-      if (entry->count >= 64) { state->unsupported = true; return false; }
-      entry->lines[entry->count++] = fleek_source_line(state->source, condition->location.start);
-      return true;
-    }
-    static bool fleek_collect_repeated_conditionals_with_parser(const pm_node_t *node, void *data) {
-      fleek_repeated_conditional_state_t *state = (fleek_repeated_conditional_state_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
-      if (PM_NODE_TYPE_P(node, PM_IF_NODE)) return fleek_record_conditional(state, state->parser, ((const pm_if_node_t *) node)->predicate);
-      if (PM_NODE_TYPE_P(node, PM_CASE_NODE)) return fleek_record_conditional(state, state->parser, ((const pm_case_node_t *) node)->predicate);
-      return true;
-    }
-    static bool fleek_repeated_conditional_last_method(const pm_def_node_t *method) {
-      const pm_node_t *body = PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE) ?
-        ((const pm_class_node_t *) fleek_only_scope)->body : ((const pm_module_node_t *) fleek_only_scope)->body;
-      if (!PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) return false;
-      const pm_statements_node_t *statements = (const pm_statements_node_t *) body;
-      for (size_t index = statements->body.size; index > 0; index--) if (PM_NODE_TYPE_P(statements->body.nodes[index - 1], PM_DEF_NODE)) return statements->body.nodes[index - 1] == (const pm_node_t *) method;
-      return false;
-    }
-    static int fleek_repeated_conditional_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
-        size_t class_name_length, const pm_node_t *node, void *data) {
-      fleek_repeated_conditional_state_t *state = (fleek_repeated_conditional_state_t *) data;
-      const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (fleek_only_scope == NULL) return 0;
-      state->parser = parser;
-      state->source = source; state->class_name = class_name; state->class_name_length = class_name_length;
-      if (!fleek_method_body_supported(method->body)) return -1;
-      if (method->body != NULL) pm_visit_node(method->body, fleek_collect_repeated_conditionals_with_parser, state);
-      if (state->unsupported) return -1;
-      if (!fleek_repeated_conditional_last_method(method)) return 0;
-      int findings = 0;
-      for (size_t group = 0; group < state->count; group++) {
-        fleek_conditional_group_t *entry = &state->groups[group];
-        if (entry->count <= state->maximum) continue;
-        char lines[512] = { 0 };
-        size_t line_used = 0;
-        for (size_t index = 0; index < entry->count; index++) {
-          int line_written = snprintf(lines + line_used, sizeof(lines) - line_used, "%s%d", index == 0 ? "" : ", ", entry->lines[index]);
-          if (line_written < 0 || (size_t) line_written >= sizeof(lines) - line_used) return -1;
-          line_used += (size_t) line_written;
-        }
-        int written = snprintf(fleek_repeated_conditional_buffer + fleek_repeated_conditional_used,
-          sizeof(fleek_repeated_conditional_buffer) - fleek_repeated_conditional_used,
-          "%s\\t%.*s\\t%.*s\\t%zu\\n", lines, (int) state->class_name_length, state->class_name,
-          (int) entry->length, entry->expression, entry->count);
-        if (written < 0 || (size_t) written >= sizeof(fleek_repeated_conditional_buffer) - fleek_repeated_conditional_used) return -1;
-        fleek_repeated_conditional_used += (size_t) written;
-        findings++;
-      }
-      return findings;
-    }
-    int fleek_repeated_conditional(const char *source, size_t length, size_t maximum) {
-      fleek_repeated_conditional_buffer[0] = 0; fleek_repeated_conditional_used = 0;
-      fleek_repeated_conditional_state_t state = { 0 };
-      state.source = (const uint8_t *) source;
-      state.maximum = maximum;
-      if (memchr(source, 0, length) != NULL) return -2;
-      fleek_class_count = fleek_module_count = 0;
-      fleek_only_scope = NULL;
-      fleek_source_start = (const uint8_t *) source;
-      pm_options_t options = {0};
-      options.line = 1;
-      options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
-      pm_parser_t parser;
-      pm_parser_init(&parser, (const uint8_t *) source, length, &options);
-      pm_node_t *root = pm_parse(&parser);
-      if (parser.error_list.head != NULL) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1; }
-      pm_visit_node(root, fleek_collect_classes, NULL);
-      if (fleek_class_count <= 1) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
-        return fleek_scan_method_scope(source, length, fleek_repeated_conditional_method, &state, NULL);
-      }
-      if (fleek_module_count != 0 || !PM_NODE_TYPE_P(root, PM_PROGRAM_NODE) ||
-          ((const pm_program_node_t *) root)->statements == NULL) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-      }
-      size_t total_classes = fleek_class_count;
-      const pm_statements_node_t *program = (const pm_statements_node_t *) ((const pm_program_node_t *) root)->statements;
-      size_t direct_classes = 0;
-      size_t analyzed = 0;
-      int findings = 0;
-      for (size_t index = 0; index < program->body.size; index++) {
-        const pm_node_t *statement = program->body.nodes[index];
-        if (!PM_NODE_TYPE_P(statement, PM_CLASS_NODE)) continue;
-        direct_classes++;
-        const pm_class_node_t *class_node = (const pm_class_node_t *) statement;
-        if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) ||
-            !PM_NODE_TYPE_P(class_node->body, PM_STATEMENTS_NODE)) {
-          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-        }
-        pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool,
-          ((const pm_constant_read_node_t *) class_node->constant_path)->name);
-        fleek_only_scope = statement;
-        fleek_class_count = 1;
-        fleek_module_count = 0;
-        state.count = 0;
-        state.unsupported = false;
-        state.class_name = (const char *) class_name->start;
-        state.class_name_length = class_name->length;
-        const pm_statements_node_t *class_body = (const pm_statements_node_t *) class_node->body;
-        for (size_t method_index = 0; method_index < class_body->body.size; method_index++) {
-          const pm_node_t *method = class_body->body.nodes[method_index];
-          if (!PM_NODE_TYPE_P(method, PM_DEF_NODE)) continue;
-          int result = fleek_repeated_conditional_method(&parser, (const uint8_t *) source,
-            state.class_name, state.class_name_length, method, &state);
-          if (result < 0) findings = -1;
-          else findings += result;
-        }
-        analyzed++;
-      }
-      if (direct_classes != total_classes || analyzed != total_classes) findings = -1;
-      pm_node_destroy(&parser, root);
-      pm_parser_free(&parser);
-      pm_options_free(&options);
-      return findings < 0 ? -4 : findings;
-    }
-    const char *fleek_repeated_conditional_finding(void) { return fleek_repeated_conditional_buffer; }
-
     typedef struct { const char *reject; const char *accept; } fleek_name_patterns_t;
     static int fleek_uncommunicative_method_name_method(pm_parser_t *parser, const uint8_t *source, const char *class_name, size_t class_name_length, const pm_node_t *node, void *data) {
       const pm_def_node_t *method = (const pm_def_node_t *) node;
@@ -1022,225 +855,6 @@ class Fleek
       return unsupported || result == -4 || state.unsupported ? (state.used > 0 ? -5 : -4) : result;
     }
     const char *fleek_uncommunicative_variable_name_finding(void) { return fleek_uncommunicative_variable_name_buffer; }
-    static bool fleek_data_clump_method_has(const fleek_data_clump_state_t *state, size_t method, pm_constant_id_t name) {
-      for (size_t parameter = 0; parameter < state->counts[method]; parameter++) if (state->names[method][parameter] == name) return true;
-      return false;
-    }
-    static bool fleek_data_clump_same_group(const fleek_data_clump_state_t *state, const size_t *matching, size_t matching_count, pm_constant_id_t name) {
-      for (size_t method = 0; method < state->methods; method++) {
-        bool expected = false;
-        for (size_t index = 0; index < matching_count; index++) if (matching[index] == method) expected = true;
-        if (fleek_data_clump_method_has(state, method, name) != expected) return false;
-      }
-      return true;
-    }
-    static int fleek_data_clump_singleton_findings(pm_parser_t *parser, const pm_constant_t *class_name,
-        fleek_data_clump_state_t *state, size_t max_copies, size_t min_clump_size) {
-      pm_constant_id_t clumps[128][64]; size_t clump_sizes[128] = { 0 }; size_t clump_total = 0;
-      for (size_t method = 0; method < state->methods; method++) for (size_t parameter = 0; parameter < state->counts[method]; parameter++) {
-        pm_constant_id_t name = state->names[method][parameter];
-        bool seen = false;
-        for (size_t earlier_method = 0; earlier_method < method; earlier_method++)
-          if (fleek_data_clump_method_has(state, earlier_method, name)) seen = true;
-        for (size_t earlier_parameter = 0; earlier_parameter < parameter; earlier_parameter++)
-          if (state->names[method][earlier_parameter] == name) seen = true;
-        if (seen) continue;
-        size_t matching[128]; size_t matching_count = 0;
-        for (size_t candidate = 0; candidate < state->methods; candidate++)
-          if (fleek_data_clump_method_has(state, candidate, name)) matching[matching_count++] = candidate;
-        if (matching_count <= max_copies) continue;
-        pm_constant_id_t common_names[64]; size_t common_count = 0;
-        for (size_t candidate_parameter = 0; candidate_parameter < state->counts[matching[0]]; candidate_parameter++) {
-          pm_constant_id_t common = state->names[matching[0]][candidate_parameter];
-          bool shared = true;
-          for (size_t member = 1; member < matching_count; member++)
-            if (!fleek_data_clump_method_has(state, matching[member], common)) shared = false;
-          if (shared) common_names[common_count++] = common;
-        }
-        if (common_count < min_clump_size) continue;
-        for (size_t left = 0; left < common_count; left++) for (size_t right = left + 1; right < common_count; right++) {
-          pm_constant_t *left_name = pm_constant_pool_id_to_constant(&parser->constant_pool, common_names[left]);
-          pm_constant_t *right_name = pm_constant_pool_id_to_constant(&parser->constant_pool, common_names[right]);
-          size_t common_length = left_name->length < right_name->length ? left_name->length : right_name->length;
-          int order = memcmp(left_name->start, right_name->start, common_length);
-          if (order == 0) order = left_name->length < right_name->length ? -1 : left_name->length > right_name->length;
-          if (order > 0) { pm_constant_id_t temporary = common_names[left]; common_names[left] = common_names[right]; common_names[right] = temporary; }
-        }
-        bool duplicate = false;
-        for (size_t previous = 0; previous < clump_total; previous++) {
-          if (clump_sizes[previous] != common_count) continue;
-          bool same = true;
-          for (size_t index = 0; index < common_count; index++) if (clumps[previous][index] != common_names[index]) same = false;
-          if (same) duplicate = true;
-        }
-        if (duplicate) continue;
-        if (clump_total == 128) return -1;
-        for (size_t index = 0; index < common_count; index++) clumps[clump_total][index] = common_names[index];
-        clump_sizes[clump_total++] = common_count;
-      }
-      size_t findings = 0;
-      for (size_t clump_index = 0; clump_index < clump_total; clump_index++) {
-        size_t matching[128]; size_t matching_count = 0;
-        for (size_t candidate = 0; candidate < state->methods; candidate++) {
-          bool shares_clump = true;
-          for (size_t parameter = 0; parameter < clump_sizes[clump_index]; parameter++)
-            if (!fleek_data_clump_method_has(state, candidate, clumps[clump_index][parameter])) shares_clump = false;
-          if (shares_clump) matching[matching_count++] = candidate;
-        }
-        if (matching_count <= max_copies) continue;
-        char clump[512] = { 0 }; size_t clump_used = 0;
-        for (size_t name_index = 0; name_index < clump_sizes[clump_index]; name_index++) {
-          pm_constant_t *param_name = pm_constant_pool_id_to_constant(&parser->constant_pool, clumps[clump_index][name_index]);
-          int added = snprintf(clump + clump_used, sizeof(clump) - clump_used, "%s'%.*s'", name_index == 0 ? "" : ", ", (int) param_name->length, param_name->start);
-          if (added < 0 || (size_t) added >= sizeof(clump) - clump_used) return -1;
-          clump_used += (size_t) added;
-        }
-        char lines[512] = { 0 }; size_t lines_used = 0;
-        for (size_t copy = 0; copy < matching_count; copy++) {
-          size_t line = state->lines[matching[copy]];
-          bool line_seen = false;
-          for (size_t old = 0; old < copy; old++) if (state->lines[matching[old]] == line) line_seen = true;
-          if (line_seen) continue;
-          int line_written = snprintf(lines + lines_used, sizeof(lines) - lines_used, "%s%zu", lines_used == 0 ? "" : ", ", line);
-          if (line_written < 0 || (size_t) line_written >= sizeof(lines) - lines_used) return -1;
-          lines_used += (size_t) line_written;
-        }
-        int written = snprintf(fleek_data_clump_buffer + fleek_data_clump_used, sizeof(fleek_data_clump_buffer) - fleek_data_clump_used,
-          "%s\\t%.*s\\t[%s]\\t%zu\\n", lines, (int) class_name->length, class_name->start, clump, matching_count);
-        if (written < 0 || (size_t) written >= sizeof(fleek_data_clump_buffer) - fleek_data_clump_used) return -1;
-        fleek_data_clump_used += (size_t) written; findings++;
-      }
-      return (int) findings;
-    }
-    int fleek_data_clump(const char *source, size_t length, size_t max_copies, size_t min_clump_size) {
-      fleek_data_clump_buffer[0] = 0; fleek_data_clump_used = 0;
-      if (memchr(source, 0, length) != NULL) return -2;
-      fleek_class_count = fleek_module_count = 0; fleek_only_scope = NULL;
-      pm_options_t options = {0}; options.line = 1; options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
-      pm_parser_t parser; pm_parser_init(&parser, (const uint8_t *) source, length, &options);
-      pm_node_t *root = pm_parse(&parser);
-      if (parser.error_list.head != NULL) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1; }
-      pm_visit_node(root, fleek_collect_classes, NULL);
-      if (fleek_class_count + fleek_module_count == 0) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0; }
-      if (fleek_class_count + fleek_module_count != 1 || fleek_only_scope == NULL) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
-      const pm_node_t *constant_path = PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE) ? ((const pm_class_node_t *) fleek_only_scope)->constant_path : ((const pm_module_node_t *) fleek_only_scope)->constant_path;
-      const pm_node_t *body = PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE) ? ((const pm_class_node_t *) fleek_only_scope)->body : ((const pm_module_node_t *) fleek_only_scope)->body;
-      if (!PM_NODE_TYPE_P(constant_path, PM_CONSTANT_READ_NODE) || (body != NULL && !PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE))) { pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4; }
-      pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) constant_path)->name);
-      fleek_data_clump_state_t state = { max_copies, min_clump_size, { { 0 } }, { 0 }, { 0 }, 0, false, false };
-      if (body != NULL) {
-        const pm_statements_node_t *statements = (const pm_statements_node_t *) body;
-        if (statements->body.size > 128) state.methods = 128;
-        for (size_t index = 0; index < statements->body.size && state.methods < 128; index++) {
-          const pm_node_t *child = statements->body.nodes[index];
-          if (PM_NODE_TYPE_P(child, PM_DEF_NODE)) {
-            if (!fleek_data_clump_method(child, (const uint8_t *) source, &state)) break;
-          } else if (PM_NODE_TYPE_P(child, PM_SINGLETON_CLASS_NODE)) {
-            const pm_singleton_class_node_t *singleton = (const pm_singleton_class_node_t *) child;
-            if (!PM_NODE_TYPE_P(singleton->expression, PM_SELF_NODE) || !PM_NODE_TYPE_P(singleton->body, PM_STATEMENTS_NODE)) {
-              state.unsupported = true;
-              continue;
-            }
-            state.singleton_methods = true;
-            const pm_statements_node_t *singleton_statements = (const pm_statements_node_t *) singleton->body;
-            for (size_t method_index = 0; method_index < singleton_statements->body.size; method_index++) {
-              if (state.methods >= 128) { state.unsupported = true; break; }
-              const pm_node_t *method = singleton_statements->body.nodes[method_index];
-              if (PM_NODE_TYPE_P(method, PM_DEF_NODE)) {
-                if (!fleek_data_clump_method(method, (const uint8_t *) source, &state)) break;
-              } else {
-                fleek_nested_method_state_t nested = { false }; pm_visit_node(method, fleek_find_nested_method, &nested);
-                if (nested.found) state.unsupported = true;
-              }
-            }
-          } else {
-            fleek_nested_method_state_t nested = { false }; pm_visit_node(child, fleek_find_nested_method, &nested);
-            if (nested.found) state.unsupported = true;
-          }
-        }
-      }
-      if (state.methods == 128 && body != NULL && ((const pm_statements_node_t *) body)->body.size > 128) state.unsupported = true;
-      if (state.singleton_methods) {
-        int singleton_findings = fleek_data_clump_singleton_findings(&parser, class_name, &state, max_copies, min_clump_size);
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
-        if (singleton_findings < 0) return -4;
-        return state.unsupported ? (singleton_findings > 0 ? -5 : -4) : singleton_findings;
-      }
-      size_t findings = 0;
-      for (size_t method = 0; method < state.methods; method++) for (size_t parameter = 0; parameter < state.counts[method]; parameter++) {
-        pm_constant_id_t name = state.names[method][parameter];
-        bool seen = false;
-        for (size_t earlier_method = 0; earlier_method < method; earlier_method++) for (size_t earlier_parameter = 0; earlier_parameter < state.counts[earlier_method]; earlier_parameter++) if (state.names[earlier_method][earlier_parameter] == name) seen = true;
-        if (seen) continue;
-        size_t matching[128]; size_t matching_count = 0;
-        for (size_t candidate = 0; candidate < state.methods; candidate++) {
-          bool has_name = false;
-          for (size_t candidate_parameter = 0; candidate_parameter < state.counts[candidate]; candidate_parameter++) if (state.names[candidate][candidate_parameter] == name) has_name = true;
-          if (has_name) matching[matching_count++] = candidate;
-        }
-        if (matching_count <= max_copies) continue;
-        for (size_t candidate = 0; candidate < state.methods; candidate++) for (size_t candidate_parameter = 0; candidate_parameter < state.counts[candidate]; candidate_parameter++) {
-          pm_constant_id_t candidate_name = state.names[candidate][candidate_parameter]; size_t copies = 0;
-          for (size_t member = 0; member < state.methods; member++) if (fleek_data_clump_method_has(&state, member, candidate_name)) copies++;
-          bool overlaps = false;
-          for (size_t member = 0; member < matching_count; member++) if (fleek_data_clump_method_has(&state, matching[member], candidate_name)) overlaps = true;
-          if (copies > max_copies && overlaps && !fleek_data_clump_same_group(&state, matching, matching_count, candidate_name)) state.unsupported = true;
-        }
-        if (method != matching[0]) continue;
-        bool earlier_common = false;
-        for (size_t earlier_parameter = 0; earlier_parameter < parameter; earlier_parameter++) {
-          pm_constant_id_t earlier_name = state.names[method][earlier_parameter];
-          size_t earlier_copies = 0;
-          for (size_t candidate = 0; candidate < state.methods; candidate++) if (fleek_data_clump_method_has(&state, candidate, earlier_name)) earlier_copies++;
-          if (earlier_copies > max_copies) earlier_common = true;
-        }
-        if (earlier_common) continue;
-        char clump[512] = { 0 }; size_t clump_used = 0; size_t names_added = 0;
-        pm_constant_id_t clump_names[64];
-        for (size_t candidate_parameter = 0; candidate_parameter < state.counts[method]; candidate_parameter++) {
-          pm_constant_id_t common = state.names[method][candidate_parameter]; size_t copies = 0;
-          for (size_t candidate = 0; candidate < state.methods; candidate++) for (size_t pos = 0; pos < state.counts[candidate]; pos++) if (state.names[candidate][pos] == common) { copies++; break; }
-          if (copies <= max_copies) continue;
-          clump_names[names_added++] = common;
-        }
-        for (size_t left = 0; left < names_added; left++) for (size_t right = left + 1; right < names_added; right++) {
-          pm_constant_t *left_name = pm_constant_pool_id_to_constant(&parser.constant_pool, clump_names[left]);
-          pm_constant_t *right_name = pm_constant_pool_id_to_constant(&parser.constant_pool, clump_names[right]);
-          size_t common_length = left_name->length < right_name->length ? left_name->length : right_name->length;
-          int order = memcmp(left_name->start, right_name->start, common_length);
-          if (order == 0) order = left_name->length < right_name->length ? -1 : left_name->length > right_name->length;
-          if (order > 0) { pm_constant_id_t temporary = clump_names[left]; clump_names[left] = clump_names[right]; clump_names[right] = temporary; }
-        }
-        clump_used = 0;
-        for (size_t name_index = 0; name_index < names_added; name_index++) {
-          pm_constant_t *param_name = pm_constant_pool_id_to_constant(&parser.constant_pool, clump_names[name_index]);
-          int added = snprintf(clump + clump_used, sizeof(clump) - clump_used, "%s'%.*s'", name_index == 0 ? "" : ", ", (int) param_name->length, param_name->start);
-          if (added < 0 || (size_t) added >= sizeof(clump) - clump_used) { findings = 128; break; }
-          clump_used += (size_t) added;
-        }
-        if (findings == 128) break;
-        if (names_added < min_clump_size) continue;
-        char lines[512] = { 0 }; size_t lines_used = 0;
-        for (size_t copy = 0; copy < matching_count; copy++) {
-          size_t line = state.lines[matching[copy]];
-          bool line_seen = false;
-          for (size_t old = 0; old < copy; old++) if (state.lines[matching[old]] == line) line_seen = true;
-          if (line_seen) continue;
-          int line_written = snprintf(lines + lines_used, sizeof(lines) - lines_used, "%s%zu", lines_used == 0 ? "" : ", ", line);
-          if (line_written < 0 || (size_t) line_written >= sizeof(lines) - lines_used) { findings = 128; break; }
-          lines_used += (size_t) line_written;
-        }
-        if (findings == 128) break;
-        int written = snprintf(fleek_data_clump_buffer + fleek_data_clump_used, sizeof(fleek_data_clump_buffer) - fleek_data_clump_used, "%s\\t%.*s\\t[%s]\\t%zu\\n", lines, (int) class_name->length, class_name->start, clump, matching_count);
-        if (written < 0 || (size_t) written >= sizeof(fleek_data_clump_buffer) - fleek_data_clump_used) { findings = 128; break; }
-        fleek_data_clump_used += (size_t) written; findings++;
-      }
-      pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
-      if (findings == 128) return -4;
-      return state.unsupported ? (findings > 0 ? -5 : -4) : (int) findings;
-    }
-    const char *fleek_data_clump_finding(void) { return fleek_data_clump_buffer; }
-
     int fleek_class_variable(const char *source, size_t length) {
       fleek_finding_buffer[0] = 0;
       fleek_class_count = fleek_module_count = fleek_finding_count = fleek_unsupported = 0;
@@ -4007,10 +3621,6 @@ class Fleek
     ffi_func :fleek_class_variable_finding, [], :str
     ffi_func :fleek_unused_private_method, [:str, :size_t], :int
     ffi_func :fleek_unused_private_method_finding, [], :str
-    ffi_func :fleek_repeated_conditional, [:str, :size_t, :size_t], :int
-    ffi_func :fleek_repeated_conditional_finding, [], :str
-    ffi_func :fleek_data_clump, [:str, :size_t, :size_t, :size_t], :int
-    ffi_func :fleek_data_clump_finding, [], :str
     ffi_func :fleek_uncommunicative_method_name, [:str, :size_t, :str, :str], :int
     ffi_func :fleek_uncommunicative_method_name_finding, [], :str
     ffi_func :fleek_uncommunicative_module_name, [:str, :size_t, :str, :str], :int
@@ -5239,10 +4849,10 @@ class Fleek
     "ManualDispatch" => ["whole files through the ported Reek context engine", "%s manually dispatches method call"],
     "NilCheck" => ["whole files through the ported Reek context engine", "%s performs a nil-check"],
     "MissingSafeMethod" => ["whole files through the ported Reek context engine", "%s has missing safe method '%s'"],
-    "RepeatedConditional" => ["simple method conditions compared within direct top-level classes", "%s tests '%s' at least %s times"],
+    "RepeatedConditional" => ["whole files through the ported Reek context engine", "%s tests '%s' at least %s times"],
     "NestedIterators" => ["whole files through the ported Reek context engine", "%s contains iterators nested %s deep"],
     "FeatureEnvy" => ["whole files through the ported Reek context engine", "%s refers to '%s' more than self (maybe move it to another class?)"],
-    "DataClump" => ["direct instance methods and class << self methods with matching parameter names", "%s takes parameters %s to %s methods"],
+    "DataClump" => ["whole files through the ported Reek context engine", "%s takes parameters %s to %s methods"],
     "TooManyConstants" => ["whole files through the ported Reek context engine", "%s has %s constants"],
     "TooManyInstanceVariables" => ["whole files through the ported Reek context engine", "%s has at least %s instance variables"],
     "TooManyMethods" => ["whole files through the ported Reek context engine", "%s has at least %s methods"],
@@ -5377,11 +4987,8 @@ class Fleek
     maximum = settings[0]
     option = settings[1]
     accepted_names = settings[2]
-    minimum = Integer(option, 10) if detector == "DataClump"
     case detector
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method(source, length)
-    when "RepeatedConditional" then NativePrism.fleek_repeated_conditional(source, length, maximum)
-    when "DataClump" then NativePrism.fleek_data_clump(source, length, maximum, minimum)
     when "UncommunicativeMethodName" then NativePrism.fleek_uncommunicative_method_name(source, length, option, accepted_names)
     when "UncommunicativeModuleName" then NativePrism.fleek_uncommunicative_module_name(source, length, option, accepted_names)
     when "UncommunicativeParameterName" then NativePrism.fleek_uncommunicative_parameter_name(source, length, option, accepted_names)
@@ -5393,7 +5000,7 @@ class Fleek
   REEK_ENGINE_RECORDS = [""]
 
   # Detectors running on the ported Reek context engine.
-  REEK_ENGINE_DETECTORS = %w[Attribute BooleanParameter ControlParameter DuplicateMethodCall FeatureEnvy InstanceVariableAssumption IrresponsibleModule LongParameterList LongYieldList ManualDispatch MissingSafeMethod ModuleInitialize NestedIterators NilCheck SubclassedFromCoreClass TooManyConstants TooManyInstanceVariables TooManyMethods TooManyStatements UnusedParameters UtilityFunction].freeze
+  REEK_ENGINE_DETECTORS = %w[Attribute BooleanParameter ControlParameter DataClump DuplicateMethodCall FeatureEnvy InstanceVariableAssumption IrresponsibleModule LongParameterList LongYieldList ManualDispatch MissingSafeMethod ModuleInitialize NestedIterators NilCheck RepeatedConditional SubclassedFromCoreClass TooManyConstants TooManyInstanceVariables TooManyMethods TooManyStatements UnusedParameters UtilityFunction].freeze
 
   # :reek:LongParameterList
   def self.run_reek_engine_detector(detector, source, path, settings)
@@ -5418,8 +5025,6 @@ class Fleek
     return REEK_ENGINE_RECORDS[0] if REEK_ENGINE_DETECTORS.include?(detector)
     case detector
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method_finding
-    when "RepeatedConditional" then NativePrism.fleek_repeated_conditional_finding
-    when "DataClump" then NativePrism.fleek_data_clump_finding
     when "UncommunicativeMethodName" then NativePrism.fleek_uncommunicative_method_name_finding
     when "UncommunicativeModuleName" then NativePrism.fleek_uncommunicative_module_name_finding
     when "UncommunicativeParameterName" then NativePrism.fleek_uncommunicative_parameter_name_finding

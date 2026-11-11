@@ -25,7 +25,9 @@ class ReekEngineContract
     ["InstanceVariableAssumption", "#{ROOT}/class_api.rb"],
     ["SubclassedFromCoreClass", "#{ROOT}/class_api.rb"],
     ["MissingSafeMethod", "#{ROOT}/class_api.rb"],
-    ["ManualDispatch", "#{ROOT}/class_api.rb"]
+    ["ManualDispatch", "#{ROOT}/class_api.rb"],
+    ["RepeatedConditional", "#{ROOT}/conditionals_and_clumps.rb"],
+    ["DataClump", "#{ROOT}/conditionals_and_clumps.rb"]
   ].freeze
   OUTPUT = "/tmp/fleek-reek-engine"
   # Runs "$0" with the remaining arguments, writing stdout to $1 and stderr to $1.err.

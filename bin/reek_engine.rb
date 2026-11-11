@@ -670,6 +670,8 @@ module ReekEngine
     return subclassed_from_core_class(root, source) if detector == "SubclassedFromCoreClass"
     return missing_safe_method(root, source) if detector == "MissingSafeMethod"
     return manual_dispatch(root, source) if detector == "ManualDispatch"
+    return repeated_conditional(root, source, maximum) if detector == "RepeatedConditional"
+    return data_clump(root, source, maximum, settings[1].to_s.to_i) if detector == "DataClump"
     irresponsible_module(root, source)
   end
 
@@ -977,6 +979,72 @@ module ReekEngine
       records << "#{lines.join(", ")}\t#{names.full_name(context)}\t\n" unless lines.empty?
     end
     records.join
+  end
+
+  BLOCK_GIVEN_KEY = "(send nil :block_given?)".freeze
+
+  # Reek::SmellDetectors::RepeatedConditional: if and case conditions repeated in a class more than max_ifs times.
+  def self.repeated_conditional(root, source, maximum)
+    names = Names.new(source)
+    records = []
+    module_contexts(root, ["class"], "RepeatedConditional").each do |context|
+      limit = configured_limit(context, "RepeatedConditional", "max_ifs", maximum)
+      groups = {}
+      %w[if case].each do |type|
+        each_node(context.exp, [type], %w[class module]).each do |found|
+          condition = found.child(0)
+          record_call(groups, condition) unless condition.nil? || condition.atom? || condition.key == BLOCK_GIVEN_KEY
+        end
+      end
+      groups.values.each do |group|
+        next unless group.length > limit
+        records << "#{group.map { |node| node.line }.join(", ")}\t#{names.full_name(context)}\t#{group[0].format_to_ruby(source)}\t#{group.length}\n"
+      end
+    end
+    records.join
+  end
+
+  # Reek::SmellDetectors::DataClump: argument-name groups shared by more than max_copies methods of a class or module.
+  def self.data_clump(root, source, maximum, minimum)
+    names = Names.new(source)
+    records = []
+    module_contexts(root, %w[class module], "DataClump").each do |context|
+      copies = configured_limit(context, "DataClump", "max_copies", maximum)
+      size = configured_limit(context, "DataClump", "min_clump_size", minimum)
+      methods = each_node(context.exp, ["def"], %w[class module])
+      arguments = methods.map { |method| argument_names(method) }
+      clumps = []
+      combinations(methods.length, copies + 1).each do |indexes|
+        clump = indexes.map { |index| arguments[index] }.inject { |common, names_list| common & names_list }.sort
+        clumps << clump if clump.length >= size && !clumps.include?(clump)
+      end
+      clumps.each do |clump|
+        lines = methods.each_index.select { |index| (clump & arguments[index]) == clump }.map { |index| methods[index].line }
+        records << "#{lines.join(", ")}\t#{names.full_name(context)}\t[#{clump.map { |name| "'#{name}'" }.join(", ")}]\t#{lines.length}\n"
+      end
+    end
+    records.join
+  end
+
+  # MethodNodeBase#arg_names without anonymous splats: named non-block parameters.
+  def self.argument_names(method)
+    parameters(method).reject { |parameter| parameter.type == "blockarg" || anonymous_splat?(parameter) }.map { |parameter| parameter.child(0).symbol_name }
+  end
+
+  # Array#combination(size) over 0...count as index lists, in Ruby's lexicographic order.
+  def self.combinations(count, size)
+    found = []
+    return found if size > count || size <= 0
+    indexes = (0...size).to_a
+    loop do
+      found << indexes.dup
+      position = size - 1
+      position -= 1 while position >= 0 && indexes[position] == count - size + position
+      break if position.negative?
+      indexes[position] += 1
+      (position + 1...size).each { |later| indexes[later] = indexes[later - 1] + 1 }
+    end
+    found
   end
 
   SELF_TYPES = %w[self super zsuper ivar ivasgn send].freeze

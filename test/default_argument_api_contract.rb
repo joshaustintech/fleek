@@ -109,26 +109,10 @@ class DefaultArgumentApiContract
       verify_unused_private_framework_empty_class
     when "ignored DuplicateMethodCall list entry"
       verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_allow.yml")
-    when "MissingSafeMethod singleton scope analysis"
-      verify_missing_safe_method_singleton_companions
     when "ignored MissingSafeMethod exclusion entry"
       verify_configured_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb", "test/fixtures/config_missing_safe_method_exclude.yml")
-    when "missing RepeatedConditional finding"
-      verify_default_detector("RepeatedConditional", "test/fixtures/repeated_conditional.rb")
-    when "RepeatedConditional class scope isolation"
-      verify_repeated_conditional_nested_classes
-    when "missing NestedIterators finding"
-      verify_nested_iterator_ignored_name
     when "ignored NestedIterators list entry"
       verify_nested_iterator_ignored_name
-    when "missing DataClump finding", "DataClump first clump only"
-      verify_supported_default_detector("DataClump", "test/fixtures/data_clump_multiple_groups.rb")
-    when "DataClump first-method dependence"
-      verify_supported_default_detector("DataClump", "test/fixtures/data_clump_after_empty_method.rb")
-    when "DataClump drops findings on incomplete syntax"
-      verify_data_clump_preserves_supported_findings
-    when "DataClump singleton parameter participation"
-      verify_data_clump_singleton_methods
     when "missing UncommunicativeMethodName finding"
       verify_supported_default_detector("UncommunicativeMethodName", "test/fixtures/uncommunicative_method_name.rb")
     when "UncommunicativeMethodName nested singleton context"
@@ -143,8 +127,6 @@ class DefaultArgumentApiContract
       verify_supported_default_detector("UncommunicativeVariableName", "test/fixtures/uncommunicative_variable_name.rb")
     when "UncommunicativeVariableName block parameters"
       verify_uncommunicative_variable_name_blocks
-    when "missing ManualDispatch finding"
-      verify_default_detector("ManualDispatch", "test/fixtures/manual_dispatch.rb")
     when "UnusedPrivateMethod private visibility"
       verify_unused_private_visibility_cases
     when "UnusedPrivateMethod named visibility"
@@ -658,8 +640,7 @@ class DefaultArgumentApiContract
   # :reek:TooManyStatements
   def self.verify_unsupported_data_and_size_scopes
     source = "test/fixtures/class_variable_nested.rb"
-    AnalysisRunner.assert_unsupported(run_fleek(source, "", "reek:DataClump"), "DataClump")
-    %w[TooManyConstants TooManyInstanceVariables TooManyMethods].each { |detector| verify_findings_parity(source, detector, "") }
+    %w[DataClump TooManyConstants TooManyInstanceVariables TooManyMethods].each { |detector| verify_findings_parity(source, detector, "") }
     statements = run_fleek(source, "", "reek:TooManyStatements")
     AnalysisRunner.assert_detector_findings(statements, run_reek(source, "TooManyStatements"), "nested TooManyStatements")
   end
@@ -881,29 +862,7 @@ class DefaultArgumentApiContract
   end
 
   def self.verify_data_clump_preserves_supported_findings
-    verify_data_clump_mixed_syntax_parity
-  end
-
-  def self.verify_data_clump_mixed_syntax_parity
-    actual, reference = data_clump_mixed_syntax_runs
-    verify_data_clump_mixed_result(actual, reference)
-  end
-
-  def self.data_clump_mixed_syntax_runs
-    source = "test/fixtures/data_clump_with_unsupported_method.rb"
-    reference = run_reek(source, "DataClump")
-    actual = run_fleek(source, "", "reek:DataClump")
-    [actual, reference]
-  end
-
-  def self.verify_data_clump_mixed_result(actual, reference)
-    verify_data_clump_mixed_findings(actual, reference)
-    AnalysisRunner.assert_unsupported(actual, "DataClump unsupported method")
-    verify(actual[1].include?("Status: incomplete"), "DataClump mixed syntax did not report incomplete status")
-  end
-
-  def self.verify_data_clump_mixed_findings(actual, reference)
-    AnalysisRunner.assert_detector_findings(actual, reference, "DataClump")
+    verify_findings_parity("test/fixtures/data_clump_with_unsupported_method.rb", "DataClump", "")
   end
 
   # :reek:ControlParameter
