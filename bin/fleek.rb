@@ -135,8 +135,6 @@ class Fleek
     static size_t fleek_missing_safe_method_used;
     static char fleek_repeated_conditional_buffer[8192];
     static size_t fleek_repeated_conditional_used;
-    static char fleek_nested_iterators_buffer[8192];
-    static size_t fleek_nested_iterators_used;
     static char fleek_feature_envy_buffer[8192];
     static size_t fleek_feature_envy_used;
     static char fleek_data_clump_buffer[8192];
@@ -2029,116 +2027,6 @@ class Fleek
       return findings < 0 ? -4 : findings;
     }
     const char *fleek_repeated_conditional_finding(void) { return fleek_repeated_conditional_buffer; }
-    typedef struct { const uint8_t *start; const uint8_t *end; int line; bool increments; size_t depth; } fleek_iterator_block_t;
-    typedef struct { pm_parser_t *parser; const uint8_t *source; const char *ignore_iterators; size_t maximum; fleek_iterator_block_t blocks[128]; size_t count; bool unsupported; } fleek_nested_iterator_state_t;
-    static bool fleek_nested_iterator_node_supported(const pm_node_t *node, void *data) {
-      bool *supported = (bool *) data;
-      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return true;
-      if (PM_NODE_TYPE_P(node, PM_BLOCK_PARAMETERS_NODE)) return true;
-      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE) || PM_NODE_TYPE_P(node, PM_CALL_NODE) ||
-          PM_NODE_TYPE_P(node, PM_ARGUMENTS_NODE) || PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE) ||
-          PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_WRITE_NODE) || PM_NODE_TYPE_P(node, PM_PARAMETERS_NODE) ||
-          PM_NODE_TYPE_P(node, PM_REQUIRED_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_OPTIONAL_PARAMETER_NODE) ||
-          PM_NODE_TYPE_P(node, PM_REQUIRED_KEYWORD_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_OPTIONAL_KEYWORD_PARAMETER_NODE) ||
-          PM_NODE_TYPE_P(node, PM_REST_PARAMETER_NODE) || PM_NODE_TYPE_P(node, PM_KEYWORD_REST_PARAMETER_NODE) ||
-          PM_NODE_TYPE_P(node, PM_ARRAY_NODE) || PM_NODE_TYPE_P(node, PM_STRING_NODE) || PM_NODE_TYPE_P(node, PM_SYMBOL_NODE) ||
-          PM_NODE_TYPE_P(node, PM_INTEGER_NODE) || PM_NODE_TYPE_P(node, PM_TRUE_NODE) || PM_NODE_TYPE_P(node, PM_FALSE_NODE) ||
-          PM_NODE_TYPE_P(node, PM_NIL_NODE) || PM_NODE_TYPE_P(node, PM_CONSTANT_READ_NODE) || PM_NODE_TYPE_P(node, PM_SELF_NODE)) return true;
-      *supported = false;
-      return false;
-    }
-    static bool fleek_nested_iterator_visit(const pm_node_t *node, void *data) {
-      fleek_nested_iterator_state_t *state = (fleek_nested_iterator_state_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
-      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return true;
-      const pm_call_node_t *call = (const pm_call_node_t *) node;
-      if (call->block == NULL) return true;
-      if (state->count >= 128) { state->unsupported = true; return false; }
-      const pm_block_node_t *block = (const pm_block_node_t *) call->block;
-      bool has_arguments = false;
-      if (PM_NODE_TYPE_P((const pm_node_t *) block->parameters, PM_BLOCK_PARAMETERS_NODE)) {
-        const pm_block_parameters_node_t *parameters = (const pm_block_parameters_node_t *) block->parameters;
-        if (parameters->parameters != NULL) {
-          const pm_parameters_node_t *list = (const pm_parameters_node_t *) parameters->parameters;
-          has_arguments = list->requireds.size + list->optionals.size + list->posts.size + list->keywords.size +
-            (list->rest != NULL) + (list->keyword_rest != NULL) > 0;
-        }
-      }
-      size_t call_length = (size_t) (call->base.location.end - call->base.location.start);
-      bool ignored = fleek_matches_any_pattern(call->base.location.start, call_length, state->ignore_iterators);
-      fleek_iterator_block_t *entry = &state->blocks[state->count++];
-      entry->start = block->base.location.start;
-      entry->end = block->base.location.end;
-      entry->line = fleek_source_line(state->source, call->base.location.start);
-      entry->increments = has_arguments && !ignored;
-      entry->depth = 0;
-      return true;
-    }
-    static bool fleek_nested_iterator_body_supported(const pm_node_t *body) {
-      if (body == NULL) return true;
-      bool supported = true;
-      pm_visit_node(body, fleek_nested_iterator_node_supported, &supported);
-      return supported;
-    }
-    static int fleek_nested_iterator_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
-        size_t class_name_length, const pm_node_t *node, void *data) {
-      (void) class_name_length;
-      fleek_nested_iterator_state_t *state = (fleek_nested_iterator_state_t *) data;
-      const pm_def_node_t *method = (const pm_def_node_t *) node;
-      state->parser = parser;
-      if (method->receiver != NULL || !fleek_nested_iterator_body_supported(method->body)) return -1;
-      if (method->body == NULL) return 0;
-      state->source = source; state->count = 0; state->unsupported = false;
-      pm_visit_node(method->body, fleek_nested_iterator_visit, state);
-      if (state->unsupported) return -1;
-      if (state->count == 0) return 0;
-      for (size_t index = 0; index < state->count; index++) {
-        fleek_iterator_block_t *block = &state->blocks[index];
-        block->depth = block->increments ? 1 : 0;
-        for (size_t parent = 0; parent < state->count; parent++) {
-          if (parent == index) continue;
-          fleek_iterator_block_t *outer = &state->blocks[parent];
-          if (outer->start < block->start && outer->end >= block->end && outer->increments) block->depth++;
-        }
-      }
-      int findings = 0;
-      for (size_t depth = 1; depth <= state->count; depth++) {
-        char lines[512] = { 0 };
-        size_t used = 0;
-        size_t count = 0;
-        for (size_t index = 0; index < state->count; index++) {
-          fleek_iterator_block_t *block = &state->blocks[index];
-          if (block->depth != depth || depth <= state->maximum) continue;
-          bool leaf = true;
-          for (size_t child = 0; child < state->count; child++) {
-            if (child != index && state->blocks[index].start < state->blocks[child].start && state->blocks[index].end >= state->blocks[child].end) leaf = false;
-          }
-          if (!leaf) continue;
-          int written = snprintf(lines + used, sizeof(lines) - used, "%s%d", count == 0 ? "" : ", ", block->line);
-          if (written < 0 || (size_t) written >= sizeof(lines) - used) return -1;
-          used += (size_t) written; count++;
-        }
-        if (count == 0) continue;
-        pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
-        int written = snprintf(fleek_nested_iterators_buffer + fleek_nested_iterators_used,
-          sizeof(fleek_nested_iterators_buffer) - fleek_nested_iterators_used,
-          "%s\\t%.*s#%.*s\\t\\t%zu\\n", lines, (int) class_name_length, class_name,
-          (int) method_name->length, method_name->start, depth);
-        if (written < 0 || (size_t) written >= sizeof(fleek_nested_iterators_buffer) - fleek_nested_iterators_used) return -1;
-        fleek_nested_iterators_used += (size_t) written;
-        findings++;
-      }
-      return findings;
-    }
-    int fleek_nested_iterators(const char *source, size_t length, size_t maximum, const char *ignore_iterators) {
-      fleek_nested_iterators_buffer[0] = 0; fleek_nested_iterators_used = 0;
-      fleek_nested_iterator_state_t state = { 0 };
-      state.source = (const uint8_t *) source;
-      state.ignore_iterators = ignore_iterators;
-      state.maximum = maximum;
-      return fleek_scan_method_scope(source, length, fleek_nested_iterator_method, &state, NULL);
-    }
-    const char *fleek_nested_iterators_finding(void) { return fleek_nested_iterators_buffer; }
     typedef struct { pm_constant_id_t name; int lines[128]; size_t count; } fleek_receiver_refs_t;
     typedef struct { pm_parser_t *parser; const uint8_t *source; fleek_receiver_refs_t receivers[64]; size_t receiver_count; size_t self_count; bool unsupported; } fleek_feature_envy_state_t;
     static bool fleek_feature_envy_visit(const pm_node_t *node, void *data) {
@@ -5615,8 +5503,6 @@ class Fleek
     ffi_func :fleek_missing_safe_method_finding, [], :str
     ffi_func :fleek_repeated_conditional, [:str, :size_t, :size_t], :int
     ffi_func :fleek_repeated_conditional_finding, [], :str
-    ffi_func :fleek_nested_iterators, [:str, :size_t, :size_t, :str], :int
-    ffi_func :fleek_nested_iterators_finding, [], :str
     ffi_func :fleek_feature_envy, [:str, :size_t], :int
     ffi_func :fleek_feature_envy_finding, [], :str
     ffi_func :fleek_data_clump, [:str, :size_t, :size_t, :size_t], :int
@@ -6856,7 +6742,7 @@ class Fleek
     "NilCheck" => ["simple method bodies with nil? or nil comparisons", "%s performs a nil-check"],
     "MissingSafeMethod" => ["direct bang methods without matching non-bang methods", "%s has missing safe method '%s'"],
     "RepeatedConditional" => ["simple method conditions compared within direct top-level classes", "%s tests '%s' at least %s times"],
-    "NestedIterators" => ["simple method bodies with block iterators", "%s contains iterators nested %s deep"],
+    "NestedIterators" => ["whole files through the ported Reek context engine", "%s contains iterators nested %s deep"],
     "FeatureEnvy" => ["simple methods with local-variable receiver calls and self references", "%s refers to '%s' more than self (maybe move it to another class?)"],
     "DataClump" => ["direct instance methods and class << self methods with matching parameter names", "%s takes parameters %s to %s methods"],
     "TooManyConstants" => ["direct constant assignments in one simple class or module, or in a direct nested module within one top-level module", "%s has %s constants"],
@@ -7053,8 +6939,6 @@ class Fleek
     when "NilCheck" then NativePrism.fleek_nil_check(source, length)
     when "MissingSafeMethod" then NativePrism.fleek_missing_safe_method(source, length)
     when "RepeatedConditional" then NativePrism.fleek_repeated_conditional(source, length, maximum)
-    when "NestedIterators"
-      NativePrism.fleek_nested_iterators(source, length, maximum, accepted_names)
     when "FeatureEnvy" then NativePrism.fleek_feature_envy(source, length)
     when "DataClump" then NativePrism.fleek_data_clump(source, length, maximum, minimum)
     when "TooManyConstants" then NativePrism.fleek_too_many_constants(source, length, maximum)
@@ -7071,13 +6955,13 @@ class Fleek
   REEK_ENGINE_RECORDS = [""]
 
   # Detectors running on the ported Reek context engine.
-  REEK_ENGINE_DETECTORS = %w[IrresponsibleModule TooManyStatements].freeze
+  REEK_ENGINE_DETECTORS = %w[IrresponsibleModule NestedIterators TooManyStatements].freeze
 
   # :reek:LongParameterList
   def self.run_reek_engine_detector(detector, source, path, settings)
     status = NativePrism.fleek_reek_ast(source, source.bytesize, path, 1)
     return status unless status.zero?
-    store_reek_engine_records(ReekEngine.records(detector, reek_engine_contexts(source), source, settings[0]))
+    store_reek_engine_records(ReekEngine.records(detector, reek_engine_contexts(source), source, settings))
   end
 
   def self.store_reek_engine_records(records)
@@ -7094,7 +6978,7 @@ class Fleek
   # :reek:TooManyStatements
   def self.native_reek_findings(detector)
     case detector
-    when "IrresponsibleModule", "TooManyStatements" then REEK_ENGINE_RECORDS[0]
+    when "IrresponsibleModule", "NestedIterators", "TooManyStatements" then REEK_ENGINE_RECORDS[0]
     when "Attribute" then NativePrism.fleek_attribute_finding
     when "InstanceVariableAssumption" then NativePrism.fleek_instance_variable_assumption_finding
     when "SubclassedFromCoreClass" then NativePrism.fleek_subclassed_from_core_class_finding
@@ -7111,7 +6995,6 @@ class Fleek
     when "NilCheck" then NativePrism.fleek_nil_check_finding
     when "MissingSafeMethod" then NativePrism.fleek_missing_safe_method_finding
     when "RepeatedConditional" then NativePrism.fleek_repeated_conditional_finding
-    when "NestedIterators" then NativePrism.fleek_nested_iterators_finding
     when "FeatureEnvy" then NativePrism.fleek_feature_envy_finding
     when "DataClump" then NativePrism.fleek_data_clump_finding
     when "TooManyConstants" then NativePrism.fleek_too_many_constants_finding

@@ -500,9 +500,56 @@ module ReekEngine
   end
 
   # Runs one migrated detector over the context tree, returning finding records.
-  def self.records(detector, root, source, maximum)
+  def self.records(detector, root, source, settings)
+    maximum = settings[0]
     return too_many_statements(root, source, maximum) if detector == "TooManyStatements"
+    return nested_iterators(root, source, maximum, settings[2].to_s.split("\n")) if detector == "NestedIterators"
     irresponsible_module(root, source)
+  end
+
+  # Reek::SmellDetectors::NestedIterators: one warning per nesting depth beyond the limit.
+  def self.nested_iterators(root, source, maximum, ignored)
+    names = Names.new(source)
+    records = []
+    root.each do |context|
+      next unless context.method_context?
+      next if suppressed?(context, "NestedIterators")
+      limit = directive_integer(context, "NestedIterators", "max_allowed_nesting")
+      limit = maximum if limit.negative?
+      violations = scout(context.exp, 0, source, ignored).select { |pair| pair[1] > limit }
+      violations.group_by { |pair| pair[1] }.each do |depth, group|
+        records << "#{group.map { |pair| pair[0] }.join(", ")}\t#{names.full_name(context)}\t\t#{depth}\n"
+      end
+    end
+    records.join
+  end
+
+  # NestedIterators#scout: [line, depth] for each innermost iterator under exp.
+  def self.scout(exp, depth, source, ignored)
+    return [] if exp.nil? || exp.atom?
+    found = []
+    blocks_under(exp).each do |iterator|
+      nested_depth = ignored_iterator?(iterator, source, ignored) ? depth : depth + 1
+      nested = scout(iterator.child(2), nested_depth, source, ignored) + scout(iterator.child(0), depth, source, ignored)
+      found.concat(nested.empty? ? [[iterator.line, nested_depth]] : nested)
+    end
+    found
+  end
+
+  # Node#each_node([:block], [:block]): blocks below exp without entering them.
+  def self.blocks_under(exp, found = [])
+    if exp.type == "block"
+      found << exp
+    else
+      exp.children.each { |child| blocks_under(child, found) unless child.atom? }
+    end
+    found
+  end
+
+  # Ignored iterators match a configured pattern or take no block arguments.
+  def self.ignored_iterator?(iterator, source, ignored)
+    call = iterator.child(0).format_to_ruby(source)
+    ignored.any? { |pattern| call.match?(Regexp.new(pattern)) } || iterator.child(1).children.empty?
   end
 
   # Reek::SmellDetectors::TooManyStatements over method and singleton method contexts.
