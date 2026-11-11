@@ -41,7 +41,9 @@ class CheckRunnerSchedulerContract
   end
 
   def self.wait_for_marker(path)
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
+    # The slow task blocks until released, so a long deadline only delays a genuine scheduler failure;
+    # it must cover compiling the runner and probe children while the full gate loads every core.
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 120
     until File.exist?(path)
       return false if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
     end
