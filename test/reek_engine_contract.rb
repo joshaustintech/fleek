@@ -12,7 +12,8 @@ class ReekEngineContract
     ["UtilityFunction", "#{ROOT}/utility_function.rb"],
     ["NilCheck", "#{ROOT}/nil_check.rb"],
     ["DuplicateMethodCall", "#{ROOT}/duplicate_method_call.rb"],
-    ["ControlParameter", "#{ROOT}/control_parameter.rb"]
+    ["ControlParameter", "#{ROOT}/control_parameter.rb"],
+    ["UnusedParameters", "#{ROOT}/unused_parameters.rb"]
   ].freeze
   OUTPUT = "/tmp/fleek-reek-engine"
   # Runs "$0" with the remaining arguments, writing stdout to $1 and stderr to $1.err.

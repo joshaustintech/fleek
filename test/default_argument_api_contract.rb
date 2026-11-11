@@ -24,7 +24,6 @@ class DefaultArgumentApiContract
     verify_long_yield_list
     verify_default_detector("ControlParameter", "test/fixtures/control_parameter.rb")
     verify_default_detector("UnusedParameters", "test/fixtures/unused_parameters.rb")
-    verify_unused_parameter_block_shadowing
     verify_default_detector("UtilityFunction", "test/fixtures/utility_function.rb")
     verify_default_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb")
     verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call.yml")
@@ -122,10 +121,6 @@ class DefaultArgumentApiContract
       verify_boolean_parameter
     when "missing LongYieldList finding", "missing LongYieldList block finding"
       verify_long_yield_list
-    when "missing UnusedParameters finding"
-      verify_default_detector("UnusedParameters", "test/fixtures/unused_parameters.rb")
-    when "UnusedParameters block body traversal", "UnusedParameters block captures"
-      verify_unused_parameter_block_shadowing
     when "ignored DuplicateMethodCall list entry"
       verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_allow.yml")
     when "MissingSafeMethod singleton scope analysis"
@@ -550,29 +545,6 @@ class DefaultArgumentApiContract
     verify_default_detector("ControlParameter", "test/fixtures/control_parameter_branch_logical.rb")
   end
 
-  # :reek:TooManyStatements
-  def self.verify_unused_parameter_block_shadowing
-    source = "test/fixtures/unused_parameters_block_shadowing.rb"
-    reference = run_reek(source, "UnusedParameters")
-    actual = run_fleek(source, "", "reek:UnusedParameters")
-    reference_output = reference[1]
-    verify(reference[0] == 2 && reference_output.include?("[14]:UnusedParameters: Parcel#unused has unused parameter 'value'") &&
-      !reference_output.include?("Parcel#shadowed") && !reference_output.include?("Parcel#captured"), "pinned UnusedParameters block shadowing boundary changed")
-    verify(actual[1].include?("Scope limits: simple method parameter lists and supported method bodies with one iterator block"), "UnusedParameters block scope limit was not reported")
-    AnalysisRunner.assert_status(actual, reference, "UnusedParameters block shadowing")
-    AnalysisRunner.assert_detector_findings(actual, reference, "UnusedParameters block shadowing")
-    verify_unused_parameter_block_exclusion(source)
-    AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/control_parameter_multiple_blocks.rb", "", "reek:UnusedParameters"), "multiple iterator blocks")
-  end
-
-  def self.verify_unused_parameter_block_exclusion(source)
-    config = "test/fixtures/config_unused_parameters_block_exclusion.yml"
-    reference = run_reek(source, "UnusedParameters", config)
-    actual = run_fleek(source, config, "reek:UnusedParameters")
-    verify(reference[0] == 0 && !reference[1].include?("UnusedParameters:"), "pinned UnusedParameters block exclusion changed")
-    verify_configuration_parity(actual, reference, "UnusedParameters")
-  end
-
   def self.verify_utility_instance_call
     verify_default_detector("UtilityFunction", "test/fixtures/utility_instance_method_call.rb")
   end
@@ -697,7 +669,9 @@ class DefaultArgumentApiContract
     ["ControlParameter", "test/fixtures/control_parameter_nested_loop.rb", "[4]:ControlParameter: Parcel#choose is controlled by argument 'flag'",
       "choose_with_data", "test/fixtures/config_control_parameter_nested_exclusion.yml"],
     ["NilCheck", "test/fixtures/nil_check_nested_block.rb", "[4, 5]:NilCheck: Parcel#retrieve performs a nil-check",
-      "value&.save", "test/fixtures/config_nil_check_nested_exclusion.yml"]
+      "value&.save", "test/fixtures/config_nil_check_nested_exclusion.yml"],
+    ["UnusedParameters", "test/fixtures/unused_parameters_block_shadowing.rb", "[14]:UnusedParameters: Parcel#unused has unused parameter 'value'",
+      "Parcel#shadowed", "test/fixtures/config_unused_parameters_block_exclusion.yml"]
   ].freeze
 
   def self.verify_pinned_nested_cases

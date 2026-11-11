@@ -71,6 +71,10 @@ class Controls
     options
   end
 
+  def destructured((flag, other))
+    flag ? other : 1
+  end
+
   def elsif_chain(level)
     if level > 2
       1

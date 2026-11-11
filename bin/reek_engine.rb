@@ -10,6 +10,7 @@
 # :reek:NestedIterators
 # :reek:NilCheck
 # :reek:RepeatedConditional
+# :reek:TooManyConstants
 # :reek:TooManyInstanceVariables
 # :reek:TooManyMethods
 # :reek:TooManyStatements
@@ -677,6 +678,7 @@ module ReekEngine
     return nil_check(root, source) if detector == "NilCheck"
     return duplicate_method_call(root, source, maximum, settings[1].to_s.split("\n")) if detector == "DuplicateMethodCall"
     return control_parameter(root, source) if detector == "ControlParameter"
+    return unused_parameters(root, source) if detector == "UnusedParameters"
     irresponsible_module(root, source)
   end
 
@@ -813,9 +815,49 @@ module ReekEngine
     records.join
   end
 
-  # MethodNodeBase#parameter_names: each argument's name atom, block arguments included.
+  ANONYMOUS_SPLATS = %w[forward_args forward_arg kwnilarg].freeze
+
+  # Reek::SmellDetectors::UnusedParameters: named, unmarked parameters never read or assigned.
+  def self.unused_parameters(root, source)
+    names = Names.new(source)
+    records = []
+    root.each do |context|
+      next unless context.method_context?
+      next if suppressed?(context, "UnusedParameters")
+      exp = context.exp
+      body = exp.children.last
+      next if !body.atom? && !each_node(body, ["zsuper"], []).empty?
+      used = each_node(exp, %w[lvar lvasgn], %w[class module]).map { |node| node.child(0).value }
+      parameters(exp).each do |parameter|
+        next if parameter.type == "blockarg" || anonymous_splat?(parameter)
+        name = parameter.child(0).value
+        next if name[1, name.length - 1].start_with?("_") || used.include?(name)
+        records << "#{exp.line}\t#{names.full_name(context)}\t#{name[1, name.length - 1]}\n"
+      end
+    end
+    records.join
+  end
+
+  # ArgNodeBase#anonymous_splat?: unnamed rest arguments, argument forwarding and **nil.
+  def self.anonymous_splat?(parameter)
+    return true if ANONYMOUS_SPLATS.include?(parameter.type)
+    name = parameter.child(0)
+    name.nil? || !name.atom? || name.nil_atom?
+  end
+
+  # MethodNodeBase#parameters: argslist components, flattening destructured mlhs arguments.
+  def self.parameters(exp)
+    components(exp.child(exp.type == "defs" ? 2 : 1))
+  end
+
+  def self.components(node)
+    return [node] unless node.type == "args" || node.type == "mlhs"
+    node.nodes.flat_map { |child| components(child) }
+  end
+
+  # MethodNodeBase#parameter_names: each parameter's name atom, block arguments included.
   def self.parameter_names(exp)
-    exp.child(exp.type == "defs" ? 2 : 1).nodes.map { |argument| argument.child(0) }.select { |name| !name.nil? && name.atom? && name.value.start_with?(":") }.map { |name| name.value }
+    parameters(exp).map { |parameter| parameter.child(0) }.select { |name| !name.nil? && name.atom? && name.value.start_with?(":") }.map { |name| name.value }
   end
 
   # ControlParameterFinder#find_matches.
