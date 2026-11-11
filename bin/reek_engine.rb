@@ -674,6 +674,7 @@ module ReekEngine
     return nested_iterators(root, source, maximum, settings[2].to_s.split("\n")) if detector == "NestedIterators"
     return feature_envy(root, source) if detector == "FeatureEnvy"
     return utility_function(root, source, settings.length > 3 && settings[3] == true) if detector == "UtilityFunction"
+    return nil_check(root, source) if detector == "NilCheck"
     irresponsible_module(root, source)
   end
 
@@ -712,6 +713,29 @@ module ReekEngine
       records << "#{exp.line}\t#{names.full_name(context)}\t\n"
     end
     records.join
+  end
+
+  # Reek::SmellDetectors::NilCheck: nil? queries, ==/=== against nil, and when nil, in method contexts.
+  def self.nil_check(root, source)
+    names = Names.new(source)
+    records = []
+    root.each do |context|
+      next unless context.method_context?
+      next if suppressed?(context, "NilCheck")
+      exp = context.exp
+      calls = each_node(exp, ["send"], %w[class module]).select { |call| nil_call?(call) }
+      whens = each_node(exp, ["when"], %w[class module]).select { |found| found.children[0, found.children.length - 1].any? { |condition| condition.type == "nil" } }
+      lines = (calls + whens).map { |node| node.line }
+      records << "#{lines.sort.join(", ")}\t#{names.full_name(context)}\t\n" unless lines.empty?
+    end
+    records.join
+  end
+
+  # NilCallNodeDetector: a nil? query, or a comparison whose receiver or arguments include nil.
+  def self.nil_call?(call)
+    name = call.child(1).value
+    return true if name == ":nil?"
+    (name == ":==" || name == ":===") && call.children.any? { |participant| participant.type == "nil" }
   end
 
   SELF_TYPES = %w[self super zsuper ivar ivasgn send].freeze

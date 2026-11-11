@@ -127,8 +127,6 @@ class Fleek
     static size_t fleek_duplicate_method_call_used;
     static char fleek_manual_dispatch_buffer[4096];
     static size_t fleek_manual_dispatch_used;
-    static char fleek_nil_check_buffer[8192];
-    static size_t fleek_nil_check_used;
     static char fleek_missing_safe_method_buffer[4096];
     static size_t fleek_missing_safe_method_used;
     static char fleek_repeated_conditional_buffer[8192];
@@ -1727,64 +1725,6 @@ class Fleek
       return fleek_scan_method_scope(source, length, fleek_manual_dispatch_method, NULL, NULL);
     }
     const char *fleek_manual_dispatch_finding(void) { return fleek_manual_dispatch_buffer; }
-    typedef struct { pm_parser_t *parser; const uint8_t *source; int lines[128]; size_t count; bool overflow; } fleek_nil_check_state_t;
-    static bool fleek_nil_check_add(fleek_nil_check_state_t *state, const uint8_t *location) {
-      int line = fleek_source_line(state->source, location);
-      for (size_t index = 0; index < state->count; index++) if (state->lines[index] == line) return true;
-      if (state->count >= 128) { state->overflow = true; return false; }
-      state->lines[state->count++] = line;
-      return true;
-    }
-    static bool fleek_nil_check_visit(const pm_node_t *node, void *data) {
-      fleek_nil_check_state_t *state = (fleek_nil_check_state_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
-      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
-        const pm_call_node_t *call = (const pm_call_node_t *) node;
-        bool nil_call = fleek_name_is(state->parser, call->name, "nil?");
-        bool comparison = fleek_name_is(state->parser, call->name, "==") || fleek_name_is(state->parser, call->name, "===");
-        bool has_nil = call->receiver != NULL && PM_NODE_TYPE_P(call->receiver, PM_NIL_NODE);
-        if (call->arguments != NULL) for (size_t index = 0; index < call->arguments->arguments.size; index++) {
-          if (PM_NODE_TYPE_P(call->arguments->arguments.nodes[index], PM_NIL_NODE)) has_nil = true;
-        }
-        if (nil_call || (comparison && has_nil)) return fleek_nil_check_add(state, call->base.location.start);
-      }
-      if (PM_NODE_TYPE_P(node, PM_WHEN_NODE)) {
-        const pm_when_node_t *branch = (const pm_when_node_t *) node;
-        for (size_t index = 0; index < branch->conditions.size; index++) {
-          if (PM_NODE_TYPE_P(branch->conditions.nodes[index], PM_NIL_NODE) && !fleek_nil_check_add(state, branch->conditions.nodes[index]->location.start)) return false;
-        }
-      }
-      return !state->overflow;
-    }
-    static int fleek_nil_check_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
-        size_t class_name_length, const pm_node_t *node, void *data) {
-      (void) data;
-      const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver != NULL || method->body == NULL) return 0;
-      if (!fleek_single_block_body_supported(method->body)) return -1;
-      fleek_nil_check_state_t state = { parser, source, { 0 }, 0, false };
-      pm_visit_node(method->body, fleek_nil_check_visit, &state);
-      if (state.overflow) return -1;
-      if (state.count == 0) return 0;
-      char lines[512] = { 0 };
-      size_t used = 0;
-      for (size_t index = 0; index < state.count; index++) {
-        int written = snprintf(lines + used, sizeof(lines) - used, "%s%d", index == 0 ? "" : ", ", state.lines[index]);
-        if (written < 0 || (size_t) written >= sizeof(lines) - used) return -1;
-        used += (size_t) written;
-      }
-      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
-      int written = snprintf(fleek_nil_check_buffer + fleek_nil_check_used, sizeof(fleek_nil_check_buffer) - fleek_nil_check_used,
-        "%s\\t%.*s#%.*s\\t\\n", lines, (int) class_name_length, class_name, (int) method_name->length, method_name->start);
-      if (written < 0 || (size_t) written >= sizeof(fleek_nil_check_buffer) - fleek_nil_check_used) return -1;
-      fleek_nil_check_used += (size_t) written;
-      return 1;
-    }
-    int fleek_nil_check(const char *source, size_t length) {
-      fleek_nil_check_buffer[0] = 0; fleek_nil_check_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_nil_check_method, NULL, NULL);
-    }
-    const char *fleek_nil_check_finding(void) { return fleek_nil_check_buffer; }
     static bool fleek_missing_safe_version_exists(pm_parser_t *parser, const pm_def_node_t *method,
         const pm_constant_t *name, const pm_node_t *singleton_scope) {
       if (fleek_only_scope == NULL || name->length < 2 || name->start[name->length - 1] != '!') return false;
@@ -5365,8 +5305,6 @@ class Fleek
     ffi_func :fleek_duplicate_method_call_finding, [], :str
     ffi_func :fleek_manual_dispatch, [:str, :size_t], :int
     ffi_func :fleek_manual_dispatch_finding, [], :str
-    ffi_func :fleek_nil_check, [:str, :size_t], :int
-    ffi_func :fleek_nil_check_finding, [], :str
     ffi_func :fleek_missing_safe_method, [:str, :size_t], :int
     ffi_func :fleek_missing_safe_method_finding, [], :str
     ffi_func :fleek_repeated_conditional, [:str, :size_t, :size_t], :int
@@ -6605,7 +6543,7 @@ class Fleek
     "UtilityFunction" => ["whole files through the ported Reek context engine", "%s doesn't depend on instance state (maybe move it to another class?)"],
     "DuplicateMethodCall" => ["direct method calls with identical source form", "%s calls '%s' %s times"],
     "ManualDispatch" => ["simple method bodies containing respond_to?", "%s manually dispatches method call"],
-    "NilCheck" => ["simple method bodies with nil? or nil comparisons", "%s performs a nil-check"],
+    "NilCheck" => ["whole files through the ported Reek context engine", "%s performs a nil-check"],
     "MissingSafeMethod" => ["direct bang methods without matching non-bang methods", "%s has missing safe method '%s'"],
     "RepeatedConditional" => ["simple method conditions compared within direct top-level classes", "%s tests '%s' at least %s times"],
     "NestedIterators" => ["whole files through the ported Reek context engine", "%s contains iterators nested %s deep"],
@@ -6797,7 +6735,6 @@ class Fleek
     when "DuplicateMethodCall"
       NativePrism.fleek_duplicate_method_call(source, length, maximum, option)
     when "ManualDispatch" then NativePrism.fleek_manual_dispatch(source, length)
-    when "NilCheck" then NativePrism.fleek_nil_check(source, length)
     when "MissingSafeMethod" then NativePrism.fleek_missing_safe_method(source, length)
     when "RepeatedConditional" then NativePrism.fleek_repeated_conditional(source, length, maximum)
     when "DataClump" then NativePrism.fleek_data_clump(source, length, maximum, minimum)
@@ -6815,7 +6752,7 @@ class Fleek
   REEK_ENGINE_RECORDS = [""]
 
   # Detectors running on the ported Reek context engine.
-  REEK_ENGINE_DETECTORS = %w[FeatureEnvy IrresponsibleModule NestedIterators TooManyStatements UtilityFunction].freeze
+  REEK_ENGINE_DETECTORS = %w[FeatureEnvy IrresponsibleModule NestedIterators NilCheck TooManyStatements UtilityFunction].freeze
 
   # :reek:LongParameterList
   def self.run_reek_engine_detector(detector, source, path, settings)
@@ -6851,7 +6788,6 @@ class Fleek
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method_finding
     when "DuplicateMethodCall" then NativePrism.fleek_duplicate_method_call_finding
     when "ManualDispatch" then NativePrism.fleek_manual_dispatch_finding
-    when "NilCheck" then NativePrism.fleek_nil_check_finding
     when "MissingSafeMethod" then NativePrism.fleek_missing_safe_method_finding
     when "RepeatedConditional" then NativePrism.fleek_repeated_conditional_finding
     when "DataClump" then NativePrism.fleek_data_clump_finding

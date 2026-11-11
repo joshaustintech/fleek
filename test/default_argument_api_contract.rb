@@ -133,18 +133,10 @@ class DefaultArgumentApiContract
       verify_default_detector("UnusedParameters", "test/fixtures/unused_parameters.rb")
     when "UnusedParameters block body traversal", "UnusedParameters block captures"
       verify_unused_parameter_block_shadowing
-    when "missing UtilityFunction finding"
-      verify_default_detector("UtilityFunction", "test/fixtures/utility_function.rb")
-    when "UtilityFunction public visibility filter", "UtilityFunction private visibility state"
-      verify_utility_configuration_limit
     when "missing DuplicateMethodCall finding"
       verify_default_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb")
     when "ignored DuplicateMethodCall list entry"
       verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_allow.yml")
-    when "missing NilCheck finding"
-      verify_nil_check_nested_block
-    when "NilCheck block scope analysis", "wrong nested NilCheck lines"
-      verify_nil_check_nested_block
     when "MissingSafeMethod singleton scope analysis"
       verify_missing_safe_method_singleton_companions
     when "ignored MissingSafeMethod exclusion entry"
@@ -206,10 +198,6 @@ class DefaultArgumentApiContract
       verify_uncommunicative_variable_name_blocks
     when "missing ManualDispatch finding"
       verify_default_detector("ManualDispatch", "test/fixtures/manual_dispatch.rb")
-    when "missing FeatureEnvy finding"
-      verify_default_detector("FeatureEnvy", "test/fixtures/feature_envy.rb")
-    when "FeatureEnvy block scope analysis"
-      verify_feature_envy_block_receivers
     when "UnusedPrivateMethod private visibility"
       verify_unused_private_visibility_cases
     when "UnusedPrivateMethod named visibility"
@@ -680,7 +668,7 @@ class DefaultArgumentApiContract
     AnalysisRunner.assert_status(actual, reference, "nested NilCheck block")
     AnalysisRunner.assert_detector_findings(actual, reference, "NilCheck")
     verify_nil_check_block_exclusion(source)
-    AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/control_parameter_multiple_blocks.rb", "", "reek:NilCheck"), "multiple NilCheck blocks")
+    verify_clean_parity("test/fixtures/control_parameter_multiple_blocks.rb", "NilCheck")
   end
 
   # :reek:TooManyStatements
@@ -758,12 +746,16 @@ class DefaultArgumentApiContract
     AnalysisRunner.assert_status(actual, reference, "FeatureEnvy block receiver")
     AnalysisRunner.assert_detector_findings(actual, reference, "FeatureEnvy")
     verify_configured_detector("FeatureEnvy", source, "test/fixtures/config_feature_envy_block_exclude.yml")
-    blocks = "test/fixtures/feature_envy_multiple_blocks.rb"
-    blocks_reference = run_reek(blocks, "FeatureEnvy")
-    blocks_actual = run_fleek(blocks, "", "reek:FeatureEnvy")
-    verify(AnalysisRunner.detector_warnings(blocks_reference, "FeatureEnvy").empty?, "pinned multiple-block FeatureEnvy changed")
-    verify(blocks_actual[0] == 0 && blocks_actual[1].include?("Status: complete"), "multiple FeatureEnvy blocks were not complete and clean")
-    AnalysisRunner.assert_detector_findings(blocks_actual, blocks_reference, "FeatureEnvy")
+    verify_clean_parity("test/fixtures/feature_envy_multiple_blocks.rb", "FeatureEnvy")
+  end
+
+  # Reek and Fleek both report the source complete and clean for the detector.
+  def self.verify_clean_parity(source, detector)
+    reference = run_reek(source, detector)
+    actual = run_fleek(source, "", "reek:#{detector}")
+    verify(AnalysisRunner.detector_warnings(reference, detector).empty?, "pinned clean #{detector} source #{source} changed")
+    verify(actual[0] == 0 && actual[1].include?("Status: complete"), "#{detector} was not complete and clean for #{source}")
+    AnalysisRunner.assert_detector_findings(actual, reference, detector)
   end
 
   # :reek:TooManyStatements
