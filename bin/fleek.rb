@@ -4737,6 +4737,997 @@ class Fleek
     const char *fleek_structural_duplication_finding(void) { return fleek_duplication_buffer == NULL ? "" : fleek_duplication_buffer; }
     const char *fleek_structural_duplication_failures(void) { return fleek_flay_failures == NULL ? "" : fleek_flay_failures; }
 
+    /* Reek AST translation (ADR 0257): Prism -> parser-gem AST as Reek 6.6.0 builds it
+       (Parser::CurrentRuby with legacy builder modes and emit_lambda). Emits S-expression text. */
+    typedef struct { char *text; size_t used, capacity; bool failed; bool annotate; bool in_parts; pm_parser_t *parser; const uint8_t *source; const char *path; size_t path_length; int32_t start_line; } fleek_reek_ast_t;
+    static char *fleek_reek_ast_buffer;
+    static void fleek_reek_emit(fleek_reek_ast_t *ast, const char *text, size_t length) {
+      if (ast->failed) return;
+      if (ast->used + length + 1 > ast->capacity) {
+        size_t capacity = ast->capacity == 0 ? 4096 : ast->capacity;
+        while (ast->used + length + 1 > capacity) capacity *= 2;
+        char *resized = realloc(ast->text, capacity);
+        if (resized == NULL) { ast->failed = true; return; }
+        ast->text = resized; ast->capacity = capacity;
+      }
+      memcpy(ast->text + ast->used, text, length);
+      ast->used += length;
+      ast->text[ast->used] = 0;
+    }
+    static void fleek_reek_text(fleek_reek_ast_t *ast, const char *text) { fleek_reek_emit(ast, text, strlen(text)); }
+    static int32_t fleek_reek_line(fleek_reek_ast_t *ast, const uint8_t *cursor) {
+      return pm_newline_list_line(&ast->parser->newline_list, cursor, ast->parser->start_line);
+    }
+    /* Opens "(type" with an optional "@line:begin:end" expression annotation. */
+    static void fleek_reek_open_at(fleek_reek_ast_t *ast, const char *type, const uint8_t *start, const uint8_t *end) {
+      fleek_reek_text(ast, ast->used == 0 ? "(" : " (");
+      fleek_reek_text(ast, type);
+      if (ast->annotate && start != NULL) {
+        char location[64];
+        int written = snprintf(location, sizeof(location), "@%d:%ld:%ld", (int) fleek_reek_line(ast, start),
+          (long) (start - ast->source), (long) (end - ast->source));
+        fleek_reek_emit(ast, location, (size_t) written);
+      }
+    }
+    static void fleek_reek_open(fleek_reek_ast_t *ast, const char *type, const pm_node_t *node) {
+      fleek_reek_open_at(ast, type, node == NULL ? NULL : node->location.start, node == NULL ? NULL : node->location.end);
+    }
+    static void fleek_reek_close(fleek_reek_ast_t *ast) { fleek_reek_text(ast, ")"); }
+    static void fleek_reek_nil(fleek_reek_ast_t *ast) { fleek_reek_text(ast, " nil"); }
+    static bool fleek_reek_identifier(const uint8_t *bytes, size_t length) {
+      if (length == 0) return false;
+      size_t index = 0;
+      if (bytes[0] == '$') { index = 1; }
+      else if (bytes[0] == '@') { index = length > 1 && bytes[1] == '@' ? 2 : 1; }
+      if (index >= length || !(isalpha(bytes[index]) || bytes[index] == '_' || bytes[index] >= 0x80)) return false;
+      for (index++; index < length; index++) {
+        uint8_t byte = bytes[index];
+        if (isalnum(byte) || byte == '_' || byte >= 0x80) continue;
+        if (index == length - 1 && (byte == '?' || byte == '!' || byte == '=') && bytes[0] != '$' && bytes[0] != '@') continue;
+        return false;
+      }
+      return true;
+    }
+    static bool fleek_reek_operator(const uint8_t *bytes, size_t length) {
+      static const char *operators[] = { "[]", "[]=", "+", "-", "*", "/", "%", "**", "==", "===", "!=", "<", ">", "<=", ">=", "<=>",
+        "<<", ">>", "&", "|", "^", "~", "!", "+@", "-@", "=~", "!~", "`", NULL };
+      for (size_t index = 0; operators[index] != NULL; index++)
+        if (strlen(operators[index]) == length && memcmp(operators[index], bytes, length) == 0) return true;
+      return false;
+    }
+    /* Ruby String#inspect body (without quotes). */
+    static void fleek_reek_escaped(fleek_reek_ast_t *ast, const uint8_t *bytes, size_t length) {
+      for (size_t index = 0; index < length; index++) {
+        uint8_t byte = bytes[index];
+        char escape[8];
+        const char *text = NULL;
+        switch (byte) {
+          case '"': text = "\\\\\\""; break;
+          case '\\\\': text = "\\\\\\\\"; break;
+          case '\\n': text = "\\\\n"; break;
+          case '\\t': text = "\\\\t"; break;
+          case '\\r': text = "\\\\r"; break;
+          case '\\f': text = "\\\\f"; break;
+          case '\\v': text = "\\\\v"; break;
+          case '\\a': text = "\\\\a"; break;
+          case '\\b': text = "\\\\b"; break;
+          case 27: text = "\\\\e"; break;
+          case '#':
+            if (index + 1 < length && (bytes[index + 1] == '{' || bytes[index + 1] == '$' || bytes[index + 1] == '@')) text = "\\\\#";
+            break;
+          default:
+            if (byte < 0x20 || byte == 0x7f) { snprintf(escape, sizeof(escape), "\\\\x%02X", byte); text = escape; }
+            break;
+        }
+        if (text != NULL) fleek_reek_text(ast, text);
+        else fleek_reek_emit(ast, (const char *) &bytes[index], 1);
+      }
+    }
+    static void fleek_reek_string_atom(fleek_reek_ast_t *ast, const uint8_t *bytes, size_t length) {
+      fleek_reek_text(ast, " \\"");
+      fleek_reek_escaped(ast, bytes, length);
+      fleek_reek_text(ast, "\\"");
+    }
+    static void fleek_reek_symbol_bytes(fleek_reek_ast_t *ast, const uint8_t *bytes, size_t length) {
+      if (fleek_reek_identifier(bytes, length) || fleek_reek_operator(bytes, length)) {
+        fleek_reek_text(ast, " :");
+        fleek_reek_emit(ast, (const char *) bytes, length);
+      } else {
+        fleek_reek_text(ast, " :\\"");
+        fleek_reek_escaped(ast, bytes, length);
+        fleek_reek_text(ast, "\\"");
+      }
+    }
+    static void fleek_reek_symbol(fleek_reek_ast_t *ast, pm_constant_id_t name) {
+      pm_constant_t *constant = pm_constant_pool_id_to_constant(&ast->parser->constant_pool, name);
+      fleek_reek_symbol_bytes(ast, constant->start, constant->length);
+    }
+    static void fleek_reek_integer_raw(fleek_reek_ast_t *ast, const pm_integer_t *integer) {
+      pm_buffer_t buffer = {0};
+      pm_buffer_init(&buffer);
+      pm_integer_string(&buffer, integer);
+      fleek_reek_emit(ast, pm_buffer_value(&buffer), pm_buffer_length(&buffer));
+      pm_buffer_free(&buffer);
+    }
+    static void fleek_reek_integer(fleek_reek_ast_t *ast, const pm_integer_t *integer) {
+      fleek_reek_text(ast, " ");
+      fleek_reek_integer_raw(ast, integer);
+    }
+    /* Ruby Float#inspect: shortest round-trip digits, scientific below 1e-4 or from 1e16. */
+    static void fleek_reek_float_text(double value, char *out, size_t size) {
+      if (value != value) { snprintf(out, size, "NaN"); return; }
+      if (value == 1.0 / 0.0) { snprintf(out, size, "Infinity"); return; }
+      if (value == -1.0 / 0.0) { snprintf(out, size, "-Infinity"); return; }
+      char digits[64];
+      int precision = 1;
+      for (; precision <= 17; precision++) {
+        snprintf(digits, sizeof(digits), "%.*e", precision - 1, value);
+        if (strtod(digits, NULL) == value) break;
+      }
+      char *exponent_mark = strchr(digits, 'e');
+      int exponent = atoi(exponent_mark + 1);
+      *exponent_mark = 0;
+      char mantissa[32]; size_t count = 0;
+      const char *cursor = digits;
+      bool negative = *cursor == '-';
+      if (negative) cursor++;
+      for (; *cursor; cursor++) if (*cursor != '.') mantissa[count++] = *cursor;
+      mantissa[count] = 0;
+      while (count > 1 && mantissa[count - 1] == '0') mantissa[--count] = 0;
+      char *target = out; size_t left = size;
+      int written;
+      if (negative) { *target++ = '-'; left--; }
+      if (exponent < -4 || exponent >= 16) {
+        written = snprintf(target, left, "%c.%se%c%02d", mantissa[0], count > 1 ? mantissa + 1 : "0", exponent < 0 ? '-' : '+', exponent < 0 ? -exponent : exponent);
+      } else if (exponent < 0) {
+        written = snprintf(target, left, "0.%0*d%s", -exponent - 1, 0, mantissa);
+        if (-exponent - 1 == 0) written = snprintf(target, left, "0.%s", mantissa);
+      } else if ((size_t) exponent + 1 >= count) {
+        written = snprintf(target, left, "%s%0*d.0", mantissa, (int) ((size_t) exponent + 1 - count), 0);
+        if ((size_t) exponent + 1 == count) written = snprintf(target, left, "%s.0", mantissa);
+      } else {
+        written = snprintf(target, left, "%.*s.%s", exponent + 1, mantissa, mantissa + exponent + 1);
+      }
+      (void) written;
+    }
+
+    static void fleek_reek_visit(fleek_reek_ast_t *ast, const pm_node_t *node);
+    static void fleek_reek_list(fleek_reek_ast_t *ast, const pm_node_list_t *list) {
+      for (size_t index = 0; index < list->size; index++) fleek_reek_visit(ast, list->nodes[index]);
+    }
+    /* Bodies: nothing -> nil, one statement -> itself, more -> (begin ...). */
+    static void fleek_reek_body(fleek_reek_ast_t *ast, const pm_node_t *body) {
+      if (body == NULL) { fleek_reek_nil(ast); return; }
+      if (PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) {
+        const pm_node_list_t *list = &((const pm_statements_node_t *) body)->body;
+        if (list->size == 0) { fleek_reek_nil(ast); return; }
+        if (list->size == 1) { fleek_reek_visit(ast, list->nodes[0]); return; }
+        fleek_reek_open(ast, "begin", body);
+        fleek_reek_list(ast, list);
+        fleek_reek_close(ast);
+        return;
+      }
+      fleek_reek_visit(ast, body);
+    }
+    static void fleek_reek_parameter(fleek_reek_ast_t *ast, const pm_node_t *node);
+    static void fleek_reek_parameters(fleek_reek_ast_t *ast, const pm_parameters_node_t *parameters, const pm_node_t *locals_owner) {
+      (void) locals_owner;
+      if (parameters != NULL && parameters->keyword_rest != NULL && PM_NODE_TYPE_P(parameters->keyword_rest, PM_FORWARDING_PARAMETER_NODE) &&
+          parameters->requireds.size == 0 && parameters->optionals.size == 0 && parameters->rest == NULL && parameters->posts.size == 0 &&
+          parameters->keywords.size == 0 && parameters->block == NULL) {
+        fleek_reek_open(ast, "forward_args", parameters->keyword_rest);
+        fleek_reek_close(ast);
+        return;
+      }
+      fleek_reek_open(ast, "args", (const pm_node_t *) parameters);
+      if (parameters != NULL) {
+        for (size_t index = 0; index < parameters->requireds.size; index++) fleek_reek_parameter(ast, parameters->requireds.nodes[index]);
+        for (size_t index = 0; index < parameters->optionals.size; index++) fleek_reek_parameter(ast, parameters->optionals.nodes[index]);
+        if (parameters->rest != NULL && !PM_NODE_TYPE_P(parameters->rest, PM_IMPLICIT_REST_NODE)) fleek_reek_parameter(ast, parameters->rest);
+        for (size_t index = 0; index < parameters->posts.size; index++) fleek_reek_parameter(ast, parameters->posts.nodes[index]);
+        for (size_t index = 0; index < parameters->keywords.size; index++) fleek_reek_parameter(ast, parameters->keywords.nodes[index]);
+        if (parameters->keyword_rest != NULL) fleek_reek_parameter(ast, parameters->keyword_rest);
+        if (parameters->block != NULL) fleek_reek_parameter(ast, (const pm_node_t *) parameters->block);
+      }
+      fleek_reek_close(ast);
+    }
+    static void fleek_reek_named(fleek_reek_ast_t *ast, const char *type, const pm_node_t *node, pm_constant_id_t name) {
+      fleek_reek_open(ast, type, node);
+      if (name != 0) fleek_reek_symbol(ast, name);
+      else if (strcmp(type, "blockarg") == 0) fleek_reek_nil(ast);
+      fleek_reek_close(ast);
+    }
+    static void fleek_reek_parameter(fleek_reek_ast_t *ast, const pm_node_t *node) {
+      switch (PM_NODE_TYPE(node)) {
+        case PM_REQUIRED_PARAMETER_NODE: fleek_reek_named(ast, "arg", node, ((const pm_required_parameter_node_t *) node)->name); return;
+        case PM_OPTIONAL_PARAMETER_NODE: {
+          const pm_optional_parameter_node_t *optional = (const pm_optional_parameter_node_t *) node;
+          fleek_reek_open(ast, "optarg", node); fleek_reek_symbol(ast, optional->name); fleek_reek_visit(ast, optional->value); fleek_reek_close(ast);
+          return;
+        }
+        case PM_REST_PARAMETER_NODE: fleek_reek_named(ast, "restarg", node, ((const pm_rest_parameter_node_t *) node)->name); return;
+        case PM_REQUIRED_KEYWORD_PARAMETER_NODE: fleek_reek_named(ast, "kwarg", node, ((const pm_required_keyword_parameter_node_t *) node)->name); return;
+        case PM_OPTIONAL_KEYWORD_PARAMETER_NODE: {
+          const pm_optional_keyword_parameter_node_t *optional = (const pm_optional_keyword_parameter_node_t *) node;
+          fleek_reek_open(ast, "kwoptarg", node); fleek_reek_symbol(ast, optional->name); fleek_reek_visit(ast, optional->value); fleek_reek_close(ast);
+          return;
+        }
+        case PM_KEYWORD_REST_PARAMETER_NODE: fleek_reek_named(ast, "kwrestarg", node, ((const pm_keyword_rest_parameter_node_t *) node)->name); return;
+        case PM_NO_KEYWORDS_PARAMETER_NODE: fleek_reek_open(ast, "kwnilarg", node); fleek_reek_close(ast); return;
+        case PM_FORWARDING_PARAMETER_NODE: fleek_reek_open(ast, "forward_arg", node); fleek_reek_close(ast); return;
+        case PM_BLOCK_PARAMETER_NODE: fleek_reek_named(ast, "blockarg", node, ((const pm_block_parameter_node_t *) node)->name); return;
+        case PM_MULTI_TARGET_NODE: {
+          const pm_multi_target_node_t *target = (const pm_multi_target_node_t *) node;
+          fleek_reek_open(ast, "mlhs", node);
+          for (size_t index = 0; index < target->lefts.size; index++) fleek_reek_parameter(ast, target->lefts.nodes[index]);
+          if (target->rest != NULL && PM_NODE_TYPE_P(target->rest, PM_SPLAT_NODE)) {
+            const pm_node_t *expression = ((const pm_splat_node_t *) target->rest)->expression;
+            fleek_reek_named(ast, "restarg", target->rest, expression == NULL ? 0 : ((const pm_required_parameter_node_t *) expression)->name);
+          }
+          for (size_t index = 0; index < target->rights.size; index++) fleek_reek_parameter(ast, target->rights.nodes[index]);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_BLOCK_LOCAL_VARIABLE_NODE: fleek_reek_named(ast, "shadowarg", node, ((const pm_block_local_variable_node_t *) node)->name); return;
+        default: fleek_reek_visit(ast, node); return;
+      }
+    }
+    static void fleek_reek_block_parameters(fleek_reek_ast_t *ast, const pm_node_t *parameters, const pm_node_t *at) {
+      if (parameters == NULL) { fleek_reek_open(ast, "args", NULL); fleek_reek_close(ast); return; }
+      if (!PM_NODE_TYPE_P(parameters, PM_BLOCK_PARAMETERS_NODE)) { fleek_reek_open(ast, "args", NULL); fleek_reek_close(ast); return; }
+      const pm_block_parameters_node_t *block = (const pm_block_parameters_node_t *) parameters;
+      fleek_reek_open(ast, "args", parameters);
+      const pm_parameters_node_t *inner = block->parameters;
+      if (inner != NULL) {
+        for (size_t index = 0; index < inner->requireds.size; index++) fleek_reek_parameter(ast, inner->requireds.nodes[index]);
+        for (size_t index = 0; index < inner->optionals.size; index++) fleek_reek_parameter(ast, inner->optionals.nodes[index]);
+        if (inner->rest != NULL && !PM_NODE_TYPE_P(inner->rest, PM_IMPLICIT_REST_NODE)) fleek_reek_parameter(ast, inner->rest);
+        for (size_t index = 0; index < inner->posts.size; index++) fleek_reek_parameter(ast, inner->posts.nodes[index]);
+        for (size_t index = 0; index < inner->keywords.size; index++) fleek_reek_parameter(ast, inner->keywords.nodes[index]);
+        if (inner->keyword_rest != NULL) fleek_reek_parameter(ast, inner->keyword_rest);
+        if (inner->block != NULL) fleek_reek_parameter(ast, (const pm_node_t *) inner->block);
+      }
+      for (size_t index = 0; index < block->locals.size; index++) fleek_reek_parameter(ast, block->locals.nodes[index]);
+      fleek_reek_close(ast);
+      (void) at;
+    }
+    /* (block call args body) wrapper for literal blocks; numbered parameters become numblock. */
+    static void fleek_reek_with_block(fleek_reek_ast_t *ast, const pm_node_t *at, const pm_node_t *block_node, void (*emit_call)(fleek_reek_ast_t *, const void *), const void *data) {
+      if (block_node == NULL || !PM_NODE_TYPE_P(block_node, PM_BLOCK_NODE)) { emit_call(ast, data); return; }
+      const pm_block_node_t *block = (const pm_block_node_t *) block_node;
+      bool numbered = block->parameters != NULL && PM_NODE_TYPE_P(block->parameters, PM_NUMBERED_PARAMETERS_NODE);
+      bool it = block->parameters != NULL && PM_NODE_TYPE_P(block->parameters, PM_IT_PARAMETERS_NODE);
+      fleek_reek_open_at(ast, numbered ? "numblock" : it ? "itblock" : "block", at->location.start, at->location.end);
+      emit_call(ast, data);
+      if (numbered) {
+        char count[16]; snprintf(count, sizeof(count), " %d", ((const pm_numbered_parameters_node_t *) block->parameters)->maximum);
+        fleek_reek_text(ast, count);
+      } else if (it) {
+        fleek_reek_text(ast, " :it");
+      } else {
+        fleek_reek_block_parameters(ast, block->parameters, block_node);
+      }
+      fleek_reek_body(ast, block->body);
+      fleek_reek_close(ast);
+    }
+    typedef struct { const pm_call_node_t *call; } fleek_reek_call_data_t;
+    static void fleek_reek_call_arguments(fleek_reek_ast_t *ast, const pm_arguments_node_t *arguments, const pm_node_t *block) {
+      if (arguments != NULL) fleek_reek_list(ast, &arguments->arguments);
+      if (block != NULL && PM_NODE_TYPE_P(block, PM_BLOCK_ARGUMENT_NODE)) fleek_reek_visit(ast, block);
+    }
+    static void fleek_reek_emit_call(fleek_reek_ast_t *ast, const void *data) {
+      const pm_call_node_t *call = ((const fleek_reek_call_data_t *) data)->call;
+      const pm_node_t *node = (const pm_node_t *) call;
+      bool safe = PM_NODE_FLAG_P(node, PM_CALL_NODE_FLAGS_SAFE_NAVIGATION);
+      pm_constant_t *name = pm_constant_pool_id_to_constant(&ast->parser->constant_pool, call->name);
+      bool not_keyword = name->length == 1 && name->start[0] == '!' && call->message_loc.start != NULL &&
+        call->message_loc.end - call->message_loc.start == 3 && memcmp(call->message_loc.start, "not", 3) == 0;
+      (void) not_keyword;
+      const uint8_t *end = call->block != NULL && PM_NODE_TYPE_P(call->block, PM_BLOCK_NODE) ? (call->closing_loc.end != NULL ? call->closing_loc.end :
+        call->arguments != NULL ? call->arguments->base.location.end : call->message_loc.end) : node->location.end;
+      if (name->length == 2 && memcmp(name->start, "=~", 2) == 0 && call->receiver != NULL && PM_NODE_TYPE_P(call->receiver, PM_REGULAR_EXPRESSION_NODE) &&
+          call->arguments != NULL && call->arguments->arguments.size == 1 && call->block == NULL) {
+        fleek_reek_open(ast, "match_with_lvasgn", node);
+        fleek_reek_visit(ast, call->receiver); fleek_reek_visit(ast, call->arguments->arguments.nodes[0]);
+        fleek_reek_close(ast);
+        return;
+      }
+      if (end == NULL) end = node->location.end;
+      fleek_reek_open_at(ast, safe ? "csend" : "send", node->location.start, end);
+      if (call->receiver == NULL) fleek_reek_nil(ast); else fleek_reek_visit(ast, call->receiver);
+      fleek_reek_symbol(ast, call->name);
+      fleek_reek_call_arguments(ast, call->arguments, call->block);
+      fleek_reek_close(ast);
+    }
+    static void fleek_reek_call(fleek_reek_ast_t *ast, const pm_call_node_t *call) {
+      fleek_reek_call_data_t data = { call };
+      fleek_reek_with_block(ast, (const pm_node_t *) call, call->block, fleek_reek_emit_call, &data);
+    }
+    typedef struct { const pm_node_t *node; const char *type; const pm_arguments_node_t *arguments; const pm_node_t *block; } fleek_reek_keyword_data_t;
+    static void fleek_reek_emit_keyword(fleek_reek_ast_t *ast, const void *data) {
+      const fleek_reek_keyword_data_t *keyword = (const fleek_reek_keyword_data_t *) data;
+      fleek_reek_open(ast, keyword->type, keyword->node);
+      fleek_reek_call_arguments(ast, keyword->arguments, keyword->block);
+      fleek_reek_close(ast);
+    }
+    static void fleek_reek_interpolated(fleek_reek_ast_t *ast, const char *type, const pm_node_t *node, const pm_node_list_t *parts) {
+      fleek_reek_open(ast, type, node);
+      bool saved = ast->in_parts;
+      ast->in_parts = true;
+      for (size_t index = 0; index < parts->size; index++) {
+        const pm_node_t *part = parts->nodes[index];
+        if (PM_NODE_TYPE_P(part, PM_INTERPOLATED_STRING_NODE)) {
+          ast->in_parts = false;
+          fleek_reek_visit(ast, part);
+          ast->in_parts = true;
+        } else {
+          bool embedded = PM_NODE_TYPE_P(part, PM_EMBEDDED_STATEMENTS_NODE);
+          if (embedded) ast->in_parts = false;
+          fleek_reek_visit(ast, part);
+          ast->in_parts = true;
+        }
+      }
+      ast->in_parts = saved;
+      fleek_reek_close(ast);
+    }
+    static void fleek_reek_regopt(fleek_reek_ast_t *ast, const pm_node_t *node, const uint8_t *closing_start, const uint8_t *closing_end) {
+      fleek_reek_open_at(ast, "regopt", closing_start, closing_end);
+      static const char order[] = "eimnosux";
+      for (size_t flag = 0; flag < sizeof(order) - 1; flag++) {
+        for (const uint8_t *cursor = closing_start == NULL ? NULL : closing_start + 1; cursor != NULL && cursor < closing_end; cursor++) {
+          if (*cursor == (uint8_t) order[flag]) { char text[4] = { ' ', ':', order[flag], 0 }; fleek_reek_text(ast, text); break; }
+        }
+      }
+      fleek_reek_close(ast);
+      (void) node;
+    }
+    static void fleek_reek_variable(fleek_reek_ast_t *ast, const char *type, const pm_node_t *node, pm_constant_id_t name) {
+      fleek_reek_open(ast, type, node); fleek_reek_symbol(ast, name); fleek_reek_close(ast);
+    }
+    static void fleek_reek_assignment(fleek_reek_ast_t *ast, const char *type, const pm_node_t *node, pm_constant_id_t name, const pm_node_t *value) {
+      fleek_reek_open(ast, type, node); fleek_reek_symbol(ast, name);
+      if (value != NULL) fleek_reek_visit(ast, value);
+      fleek_reek_close(ast);
+    }
+    /* op-asgn / or-asgn / and-asgn around a target the caller emits. kind: 0 operator, 1 or, 2 and. */
+    static void fleek_reek_operator_assignment(fleek_reek_ast_t *ast, const pm_node_t *node, int kind, const char *target_type, pm_constant_id_t name,
+        const pm_location_t *target_location, pm_constant_id_t operator, const pm_node_t *value) {
+      fleek_reek_open(ast, kind == 0 ? "op_asgn" : kind == 1 ? "or_asgn" : "and_asgn", node);
+      fleek_reek_open_at(ast, target_type, target_location->start, target_location->end);
+      fleek_reek_symbol(ast, name);
+      fleek_reek_close(ast);
+      if (kind == 0) {
+        pm_constant_t *constant = pm_constant_pool_id_to_constant(&ast->parser->constant_pool, operator);
+        fleek_reek_symbol_bytes(ast, constant->start, constant->length);
+      }
+      fleek_reek_visit(ast, value);
+      fleek_reek_close(ast);
+    }
+    static void fleek_reek_jump(fleek_reek_ast_t *ast, const char *type, const pm_node_t *node, const pm_arguments_node_t *arguments) {
+      fleek_reek_open(ast, type, node);
+      if (arguments != NULL) fleek_reek_list(ast, &arguments->arguments);
+      fleek_reek_close(ast);
+    }
+    static void fleek_reek_constant_path(fleek_reek_ast_t *ast, const pm_node_t *node, const pm_node_t *parent, pm_constant_id_t name, const char *type) {
+      fleek_reek_open(ast, type, node);
+      if (parent == NULL) {
+        const uint8_t *start = node->location.start;
+        fleek_reek_open_at(ast, "cbase", start, start + 2); fleek_reek_close(ast);
+      } else {
+        fleek_reek_visit(ast, parent);
+      }
+      fleek_reek_symbol(ast, name);
+    }
+    static void fleek_reek_call_target(fleek_reek_ast_t *ast, const pm_node_t *node, const pm_node_t *receiver, pm_location_t call_operator, pm_constant_id_t read_name) {
+      bool safe = PM_NODE_FLAG_P(node, PM_CALL_NODE_FLAGS_SAFE_NAVIGATION);
+      fleek_reek_open(ast, safe ? "csend" : "send", receiver);
+      fleek_reek_visit(ast, receiver);
+      fleek_reek_symbol(ast, read_name);
+      fleek_reek_close(ast);
+      (void) call_operator;
+    }
+
+    /* Patterns in case/in, `in` and `=>`, using the parser gem's legacy pattern nodes. */
+    /* The parser gem lexes a string spanning source lines as one str per line; a standalone literal becomes dstr. */
+    static void fleek_reek_string_lines(fleek_reek_ast_t *ast, const pm_node_t *node, const pm_location_t *content, const pm_string_t *value, bool standalone) {
+      const uint8_t *bytes = pm_string_source(value);
+      size_t length = pm_string_length(value);
+      size_t physical = 0, logical = 0;
+      for (const uint8_t *cursor = content->start; cursor != NULL && cursor < content->end; cursor++) if (*cursor == '\\n') physical++;
+      for (size_t index = 0; index < length; index++) if (bytes[index] == '\\n') logical++;
+      size_t segments = physical == 0 ? 1 : (length != 0 && bytes[length - 1] == '\\n' ? physical : physical + 1);
+      if (physical != 0 && physical != logical) { ast->failed = true; return; }
+      bool compose = standalone && segments > 1;
+      if (compose) fleek_reek_open(ast, "dstr", node);
+      size_t start = 0;
+      const uint8_t *line_start = content->start;
+      for (size_t segment = 0; segment < segments; segment++) {
+        size_t end = start;
+        while (end < length && bytes[end] != '\\n') end++;
+        if (end < length) end++;
+        const uint8_t *line_end = line_start;
+        while (line_end != NULL && line_end < content->end && *line_end != '\\n') line_end++;
+        if (line_end != NULL && line_end < content->end) line_end++;
+        if (segments == 1) fleek_reek_open(ast, "str", node);
+        else fleek_reek_open_at(ast, "str", line_start, line_end);
+        fleek_reek_string_atom(ast, bytes + start, end - start);
+        fleek_reek_close(ast);
+        start = end;
+        line_start = line_end;
+      }
+      if (compose) fleek_reek_close(ast);
+    }
+    static void fleek_reek_pattern(fleek_reek_ast_t *ast, const pm_node_t *node);
+    static void fleek_reek_pattern_list(fleek_reek_ast_t *ast, const pm_node_list_t *list) {
+      for (size_t index = 0; index < list->size; index++) fleek_reek_pattern(ast, list->nodes[index]);
+    }
+    static void fleek_reek_match_rest(fleek_reek_ast_t *ast, const pm_node_t *splat) {
+      fleek_reek_open(ast, "match_rest", splat);
+      const pm_node_t *expression = PM_NODE_TYPE_P(splat, PM_SPLAT_NODE) ? ((const pm_splat_node_t *) splat)->expression : NULL;
+      if (expression != NULL) fleek_reek_pattern(ast, expression);
+      fleek_reek_close(ast);
+    }
+    static void fleek_reek_pattern(fleek_reek_ast_t *ast, const pm_node_t *node) {
+      if (node == NULL) { fleek_reek_nil(ast); return; }
+      switch (PM_NODE_TYPE(node)) {
+        case PM_LOCAL_VARIABLE_TARGET_NODE: fleek_reek_variable(ast, "match_var", node, ((const pm_local_variable_target_node_t *) node)->name); return;
+        case PM_HASH_PATTERN_NODE: {
+          const pm_hash_pattern_node_t *pattern = (const pm_hash_pattern_node_t *) node;
+          if (pattern->constant != NULL) { fleek_reek_open(ast, "const_pattern", node); fleek_reek_visit(ast, pattern->constant); }
+          fleek_reek_open(ast, "hash_pattern", node);
+          for (size_t index = 0; index < pattern->elements.size; index++) {
+            const pm_assoc_node_t *assoc = (const pm_assoc_node_t *) pattern->elements.nodes[index];
+            if (PM_NODE_TYPE_P(assoc->value, PM_IMPLICIT_NODE)) {
+              const pm_symbol_node_t *key = (const pm_symbol_node_t *) assoc->key;
+              fleek_reek_open(ast, "match_var", (const pm_node_t *) assoc);
+              fleek_reek_symbol_bytes(ast, pm_string_source(&key->unescaped), pm_string_length(&key->unescaped));
+              fleek_reek_close(ast);
+            } else {
+              fleek_reek_open(ast, "pair", (const pm_node_t *) assoc); fleek_reek_visit(ast, assoc->key); fleek_reek_pattern(ast, assoc->value); fleek_reek_close(ast);
+            }
+          }
+          if (pattern->rest != NULL && PM_NODE_TYPE_P(pattern->rest, PM_ASSOC_SPLAT_NODE)) {
+            const pm_node_t *value = ((const pm_assoc_splat_node_t *) pattern->rest)->value;
+            fleek_reek_open(ast, "match_rest", pattern->rest); if (value != NULL) fleek_reek_pattern(ast, value); fleek_reek_close(ast);
+          } else if (pattern->rest != NULL && PM_NODE_TYPE_P(pattern->rest, PM_NO_KEYWORDS_PARAMETER_NODE)) {
+            fleek_reek_open(ast, "match_nil_pattern", pattern->rest); fleek_reek_close(ast);
+          }
+          fleek_reek_close(ast);
+          if (pattern->constant != NULL) fleek_reek_close(ast);
+          return;
+        }
+        case PM_ARRAY_PATTERN_NODE: {
+          const pm_array_pattern_node_t *pattern = (const pm_array_pattern_node_t *) node;
+          if (pattern->constant != NULL) { fleek_reek_open(ast, "const_pattern", node); fleek_reek_visit(ast, pattern->constant); }
+          fleek_reek_open(ast, "array_pattern", node);
+          fleek_reek_pattern_list(ast, &pattern->requireds);
+          if (pattern->rest != NULL && !PM_NODE_TYPE_P(pattern->rest, PM_IMPLICIT_REST_NODE)) fleek_reek_match_rest(ast, pattern->rest);
+          fleek_reek_pattern_list(ast, &pattern->posts);
+          fleek_reek_close(ast);
+          if (pattern->constant != NULL) fleek_reek_close(ast);
+          return;
+        }
+        case PM_FIND_PATTERN_NODE: {
+          const pm_find_pattern_node_t *pattern = (const pm_find_pattern_node_t *) node;
+          if (pattern->constant != NULL) { fleek_reek_open(ast, "const_pattern", node); fleek_reek_visit(ast, pattern->constant); }
+          fleek_reek_open(ast, "find_pattern", node);
+          fleek_reek_match_rest(ast, (const pm_node_t *) pattern->left);
+          fleek_reek_pattern_list(ast, &pattern->requireds);
+          fleek_reek_match_rest(ast, pattern->right);
+          fleek_reek_close(ast);
+          if (pattern->constant != NULL) fleek_reek_close(ast);
+          return;
+        }
+        case PM_ALTERNATION_PATTERN_NODE: {
+          const pm_alternation_pattern_node_t *pattern = (const pm_alternation_pattern_node_t *) node;
+          fleek_reek_open(ast, "match_alt", node); fleek_reek_pattern(ast, pattern->left); fleek_reek_pattern(ast, pattern->right); fleek_reek_close(ast);
+          return;
+        }
+        case PM_CAPTURE_PATTERN_NODE: {
+          const pm_capture_pattern_node_t *pattern = (const pm_capture_pattern_node_t *) node;
+          fleek_reek_open(ast, "match_as", node); fleek_reek_pattern(ast, pattern->value); fleek_reek_pattern(ast, (const pm_node_t *) pattern->target); fleek_reek_close(ast);
+          return;
+        }
+        case PM_PINNED_VARIABLE_NODE: fleek_reek_open(ast, "pin", node); fleek_reek_visit(ast, ((const pm_pinned_variable_node_t *) node)->variable); fleek_reek_close(ast); return;
+        case PM_PINNED_EXPRESSION_NODE: {
+          const pm_pinned_expression_node_t *pinned = (const pm_pinned_expression_node_t *) node;
+          fleek_reek_open(ast, "pin", node);
+          fleek_reek_open_at(ast, "begin", pinned->lparen_loc.start, pinned->rparen_loc.end); fleek_reek_visit(ast, pinned->expression); fleek_reek_close(ast);
+          fleek_reek_close(ast);
+          return;
+        }
+        default: fleek_reek_visit(ast, node); return;
+      }
+    }
+    static void fleek_reek_in_clause(fleek_reek_ast_t *ast, const pm_in_node_t *clause) {
+      const pm_node_t *pattern = clause->pattern;
+      const pm_node_t *guard = NULL;
+      const char *guard_type = NULL;
+      if ((PM_NODE_TYPE_P(pattern, PM_IF_NODE) || PM_NODE_TYPE_P(pattern, PM_UNLESS_NODE))) {
+        bool if_guard = PM_NODE_TYPE_P(pattern, PM_IF_NODE);
+        const pm_statements_node_t *statements = if_guard ? ((const pm_if_node_t *) pattern)->statements : ((const pm_unless_node_t *) pattern)->statements;
+        if (statements != NULL && statements->body.size == 1) {
+          guard = if_guard ? ((const pm_if_node_t *) pattern)->predicate : ((const pm_unless_node_t *) pattern)->predicate;
+          guard_type = if_guard ? "if_guard" : "unless_guard";
+          pattern = statements->body.nodes[0];
+        }
+      }
+      fleek_reek_open(ast, "in_pattern", (const pm_node_t *) clause);
+      fleek_reek_pattern(ast, pattern);
+      if (guard != NULL) { fleek_reek_open(ast, guard_type, guard); fleek_reek_visit(ast, guard); fleek_reek_close(ast); }
+      else fleek_reek_nil(ast);
+      fleek_reek_body(ast, (const pm_node_t *) clause->statements);
+      fleek_reek_close(ast);
+    }
+    static void fleek_reek_visit(fleek_reek_ast_t *ast, const pm_node_t *node) {
+      if (node == NULL) { fleek_reek_nil(ast); return; }
+      if (ast->failed) return;
+      switch (PM_NODE_TYPE(node)) {
+        case PM_PROGRAM_NODE: fleek_reek_body(ast, (const pm_node_t *) ((const pm_program_node_t *) node)->statements); return;
+        case PM_STATEMENTS_NODE: fleek_reek_body(ast, node); return;
+        case PM_NIL_NODE: fleek_reek_open(ast, "nil", node); fleek_reek_close(ast); return;
+        case PM_TRUE_NODE: fleek_reek_open(ast, "true", node); fleek_reek_close(ast); return;
+        case PM_FALSE_NODE: fleek_reek_open(ast, "false", node); fleek_reek_close(ast); return;
+        case PM_SELF_NODE: fleek_reek_open(ast, "self", node); fleek_reek_close(ast); return;
+        case PM_REDO_NODE: fleek_reek_open(ast, "redo", node); fleek_reek_close(ast); return;
+        case PM_RETRY_NODE: fleek_reek_open(ast, "retry", node); fleek_reek_close(ast); return;
+        case PM_INTEGER_NODE: fleek_reek_open(ast, "int", node); fleek_reek_integer(ast, &((const pm_integer_node_t *) node)->value); fleek_reek_close(ast); return;
+        case PM_FLOAT_NODE: {
+          char text[64]; fleek_reek_float_text(((const pm_float_node_t *) node)->value, text, sizeof(text));
+          fleek_reek_open(ast, "float", node); fleek_reek_text(ast, " "); fleek_reek_text(ast, text); fleek_reek_close(ast);
+          return;
+        }
+        case PM_RATIONAL_NODE: {
+          const pm_rational_node_t *rational = (const pm_rational_node_t *) node;
+          fleek_reek_open(ast, "rational", node); fleek_reek_text(ast, " (");
+          fleek_reek_integer_raw(ast, &rational->numerator); fleek_reek_text(ast, "/");
+          fleek_reek_integer_raw(ast, &rational->denominator); fleek_reek_text(ast, ")");
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_IMAGINARY_NODE: {
+          const pm_node_t *numeric = ((const pm_imaginary_node_t *) node)->numeric;
+          fleek_reek_open(ast, "complex", node); fleek_reek_text(ast, " (0+");
+          if (PM_NODE_TYPE_P(numeric, PM_INTEGER_NODE)) fleek_reek_integer_raw(ast, &((const pm_integer_node_t *) numeric)->value);
+          else if (PM_NODE_TYPE_P(numeric, PM_FLOAT_NODE)) { char text[64]; fleek_reek_float_text(((const pm_float_node_t *) numeric)->value, text, sizeof(text)); fleek_reek_text(ast, text); }
+          else { ast->failed = true; return; }
+          fleek_reek_text(ast, "i)"); fleek_reek_close(ast);
+          return;
+        }
+        case PM_STRING_NODE: {
+          const pm_string_node_t *string = (const pm_string_node_t *) node;
+          fleek_reek_string_lines(ast, node, &string->content_loc, &string->unescaped, !ast->in_parts);
+          return;
+        }
+        case PM_X_STRING_NODE: {
+          const pm_x_string_node_t *string = (const pm_x_string_node_t *) node;
+          fleek_reek_open(ast, "xstr", node);
+          fleek_reek_open_at(ast, "str", string->content_loc.start, string->content_loc.end);
+          fleek_reek_string_atom(ast, pm_string_source(&string->unescaped), pm_string_length(&string->unescaped));
+          fleek_reek_close(ast); fleek_reek_close(ast);
+          return;
+        }
+        case PM_SYMBOL_NODE: {
+          const pm_symbol_node_t *symbol = (const pm_symbol_node_t *) node;
+          fleek_reek_open(ast, "sym", node);
+          fleek_reek_symbol_bytes(ast, pm_string_source(&symbol->unescaped), pm_string_length(&symbol->unescaped));
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_REGULAR_EXPRESSION_NODE: {
+          const pm_regular_expression_node_t *regexp = (const pm_regular_expression_node_t *) node;
+          fleek_reek_open(ast, "regexp", node);
+          if (regexp->content_loc.end > regexp->content_loc.start) {
+            fleek_reek_open_at(ast, "str", regexp->content_loc.start, regexp->content_loc.end);
+            fleek_reek_string_atom(ast, regexp->content_loc.start, (size_t) (regexp->content_loc.end - regexp->content_loc.start));
+            fleek_reek_close(ast);
+          }
+          fleek_reek_regopt(ast, node, regexp->closing_loc.start, regexp->closing_loc.end);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_INTERPOLATED_REGULAR_EXPRESSION_NODE: {
+          const pm_interpolated_regular_expression_node_t *regexp = (const pm_interpolated_regular_expression_node_t *) node;
+          fleek_reek_open(ast, "regexp", node);
+          fleek_reek_list(ast, &regexp->parts);
+          fleek_reek_regopt(ast, node, regexp->closing_loc.start, regexp->closing_loc.end);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_INTERPOLATED_STRING_NODE: fleek_reek_interpolated(ast, "dstr", node, &((const pm_interpolated_string_node_t *) node)->parts); return;
+        case PM_INTERPOLATED_SYMBOL_NODE: fleek_reek_interpolated(ast, "dsym", node, &((const pm_interpolated_symbol_node_t *) node)->parts); return;
+        case PM_INTERPOLATED_X_STRING_NODE: fleek_reek_interpolated(ast, "xstr", node, &((const pm_interpolated_x_string_node_t *) node)->parts); return;
+        case PM_EMBEDDED_STATEMENTS_NODE: {
+          const pm_embedded_statements_node_t *embedded = (const pm_embedded_statements_node_t *) node;
+          fleek_reek_open(ast, "begin", node);
+          if (embedded->statements != NULL) fleek_reek_list(ast, &embedded->statements->body);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_EMBEDDED_VARIABLE_NODE: fleek_reek_visit(ast, ((const pm_embedded_variable_node_t *) node)->variable); return;
+        case PM_ARRAY_NODE: fleek_reek_open(ast, "array", node); fleek_reek_list(ast, &((const pm_array_node_t *) node)->elements); fleek_reek_close(ast); return;
+        case PM_HASH_NODE: case PM_KEYWORD_HASH_NODE: {
+          const pm_node_list_t *elements = PM_NODE_TYPE_P(node, PM_HASH_NODE) ? &((const pm_hash_node_t *) node)->elements : &((const pm_keyword_hash_node_t *) node)->elements;
+          fleek_reek_open(ast, "hash", node); fleek_reek_list(ast, elements); fleek_reek_close(ast);
+          return;
+        }
+        case PM_ASSOC_NODE: {
+          const pm_assoc_node_t *assoc = (const pm_assoc_node_t *) node;
+          fleek_reek_open(ast, "pair", node); fleek_reek_visit(ast, assoc->key);
+          if (PM_NODE_TYPE_P(assoc->value, PM_IMPLICIT_NODE)) fleek_reek_visit(ast, ((const pm_implicit_node_t *) assoc->value)->value);
+          else fleek_reek_visit(ast, assoc->value);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_ASSOC_SPLAT_NODE: {
+          const pm_node_t *value = ((const pm_assoc_splat_node_t *) node)->value;
+          fleek_reek_open(ast, "kwsplat", node); if (value != NULL) fleek_reek_visit(ast, value); fleek_reek_close(ast);
+          return;
+        }
+        case PM_SPLAT_NODE: {
+          const pm_node_t *expression = ((const pm_splat_node_t *) node)->expression;
+          fleek_reek_open(ast, "splat", node); if (expression != NULL) fleek_reek_visit(ast, expression); fleek_reek_close(ast);
+          return;
+        }
+        case PM_BLOCK_ARGUMENT_NODE: {
+          const pm_node_t *expression = ((const pm_block_argument_node_t *) node)->expression;
+          fleek_reek_open(ast, "block_pass", node); fleek_reek_visit(ast, expression); fleek_reek_close(ast);
+          return;
+        }
+        case PM_RANGE_NODE: case PM_FLIP_FLOP_NODE: {
+          const pm_range_node_t *range = (const pm_range_node_t *) node;
+          bool exclude = PM_NODE_FLAG_P(node, PM_RANGE_FLAGS_EXCLUDE_END);
+          bool flip = PM_NODE_TYPE_P(node, PM_FLIP_FLOP_NODE);
+          fleek_reek_open(ast, flip ? (exclude ? "eflipflop" : "iflipflop") : (exclude ? "erange" : "irange"), node);
+          fleek_reek_visit(ast, range->left); fleek_reek_visit(ast, range->right);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_LOCAL_VARIABLE_READ_NODE: fleek_reek_variable(ast, "lvar", node, ((const pm_local_variable_read_node_t *) node)->name); return;
+        case PM_INSTANCE_VARIABLE_READ_NODE: fleek_reek_variable(ast, "ivar", node, ((const pm_instance_variable_read_node_t *) node)->name); return;
+        case PM_GLOBAL_VARIABLE_READ_NODE: fleek_reek_variable(ast, "gvar", node, ((const pm_global_variable_read_node_t *) node)->name); return;
+        case PM_CLASS_VARIABLE_READ_NODE: fleek_reek_variable(ast, "cvar", node, ((const pm_class_variable_read_node_t *) node)->name); return;
+        case PM_BACK_REFERENCE_READ_NODE: fleek_reek_variable(ast, "back_ref", node, ((const pm_back_reference_read_node_t *) node)->name); return;
+        case PM_NUMBERED_REFERENCE_READ_NODE: {
+          char text[16]; snprintf(text, sizeof(text), " %u", ((const pm_numbered_reference_read_node_t *) node)->number);
+          fleek_reek_open(ast, "nth_ref", node); fleek_reek_text(ast, text); fleek_reek_close(ast);
+          return;
+        }
+        case PM_IT_LOCAL_VARIABLE_READ_NODE: fleek_reek_open(ast, "lvar", node); fleek_reek_text(ast, " :it"); fleek_reek_close(ast); return;
+        case PM_LOCAL_VARIABLE_WRITE_NODE: fleek_reek_assignment(ast, "lvasgn", node, ((const pm_local_variable_write_node_t *) node)->name, ((const pm_local_variable_write_node_t *) node)->value); return;
+        case PM_INSTANCE_VARIABLE_WRITE_NODE: fleek_reek_assignment(ast, "ivasgn", node, ((const pm_instance_variable_write_node_t *) node)->name, ((const pm_instance_variable_write_node_t *) node)->value); return;
+        case PM_GLOBAL_VARIABLE_WRITE_NODE: fleek_reek_assignment(ast, "gvasgn", node, ((const pm_global_variable_write_node_t *) node)->name, ((const pm_global_variable_write_node_t *) node)->value); return;
+        case PM_CLASS_VARIABLE_WRITE_NODE: fleek_reek_assignment(ast, "cvasgn", node, ((const pm_class_variable_write_node_t *) node)->name, ((const pm_class_variable_write_node_t *) node)->value); return;
+        case PM_LOCAL_VARIABLE_TARGET_NODE: fleek_reek_assignment(ast, "lvasgn", node, ((const pm_local_variable_target_node_t *) node)->name, NULL); return;
+        case PM_INSTANCE_VARIABLE_TARGET_NODE: fleek_reek_assignment(ast, "ivasgn", node, ((const pm_instance_variable_target_node_t *) node)->name, NULL); return;
+        case PM_GLOBAL_VARIABLE_TARGET_NODE: fleek_reek_assignment(ast, "gvasgn", node, ((const pm_global_variable_target_node_t *) node)->name, NULL); return;
+        case PM_CLASS_VARIABLE_TARGET_NODE: fleek_reek_assignment(ast, "cvasgn", node, ((const pm_class_variable_target_node_t *) node)->name, NULL); return;
+        #define FLEEK_REEK_OPERATOR_WRITES(PREFIX, STRUCT, TYPE) \\
+          case PM_##PREFIX##_OPERATOR_WRITE_NODE: { const pm_##STRUCT##_operator_write_node_t *write = (const void *) node; \\
+            fleek_reek_operator_assignment(ast, node, 0, TYPE, write->name, &write->name_loc, write->binary_operator, write->value); return; } \\
+          case PM_##PREFIX##_OR_WRITE_NODE: { const pm_##STRUCT##_or_write_node_t *write = (const void *) node; \\
+            fleek_reek_operator_assignment(ast, node, 1, TYPE, write->name, &write->name_loc, 0, write->value); return; } \\
+          case PM_##PREFIX##_AND_WRITE_NODE: { const pm_##STRUCT##_and_write_node_t *write = (const void *) node; \\
+            fleek_reek_operator_assignment(ast, node, 2, TYPE, write->name, &write->name_loc, 0, write->value); return; }
+        FLEEK_REEK_OPERATOR_WRITES(LOCAL_VARIABLE, local_variable, "lvasgn")
+        FLEEK_REEK_OPERATOR_WRITES(INSTANCE_VARIABLE, instance_variable, "ivasgn")
+        FLEEK_REEK_OPERATOR_WRITES(GLOBAL_VARIABLE, global_variable, "gvasgn")
+        FLEEK_REEK_OPERATOR_WRITES(CLASS_VARIABLE, class_variable, "cvasgn")
+        case PM_CONSTANT_OPERATOR_WRITE_NODE: case PM_CONSTANT_OR_WRITE_NODE: case PM_CONSTANT_AND_WRITE_NODE: {
+          const pm_constant_operator_write_node_t *write = (const pm_constant_operator_write_node_t *) node;
+          int kind = PM_NODE_TYPE_P(node, PM_CONSTANT_OPERATOR_WRITE_NODE) ? 0 : PM_NODE_TYPE_P(node, PM_CONSTANT_OR_WRITE_NODE) ? 1 : 2;
+          fleek_reek_open(ast, kind == 0 ? "op_asgn" : kind == 1 ? "or_asgn" : "and_asgn", node);
+          fleek_reek_open_at(ast, "casgn", write->name_loc.start, write->name_loc.end); fleek_reek_nil(ast); fleek_reek_symbol(ast, write->name); fleek_reek_close(ast);
+          if (kind == 0) fleek_reek_symbol(ast, write->binary_operator);
+          fleek_reek_visit(ast, kind == 0 ? write->value : ((const pm_constant_or_write_node_t *) node)->value);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_CONSTANT_READ_NODE: fleek_reek_open(ast, "const", node); fleek_reek_nil(ast); fleek_reek_symbol(ast, ((const pm_constant_read_node_t *) node)->name); fleek_reek_close(ast); return;
+        case PM_CONSTANT_TARGET_NODE: fleek_reek_open(ast, "casgn", node); fleek_reek_nil(ast); fleek_reek_symbol(ast, ((const pm_constant_target_node_t *) node)->name); fleek_reek_close(ast); return;
+        case PM_CONSTANT_WRITE_NODE: {
+          const pm_constant_write_node_t *write = (const pm_constant_write_node_t *) node;
+          fleek_reek_open(ast, "casgn", node); fleek_reek_nil(ast); fleek_reek_symbol(ast, write->name); fleek_reek_visit(ast, write->value); fleek_reek_close(ast);
+          return;
+        }
+        case PM_CONSTANT_PATH_NODE: {
+          const pm_constant_path_node_t *path = (const pm_constant_path_node_t *) node;
+          fleek_reek_constant_path(ast, node, path->parent, path->name, "const"); fleek_reek_close(ast);
+          return;
+        }
+        case PM_CONSTANT_PATH_TARGET_NODE: {
+          const pm_constant_path_target_node_t *path = (const pm_constant_path_target_node_t *) node;
+          fleek_reek_constant_path(ast, node, path->parent, path->name, "casgn"); fleek_reek_close(ast);
+          return;
+        }
+        case PM_CONSTANT_PATH_WRITE_NODE: {
+          const pm_constant_path_write_node_t *write = (const pm_constant_path_write_node_t *) node;
+          fleek_reek_constant_path(ast, node, write->target->parent, write->target->name, "casgn");
+          fleek_reek_visit(ast, write->value); fleek_reek_close(ast);
+          return;
+        }
+        case PM_CONSTANT_PATH_OPERATOR_WRITE_NODE: case PM_CONSTANT_PATH_OR_WRITE_NODE: case PM_CONSTANT_PATH_AND_WRITE_NODE: {
+          const pm_constant_path_or_write_node_t *write = (const pm_constant_path_or_write_node_t *) node;
+          int kind = PM_NODE_TYPE_P(node, PM_CONSTANT_PATH_OPERATOR_WRITE_NODE) ? 0 : PM_NODE_TYPE_P(node, PM_CONSTANT_PATH_OR_WRITE_NODE) ? 1 : 2;
+          fleek_reek_open(ast, kind == 0 ? "op_asgn" : kind == 1 ? "or_asgn" : "and_asgn", node);
+          fleek_reek_constant_path(ast, (const pm_node_t *) write->target, write->target->parent, write->target->name, "casgn"); fleek_reek_close(ast);
+          if (kind == 0) fleek_reek_symbol(ast, ((const pm_constant_path_operator_write_node_t *) node)->binary_operator);
+          fleek_reek_visit(ast, kind == 0 ? ((const pm_constant_path_operator_write_node_t *) node)->value : write->value);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_CALL_NODE: fleek_reek_call(ast, (const pm_call_node_t *) node); return;
+        case PM_CALL_OPERATOR_WRITE_NODE: case PM_CALL_OR_WRITE_NODE: case PM_CALL_AND_WRITE_NODE: {
+          const pm_call_operator_write_node_t *write = (const pm_call_operator_write_node_t *) node;
+          int kind = PM_NODE_TYPE_P(node, PM_CALL_OPERATOR_WRITE_NODE) ? 0 : PM_NODE_TYPE_P(node, PM_CALL_OR_WRITE_NODE) ? 1 : 2;
+          fleek_reek_open(ast, kind == 0 ? "op_asgn" : kind == 1 ? "or_asgn" : "and_asgn", node);
+          fleek_reek_call_target(ast, node, write->receiver, write->call_operator_loc, write->read_name);
+          if (kind == 0) fleek_reek_symbol(ast, write->binary_operator);
+          fleek_reek_visit(ast, kind == 0 ? write->value : ((const pm_call_or_write_node_t *) node)->value);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_INDEX_OPERATOR_WRITE_NODE: case PM_INDEX_OR_WRITE_NODE: case PM_INDEX_AND_WRITE_NODE: {
+          const pm_index_operator_write_node_t *write = (const pm_index_operator_write_node_t *) node;
+          int kind = PM_NODE_TYPE_P(node, PM_INDEX_OPERATOR_WRITE_NODE) ? 0 : PM_NODE_TYPE_P(node, PM_INDEX_OR_WRITE_NODE) ? 1 : 2;
+          fleek_reek_open(ast, kind == 0 ? "op_asgn" : kind == 1 ? "or_asgn" : "and_asgn", node);
+          fleek_reek_open_at(ast, "send", write->receiver->location.start, write->closing_loc.end);
+          fleek_reek_visit(ast, write->receiver); fleek_reek_text(ast, " :[]");
+          fleek_reek_call_arguments(ast, write->arguments, (const pm_node_t *) write->block);
+          fleek_reek_close(ast);
+          if (kind == 0) fleek_reek_symbol(ast, write->binary_operator);
+          fleek_reek_visit(ast, kind == 0 ? write->value : ((const pm_index_or_write_node_t *) node)->value);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_CALL_TARGET_NODE: {
+          const pm_call_target_node_t *target = (const pm_call_target_node_t *) node;
+          fleek_reek_open(ast, PM_NODE_FLAG_P(node, PM_CALL_NODE_FLAGS_SAFE_NAVIGATION) ? "csend" : "send", node);
+          fleek_reek_visit(ast, target->receiver); fleek_reek_symbol(ast, target->name); fleek_reek_close(ast);
+          return;
+        }
+        case PM_INDEX_TARGET_NODE: {
+          const pm_index_target_node_t *target = (const pm_index_target_node_t *) node;
+          fleek_reek_open(ast, "send", node); fleek_reek_visit(ast, target->receiver); fleek_reek_text(ast, " :[]=");
+          fleek_reek_call_arguments(ast, target->arguments, (const pm_node_t *) target->block); fleek_reek_close(ast);
+          return;
+        }
+        case PM_MULTI_TARGET_NODE: case PM_MULTI_WRITE_NODE: {
+          bool write = PM_NODE_TYPE_P(node, PM_MULTI_WRITE_NODE);
+          const pm_node_list_t *lefts = write ? &((const pm_multi_write_node_t *) node)->lefts : &((const pm_multi_target_node_t *) node)->lefts;
+          const pm_node_t *rest = write ? ((const pm_multi_write_node_t *) node)->rest : ((const pm_multi_target_node_t *) node)->rest;
+          const pm_node_list_t *rights = write ? &((const pm_multi_write_node_t *) node)->rights : &((const pm_multi_target_node_t *) node)->rights;
+          if (write) fleek_reek_open(ast, "masgn", node);
+          const uint8_t *mlhs_start = lefts->size != 0 ? lefts->nodes[0]->location.start : rest != NULL ? rest->location.start : node->location.start;
+          fleek_reek_open_at(ast, "mlhs", write ? mlhs_start : node->location.start, node->location.end);
+          fleek_reek_list(ast, lefts);
+          if (rest != NULL && !PM_NODE_TYPE_P(rest, PM_IMPLICIT_REST_NODE)) fleek_reek_visit(ast, rest);
+          fleek_reek_list(ast, rights);
+          fleek_reek_close(ast);
+          if (write) { fleek_reek_visit(ast, ((const pm_multi_write_node_t *) node)->value); fleek_reek_close(ast); }
+          return;
+        }
+        case PM_AND_NODE: fleek_reek_open(ast, "and", node); fleek_reek_visit(ast, ((const pm_and_node_t *) node)->left); fleek_reek_visit(ast, ((const pm_and_node_t *) node)->right); fleek_reek_close(ast); return;
+        case PM_OR_NODE: fleek_reek_open(ast, "or", node); fleek_reek_visit(ast, ((const pm_or_node_t *) node)->left); fleek_reek_visit(ast, ((const pm_or_node_t *) node)->right); fleek_reek_close(ast); return;
+        case PM_PARENTHESES_NODE: {
+          const pm_node_t *body = ((const pm_parentheses_node_t *) node)->body;
+          fleek_reek_open(ast, "begin", node);
+          if (body != NULL && PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) fleek_reek_list(ast, &((const pm_statements_node_t *) body)->body);
+          else if (body != NULL) fleek_reek_visit(ast, body);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_IF_NODE: {
+          const pm_if_node_t *branch = (const pm_if_node_t *) node;
+          fleek_reek_open(ast, "if", node); fleek_reek_visit(ast, branch->predicate);
+          fleek_reek_body(ast, (const pm_node_t *) branch->statements);
+          const pm_node_t *subsequent = branch->subsequent;
+          if (subsequent != NULL && PM_NODE_TYPE_P(subsequent, PM_ELSE_NODE)) fleek_reek_body(ast, (const pm_node_t *) ((const pm_else_node_t *) subsequent)->statements);
+          else fleek_reek_visit(ast, subsequent);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_UNLESS_NODE: {
+          const pm_unless_node_t *branch = (const pm_unless_node_t *) node;
+          fleek_reek_open(ast, "if", node); fleek_reek_visit(ast, branch->predicate);
+          fleek_reek_body(ast, branch->else_clause == NULL ? NULL : (const pm_node_t *) branch->else_clause->statements);
+          fleek_reek_body(ast, (const pm_node_t *) branch->statements);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_WHILE_NODE: case PM_UNTIL_NODE: {
+          const pm_while_node_t *loop = (const pm_while_node_t *) node;
+          bool post = PM_NODE_FLAG_P(node, PM_LOOP_FLAGS_BEGIN_MODIFIER);
+          const char *type = PM_NODE_TYPE_P(node, PM_WHILE_NODE) ? (post ? "while_post" : "while") : (post ? "until_post" : "until");
+          fleek_reek_open(ast, type, node); fleek_reek_visit(ast, loop->predicate);
+          fleek_reek_body(ast, (const pm_node_t *) loop->statements);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_FOR_NODE: {
+          const pm_for_node_t *loop = (const pm_for_node_t *) node;
+          fleek_reek_open(ast, "for", node); fleek_reek_visit(ast, loop->index); fleek_reek_visit(ast, loop->collection);
+          fleek_reek_body(ast, (const pm_node_t *) loop->statements); fleek_reek_close(ast);
+          return;
+        }
+        case PM_CASE_NODE: case PM_CASE_MATCH_NODE: {
+          const pm_case_node_t *branch = (const pm_case_node_t *) node;
+          fleek_reek_open(ast, PM_NODE_TYPE_P(node, PM_CASE_NODE) ? "case" : "case_match", node);
+          fleek_reek_visit(ast, branch->predicate); fleek_reek_list(ast, &branch->conditions);
+          fleek_reek_body(ast, branch->else_clause == NULL ? NULL : (const pm_node_t *) branch->else_clause->statements);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_WHEN_NODE: {
+          const pm_when_node_t *clause = (const pm_when_node_t *) node;
+          fleek_reek_open(ast, "when", node); fleek_reek_list(ast, &clause->conditions);
+          fleek_reek_body(ast, (const pm_node_t *) clause->statements); fleek_reek_close(ast);
+          return;
+        }
+        case PM_RETURN_NODE: fleek_reek_jump(ast, "return", node, ((const pm_return_node_t *) node)->arguments); return;
+        case PM_BREAK_NODE: fleek_reek_jump(ast, "break", node, ((const pm_break_node_t *) node)->arguments); return;
+        case PM_NEXT_NODE: fleek_reek_jump(ast, "next", node, ((const pm_next_node_t *) node)->arguments); return;
+        case PM_YIELD_NODE: fleek_reek_jump(ast, "yield", node, ((const pm_yield_node_t *) node)->arguments); return;
+        case PM_SUPER_NODE: {
+          const pm_super_node_t *call = (const pm_super_node_t *) node;
+          fleek_reek_keyword_data_t data = { node, "super", call->arguments, call->block };
+          fleek_reek_with_block(ast, node, call->block, fleek_reek_emit_keyword, &data);
+          return;
+        }
+        case PM_FORWARDING_SUPER_NODE: {
+          const pm_forwarding_super_node_t *call = (const pm_forwarding_super_node_t *) node;
+          fleek_reek_keyword_data_t data = { node, "zsuper", NULL, NULL };
+          fleek_reek_with_block(ast, node, (const pm_node_t *) call->block, fleek_reek_emit_keyword, &data);
+          return;
+        }
+        case PM_FORWARDING_ARGUMENTS_NODE: fleek_reek_open(ast, "forwarded_args", node); fleek_reek_close(ast); return;
+        case PM_DEFINED_NODE: fleek_reek_open(ast, "defined?", node); fleek_reek_visit(ast, ((const pm_defined_node_t *) node)->value); fleek_reek_close(ast); return;
+        case PM_ALIAS_METHOD_NODE: case PM_ALIAS_GLOBAL_VARIABLE_NODE: {
+          const pm_alias_method_node_t *alias = (const pm_alias_method_node_t *) node;
+          fleek_reek_open(ast, "alias", node); fleek_reek_visit(ast, alias->new_name); fleek_reek_visit(ast, alias->old_name); fleek_reek_close(ast);
+          return;
+        }
+        case PM_UNDEF_NODE: fleek_reek_open(ast, "undef", node); fleek_reek_list(ast, &((const pm_undef_node_t *) node)->names); fleek_reek_close(ast); return;
+        case PM_LAMBDA_NODE: {
+          const pm_lambda_node_t *lambda = (const pm_lambda_node_t *) node;
+          bool numbered = lambda->parameters != NULL && PM_NODE_TYPE_P(lambda->parameters, PM_NUMBERED_PARAMETERS_NODE);
+          fleek_reek_open(ast, numbered ? "numblock" : "block", node);
+          fleek_reek_open_at(ast, "lambda", lambda->operator_loc.start, lambda->operator_loc.end); fleek_reek_close(ast);
+          if (numbered) { char count[16]; snprintf(count, sizeof(count), " %d", ((const pm_numbered_parameters_node_t *) lambda->parameters)->maximum); fleek_reek_text(ast, count); }
+          else fleek_reek_block_parameters(ast, lambda->parameters, node);
+          fleek_reek_body(ast, lambda->body);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_CLASS_NODE: {
+          const pm_class_node_t *scope = (const pm_class_node_t *) node;
+          fleek_reek_open(ast, "class", node); fleek_reek_visit(ast, scope->constant_path); fleek_reek_visit(ast, scope->superclass);
+          fleek_reek_body(ast, scope->body); fleek_reek_close(ast);
+          return;
+        }
+        case PM_MODULE_NODE: {
+          const pm_module_node_t *scope = (const pm_module_node_t *) node;
+          fleek_reek_open(ast, "module", node); fleek_reek_visit(ast, scope->constant_path); fleek_reek_body(ast, scope->body); fleek_reek_close(ast);
+          return;
+        }
+        case PM_SINGLETON_CLASS_NODE: {
+          const pm_singleton_class_node_t *scope = (const pm_singleton_class_node_t *) node;
+          fleek_reek_open(ast, "sclass", node); fleek_reek_visit(ast, scope->expression); fleek_reek_body(ast, scope->body); fleek_reek_close(ast);
+          return;
+        }
+        case PM_DEF_NODE: {
+          const pm_def_node_t *method = (const pm_def_node_t *) node;
+          fleek_reek_open(ast, method->receiver == NULL ? "def" : "defs", node);
+          if (method->receiver != NULL) fleek_reek_visit(ast, method->receiver);
+          fleek_reek_symbol(ast, method->name);
+          fleek_reek_parameters(ast, method->parameters, node);
+          fleek_reek_body(ast, method->body);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_BEGIN_NODE: {
+          const pm_begin_node_t *begin = (const pm_begin_node_t *) node;
+          bool keyword = begin->begin_keyword_loc.start != NULL;
+          if (keyword) fleek_reek_open(ast, "kwbegin", node);
+          bool ensure = begin->ensure_clause != NULL;
+          if (ensure) fleek_reek_open(ast, "ensure", node);
+          bool rescue = begin->rescue_clause != NULL;
+          if (rescue) {
+            fleek_reek_open(ast, "rescue", node);
+            fleek_reek_body(ast, (const pm_node_t *) begin->statements);
+            for (const pm_rescue_node_t *clause = begin->rescue_clause; clause != NULL; clause = clause->subsequent) fleek_reek_visit(ast, (const pm_node_t *) clause);
+            fleek_reek_body(ast, begin->else_clause == NULL ? NULL : (const pm_node_t *) begin->else_clause->statements);
+            fleek_reek_close(ast);
+          } else if (keyword && !ensure && begin->statements != NULL) {
+            fleek_reek_list(ast, &begin->statements->body);
+          } else if (!keyword || ensure) {
+            fleek_reek_body(ast, (const pm_node_t *) begin->statements);
+          }
+          if (ensure) { fleek_reek_body(ast, (const pm_node_t *) begin->ensure_clause->statements); fleek_reek_close(ast); }
+          if (keyword) fleek_reek_close(ast);
+          return;
+        }
+        case PM_RESCUE_NODE: {
+          const pm_rescue_node_t *clause = (const pm_rescue_node_t *) node;
+          fleek_reek_open(ast, "resbody", node);
+          if (clause->exceptions.size == 0) fleek_reek_nil(ast);
+          else { fleek_reek_open(ast, "array", clause->exceptions.nodes[0]); fleek_reek_list(ast, &clause->exceptions); fleek_reek_close(ast); }
+          fleek_reek_visit(ast, clause->reference);
+          fleek_reek_body(ast, (const pm_node_t *) clause->statements);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_RESCUE_MODIFIER_NODE: {
+          const pm_rescue_modifier_node_t *rescue = (const pm_rescue_modifier_node_t *) node;
+          fleek_reek_open(ast, "rescue", node); fleek_reek_visit(ast, rescue->expression);
+          fleek_reek_open(ast, "resbody", rescue->rescue_expression); fleek_reek_nil(ast); fleek_reek_nil(ast); fleek_reek_visit(ast, rescue->rescue_expression); fleek_reek_close(ast);
+          fleek_reek_nil(ast); fleek_reek_close(ast);
+          return;
+        }
+        case PM_SOURCE_FILE_NODE: {
+          fleek_reek_open(ast, "str", node);
+          fleek_reek_string_atom(ast, (const uint8_t *) ast->path, ast->path_length);
+          fleek_reek_close(ast);
+          return;
+        }
+        case PM_SOURCE_LINE_NODE: {
+          char text[24]; snprintf(text, sizeof(text), " %d", (int) (fleek_reek_line(ast, node->location.start) - ast->start_line + 1));
+          fleek_reek_open(ast, "int", node); fleek_reek_text(ast, text); fleek_reek_close(ast);
+          return;
+        }
+        case PM_SOURCE_ENCODING_NODE:
+          fleek_reek_open(ast, "const", node); fleek_reek_open(ast, "const", node); fleek_reek_nil(ast); fleek_reek_text(ast, " :Encoding"); fleek_reek_close(ast);
+          fleek_reek_text(ast, " :UTF_8"); fleek_reek_close(ast);
+          return;
+        case PM_SHAREABLE_CONSTANT_NODE: fleek_reek_visit(ast, ((const pm_shareable_constant_node_t *) node)->write); return;
+        case PM_PRE_EXECUTION_NODE: fleek_reek_open(ast, "preexe", node); fleek_reek_body(ast, (const pm_node_t *) ((const pm_pre_execution_node_t *) node)->statements); fleek_reek_close(ast); return;
+        case PM_POST_EXECUTION_NODE: fleek_reek_open(ast, "postexe", node); fleek_reek_body(ast, (const pm_node_t *) ((const pm_post_execution_node_t *) node)->statements); fleek_reek_close(ast); return;
+        case PM_IN_NODE: fleek_reek_in_clause(ast, (const pm_in_node_t *) node); return;
+        case PM_MATCH_PREDICATE_NODE: case PM_MATCH_REQUIRED_NODE: {
+          const pm_match_predicate_node_t *match = (const pm_match_predicate_node_t *) node;
+          fleek_reek_open(ast, PM_NODE_TYPE_P(node, PM_MATCH_PREDICATE_NODE) ? "match_pattern_p" : "match_pattern", node);
+          fleek_reek_visit(ast, match->value); fleek_reek_pattern(ast, match->pattern); fleek_reek_close(ast);
+          return;
+        }
+        case PM_MATCH_WRITE_NODE: {
+          const pm_call_node_t *call = ((const pm_match_write_node_t *) node)->call;
+          fleek_reek_open(ast, "match_with_lvasgn", node); fleek_reek_visit(ast, call->receiver);
+          if (call->arguments != NULL) fleek_reek_list(ast, &call->arguments->arguments);
+          fleek_reek_close(ast);
+          return;
+        }
+        default:
+          fprintf(stderr, "REEKDEBUG %s\\n", pm_node_type_to_str(PM_NODE_TYPE(node)));
+          ast->failed = true;
+          return;
+      }
+    }
+
+    /* Translates source into Reek's AST text. annotate adds "@line:begin:end" after each node type. */
+    int fleek_reek_ast(const char *source, size_t length, const char *path, int annotate) {
+      free(fleek_reek_ast_buffer);
+      fleek_reek_ast_buffer = NULL;
+      if (memchr(source, 0, length) != NULL) return -2;
+      pm_options_t options = {0};
+      options.line = 1;
+      options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
+      options.partial_script = true;
+      pm_parser_t parser;
+      pm_parser_init(&parser, (const uint8_t *) source, length, &options);
+      pm_node_t *root = pm_parse(&parser);
+      int result = -1;
+      if (parser.error_list.head == NULL) {
+        fleek_reek_ast_t ast = { NULL, 0, 0, false, annotate != 0, false, &parser, (const uint8_t *) source, path, strlen(path), 1 };
+        const pm_statements_node_t *statements = ((const pm_program_node_t *) root)->statements;
+        if (statements != NULL && statements->body.size != 0) fleek_reek_visit(&ast, root);
+        if (!ast.failed) { fleek_reek_ast_buffer = ast.text; result = 0; }
+        else { free(ast.text); result = -4; }
+      }
+      pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
+      return result;
+    }
+    const char *fleek_reek_ast_text(void) { return fleek_reek_ast_buffer == NULL ? "" : fleek_reek_ast_buffer; }
+
     int fleek_parse_ruby4(const char *source, size_t length) {
       fleek_parse_message_buffer[0] = 0;
       const uint8_t *nul = (const uint8_t *) memchr(source, 0, length);
@@ -4766,6 +5757,8 @@ class Fleek
     C
 
     ffi_func :fleek_parse_ruby4, [:str, :size_t], :int
+    ffi_func :fleek_reek_ast, [:str, :size_t, :str, :int], :int
+    ffi_func :fleek_reek_ast_text, [], :str
     ffi_func :fleek_parse_message, [], :str
     ffi_func :fleek_class_variable, [:str, :size_t], :int
     ffi_func :fleek_class_variable_finding, [], :str
@@ -5322,8 +6315,13 @@ class Fleek
     puts "Report: stable text v1; diagnostics on stderr; uncovered checks are reported as not run."
   end
 
-  def self.print_analysis_usage
+  def self.print_probe_usage
     puts "       fleek --parse-ruby4 SOURCE (parser prototype; runs no checks)"
+    puts "       fleek --reek-ast SOURCE (prints the parser AST Reek analyzes; runs no checks)"
+  end
+
+  def self.print_analysis_usage
+    print_probe_usage
     puts "       fleek --checks reek:ClassVariable[,flay:StructuralDuplication] [--reek-config FILE] SOURCE"
     puts "       fleek --checks flay:StructuralDuplication,reek:ClassVariable [--mass MASS] [--timeout SECONDS] [--liberal] [--fuzzy [DIFF]] [--legacy] [-#] [--reek-config FILE] SOURCE..."
     puts "       fleek --checks reek:ClassVariable [--reek-config FILE] --stdin SOURCE [PATH...]"
@@ -5390,6 +6388,29 @@ class Fleek
 
   def self.parse_ruby4_requested?(arguments)
     arguments.length == 2 && arguments[0] == "--parse-ruby4"
+  end
+
+  def self.reek_ast_requested?(arguments)
+    arguments.length == 2 && arguments[0] == "--reek-ast"
+  end
+
+  # Developer probe: prints the parser-gem AST Reek 6.6.0 would analyze.
+  def self.print_reek_ast(arguments)
+    path = arguments[1]
+    status = translate_reek_ast(path)
+    return report_reek_ast_failure(path, status) unless status.zero?
+    puts NativePrism.fleek_reek_ast_text
+    0
+  end
+
+  def self.translate_reek_ast(path)
+    source = File.binread(path)
+    NativePrism.fleek_reek_ast(source, source.bytesize, path, 0)
+  end
+
+  def self.report_reek_ast_failure(path, status)
+    warn "ERROR: Reek AST translation failed with status #{status}: #{quote_text(path)}"
+    1
   end
 
   # :reek:BooleanParameter
@@ -7166,6 +8187,7 @@ class Fleek
   def self.run_without_unsupported_format(arguments)
     first_argument = arguments[0]
     return parse_ruby4_file(arguments[1]) if parse_ruby4_requested?(arguments)
+    return print_reek_ast(arguments) if reek_ast_requested?(arguments)
     return run_selected_checks(arguments) if selected_checks_requested?(arguments, first_argument)
     return 0 if print_help_if_requested(arguments)
     return 0 if print_version_if_requested(arguments)

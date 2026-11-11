@@ -24,6 +24,7 @@ class CheckRunner
     test/text_report_contract.rb
     test/duplication_contract.rb
     test/duplication_generic_contract.rb
+    test/reek_ast_contract.rb
     test/duplication_fuzzy_contract.rb
     test/duplication_fuzzy_distance_contract.rb
     test/duplication_control_interactions_contract.rb

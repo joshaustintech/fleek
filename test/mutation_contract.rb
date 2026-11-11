@@ -30,6 +30,12 @@ class MutationCase
     "Flay generic legacy syntax" => "test/legacy_parser_contract.rb",
     "Flay generic call name identity" => "test/duplication_method_call_contract.rb",
     "Flay per-file parse continuation" => "test/duplication_contract.rb",
+    "Reek AST begin wrapping" => "test/reek_ast_contract.rb",
+    "Reek AST string lines" => "test/reek_ast_contract.rb",
+    "Reek AST pattern guards" => "test/reek_ast_contract.rb",
+    "Reek AST regexp match assignment" => "test/reek_ast_contract.rb",
+    "Reek AST legacy forward args" => "test/reek_ast_contract.rb",
+    "Reek AST unless branches" => "test/reek_ast_contract.rb",
     "Flay parse failure attribution" => "test/duplication_contract.rb",
     "embedded NUL acceptance" => "test/native_parser_contract.rb",
     "Ruby 4 grammar downgrade" => "test/native_parser_contract.rb",
@@ -1388,6 +1394,26 @@ MutationCase.new(MutationCase::Configuration.new(source,
 MutationCase.new(MutationCase::Configuration.new(source,
   "apply_duplication_timeout_failures(report, failures) unless failures.empty?", "failures",
   "Flay parse failure attribution", "unparseable source hid remaining Flay groups")).run
+
+MutationCase.new(MutationCase::Configuration.new(source,
+  "        if (list->size == 1) { fleek_reek_visit(ast, list->nodes[0]); return; }\n", "",
+  "Reek AST begin wrapping", "Reek AST differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "bool compose = standalone && segments > 1;", "bool compose = false;",
+  "Reek AST string lines", "Reek AST differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "guard_type = if_guard ? \"if_guard\" : \"unless_guard\";", "guard_type = \"if_guard\";",
+  "Reek AST pattern guards", "Reek AST differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (name->length == 2 && memcmp(name->start, \"=~\", 2) == 0 && call->receiver != NULL", "if (false && call->receiver != NULL",
+  "Reek AST regexp match assignment", "Reek AST differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "fleek_reek_open(ast, \"forward_args\", parameters->keyword_rest);", "fleek_reek_open(ast, \"args\", parameters->keyword_rest);",
+  "Reek AST legacy forward args", "Reek AST differed")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "fleek_reek_body(ast, branch->else_clause == NULL ? NULL : (const pm_node_t *) branch->else_clause->statements);\n          fleek_reek_body(ast, (const pm_node_t *) branch->statements);",
+  "fleek_reek_body(ast, (const pm_node_t *) branch->statements);\n          fleek_reek_body(ast, branch->else_clause == NULL ? NULL : (const pm_node_t *) branch->else_clause->statements);",
+  "Reek AST unless branches", "Reek AST differed")).run
 
 process_id = Process.spawn("make", "build/fleek", out: MutationProcess.temporary_path("fleek-mutation-restore-out"), err: MutationProcess.temporary_path("fleek-mutation-restore-err"))
 _, status = Process.waitpid2(process_id)

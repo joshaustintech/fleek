@@ -481,7 +481,8 @@ Every feature child below additionally depends on harness handoff 115; original 
 - [141: Analyze the Rails Micropost presence and length validations for Flay](issues/141-rails-flay-micropost-basic-validations.md) — resolved; parent 97; blocked by 115 and 140 (resolved).
 - [142: Generic Flay sexp engine for core syntax](issues/142-generic-flay-core-engine.md) — resolved; parent 97. Replaces the candidate engine; Rails Flay 25/25 complete. See ADR 0256.
 - [143: Analyze remaining Flay sources when one source fails to parse](issues/143-flay-skip-unparseable-sources.md) — resolved; parent 24; blocked by 142 (resolved).
-- [144: Translate Prism trees into Reek's parser-gem AST](issues/144-reek-parser-ast-translation.md) — parent 24; blocked by 143 (resolved). See ADR 0257.
+- [144: Translate Prism trees into Reek's parser-gem AST](issues/144-reek-parser-ast-translation.md) — resolved; parent 24. Matches the pinned parser gem on all 481 accepted sources.
+- [147: Characterize Spinel spawn-redirect and regexp-split defects](issues/147-spinel-runtime-defects.md) — research; blocked by 144 (resolved). See ADR 0257.
 - [145: Port Reek's context builder and IrresponsibleModule](issues/145-reek-context-builder-port.md) — parent 24; blocked by 144.
 - [146: Migrate the remaining Reek detectors to the context engine](issues/146-reek-detectors-on-context-engine.md) — parent 24; blocked by 145.
 - [128: Preserve per-file results after Flay timeout](issues/128-flay-per-file-timeout-continuation.md) — resolved; parent 23; blocked by 120; 115.
