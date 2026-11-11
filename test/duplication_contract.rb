@@ -1198,6 +1198,28 @@ unsupported_declaration_paths += [
   "test/fixtures/duplication_class_methods_micropost_attachment_receiver.rb", "Micropost attachment receiver did not match block parameter",
   "test/fixtures/duplication_class_methods_micropost_attachment_call_receiver.rb", "receiver-qualified Micropost attachment was accepted"
 ].each_slice(2).to_a
+micropost_validations_path = "test/fixtures/duplication_class_methods_micropost_validations.rb"
+micropost_validations_actual = DuplicationProcess.run(DuplicationProcess::Input.new(micropost_validations_path, "fleek", ""))
+micropost_validations_reference = DuplicationProcess.run(DuplicationProcess::Input.new(micropost_validations_path, "flay", ""))
+DuplicationProcess.verify_output(micropost_validations_actual, DuplicationProcess::OutputExpectation.new(0,
+  ["Coverage: 1 selected; 1 analyzed; 0 failed; 0 excluded", "Total duplication score: 0", "Status: complete"],
+  "Micropost validations made a supported source incomplete"))
+DuplicationProcess.verify_output(micropost_validations_reference, DuplicationProcess::OutputExpectation.new(0,
+  ["Total score (lower is better) = 0"], "Flay Micropost validations result changed"))
+unsupported_declaration_paths += [
+  "test/fixtures/duplication_class_methods_micropost_validation_attribute.rb", "unsupported Micropost validation attribute was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_key.rb", "unsupported Micropost validation key was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_value.rb", "unsupported Micropost presence value was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_receiver.rb", "receiver-qualified Micropost validation was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_block.rb", "Micropost validation block was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_extra_argument.rb", "extra Micropost validation attribute was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_maximum.rb", "unsupported Micropost length maximum was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_length_key.rb", "unsupported Micropost length key was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_length_size.rb", "extra Micropost length option was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_options_size.rb", "extra Micropost validation option was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_content_presence.rb", "Micropost content validation without presence was accepted",
+  "test/fixtures/duplication_class_methods_micropost_validation_content_attribute.rb", "unsupported Micropost length validation attribute was accepted"
+].each_slice(2).to_a
 unsupported_declaration_paths.each do |path, message|
   actual = DuplicationProcess.run(DuplicationProcess::Input.new(path, "fleek", ""))
   DuplicationProcess.verify_output(actual, DuplicationProcess::OutputExpectation.new(1,

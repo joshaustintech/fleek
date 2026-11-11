@@ -77,3 +77,5 @@ The next residual is the `Micropost` Active Storage attachment and its `display`
 Issue 140 resolves only the attachment declaration. Micropost validations remain partial, and `User` remains the other manifest gap.
 
 The next slice is Micropost's exact `user_id` presence and `content` presence/length validations. [Issue 141](141-rails-flay-micropost-basic-validations.md) bounds these declarations; [ADR 0255](../../../docs/adr/0255-bound-rails-micropost-basic-validations.md) records the decision.
+
+Issue 141 resolves the two basic Micropost validations; the image validation and `User` remain. Rather than continue one exact shape per issue, [issue 142](142-generic-flay-core-engine.md) adopts a generic sexp engine ([ADR 0256](../../../docs/adr/0256-generic-flay-sexp-engine.md)) that analyzes any translated syntax.

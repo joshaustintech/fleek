@@ -373,6 +373,19 @@ class MutationCase
     "Flay Micropost attachment key boundary" => "test/duplication_contract.rb",
     "Flay Micropost attachment limit boundary" => "test/duplication_contract.rb",
     "Flay Micropost attachment receiver boundary" => "test/duplication_contract.rb",
+    "Flay Micropost validation support" => "test/duplication_contract.rb",
+    "Flay Micropost validation sibling support" => "test/duplication_contract.rb",
+    "Flay Micropost validation attribute boundary" => "test/duplication_contract.rb",
+    "Flay Micropost length validation attribute boundary" => "test/duplication_contract.rb",
+    "Flay Micropost validation key boundary" => "test/duplication_contract.rb",
+    "Flay Micropost presence value boundary" => "test/duplication_contract.rb",
+    "Flay Micropost validation receiver boundary" => "test/duplication_contract.rb",
+    "Flay Micropost validation block boundary" => "test/duplication_contract.rb",
+    "Flay Micropost length maximum boundary" => "test/duplication_contract.rb",
+    "Flay Micropost length key boundary" => "test/duplication_contract.rb",
+    "Flay Micropost length size boundary" => "test/duplication_contract.rb",
+    "Flay Micropost validation options boundary" => "test/duplication_contract.rb",
+    "Flay Micropost content presence boundary" => "test/duplication_contract.rb",
     "Flay unrelated class macro rejected" => "test/duplication_contract.rb",
     "Flay empty class methods rejected" => "test/duplication_contract.rb",
     "Flay empty method class mass" => "test/duplication_contract.rb",
@@ -2114,8 +2127,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay partial class candidates",
   "direct callback declarations made supported class methods incomplete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "!fleek_duplication_is_callback_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_visibility_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index]) \&\&\n                  !fleek_duplication_is_micropost_default_scope(body->body.nodes[index]) \&\&\n                  !fleek_duplication_is_micropost_attachment(body->body.nodes[index])) fleek_duplication_partial = 1;",
-  "!fleek_duplication_is_visibility_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index]) \&\&\n                  !fleek_duplication_is_micropost_default_scope(body->body.nodes[index]) \&\&\n                  !fleek_duplication_is_micropost_attachment(body->body.nodes[index])) fleek_duplication_partial = 1;",
+  "!fleek_duplication_is_callback_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_visibility_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index]) \&\&\n                  !fleek_duplication_is_micropost_default_scope(body->body.nodes[index]) \&\&\n                  !fleek_duplication_is_micropost_attachment(body->body.nodes[index]) &&\n                  !fleek_duplication_is_micropost_validation(body->body.nodes[index])) fleek_duplication_partial = 1;",
+  "!fleek_duplication_is_visibility_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_include_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_primary_abstract_class_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_mailer_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&\n                  !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index]) \&\&\n                  !fleek_duplication_is_micropost_default_scope(body->body.nodes[index]) \&\&\n                  !fleek_duplication_is_micropost_attachment(body->body.nodes[index]) &&\n                  !fleek_duplication_is_micropost_validation(body->body.nodes[index])) fleek_duplication_partial = 1;",
   "Flay callback declaration support",
   "direct callback declarations made supported class methods incomplete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -2278,6 +2291,49 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "false || name == NULL || call->block == NULL || call->arguments == NULL ||",
   "Flay Micropost attachment receiver boundary", "receiver-qualified Micropost attachment was accepted")).run
 MutationCase.new(MutationCase::Configuration.new(source,
+  "!fleek_duplication_is_micropost_validation(child)", "true",
+  "Flay Micropost validation support", "Micropost validations made a supported source incomplete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "!fleek_duplication_is_micropost_validation(body->body.nodes[index])", "true",
+  "Flay Micropost validation sibling support", "Micropost validations made a supported source incomplete")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (fleek_duplication_relationship_symbol(attribute, \"user_id\", 7))", "if (!fleek_duplication_relationship_symbol(attribute, \"content\", 7))",
+  "Flay Micropost validation attribute boundary", "unsupported Micropost validation attribute was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "fleek_duplication_relationship_symbol(attribute, \"content\", 7) && options->size == 2",
+  "options->size == 2",
+  "Flay Micropost length validation attribute boundary", "unsupported Micropost length validation attribute was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "fleek_duplication_relationship_symbol(presence->key, \"presence\", 8)", "true",
+  "Flay Micropost validation key boundary", "unsupported Micropost validation key was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "PM_NODE_TYPE_P(presence->value, PM_TRUE_NODE)", "true",
+  "Flay Micropost presence value boundary", "unsupported Micropost presence value was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (call->receiver != NULL || call->block != NULL || name == NULL || call->arguments == NULL ||\n          call->arguments->arguments.size != 2 || call->message_loc.end - name != 9",
+  "if (call->block != NULL || name == NULL || call->arguments == NULL ||\n          call->arguments->arguments.size != 2 || call->message_loc.end - name != 9",
+  "Flay Micropost validation receiver boundary", "receiver-qualified Micropost validation was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (call->receiver != NULL || call->block != NULL || name == NULL || call->arguments == NULL ||\n          call->arguments->arguments.size != 2 || call->message_loc.end - name != 9",
+  "if (call->receiver != NULL || name == NULL || call->arguments == NULL ||\n          call->arguments->arguments.size != 2 || call->message_loc.end - name != 9",
+  "Flay Micropost validation block boundary", "Micropost validation block was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "memcmp(value.start, \"140\", 3) == 0", "true",
+  "Flay Micropost length maximum boundary", "unsupported Micropost length maximum was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "fleek_duplication_relationship_symbol(maximum->key, \"maximum\", 7)", "true",
+  "Flay Micropost length key boundary", "unsupported Micropost length key was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "limits->elements.size != 1", "limits->elements.size == 0",
+  "Flay Micropost length size boundary", "extra Micropost length option was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "options->size == 2 &&", "options->size >= 2 &&",
+  "Flay Micropost validation options boundary", "extra Micropost validation option was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (options->size == 0 || !fleek_duplication_is_presence_option(options->nodes[0])) return false;",
+  "if (options->size == 0) return false;",
+  "Flay Micropost content presence boundary", "unsupported Micropost validation key was accepted")).run
+MutationCase.new(MutationCase::Configuration.new(source,
   "fleek_duplication_relationship_symbol(association->key, \"created_at\", 10)", "true",
   "Flay Micropost default scope key boundary", "unsupported Micropost scope key was accepted")).run
 MutationCase.new(MutationCase::Configuration.new(source,
@@ -2350,8 +2406,8 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "Flay class method pair ordering",
   "Rails-shaped class method parity differed")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "if (!fleek_duplication_is_callback_declaration(child) &&\n                !fleek_duplication_is_visibility_declaration(child) &&\n                !fleek_duplication_is_include_declaration(child) &&\n                !fleek_duplication_is_primary_abstract_class_declaration(child) &&\n                !fleek_duplication_is_mailer_declaration(child) &&\n                !fleek_duplication_is_relationship_declaration(child) &&\n                !fleek_duplication_is_micropost_belongs_to(child) \&\&\n                !fleek_duplication_is_micropost_default_scope(child) \&\&\n                !fleek_duplication_is_micropost_attachment(child)) fleek_duplication_partial = 1;",
-  "if (!fleek_duplication_is_callback_declaration(child) &&\n                !fleek_duplication_is_visibility_declaration(child) &&\n                !fleek_duplication_is_include_declaration(child) &&\n                !fleek_duplication_is_primary_abstract_class_declaration(child) &&\n                !fleek_duplication_is_mailer_declaration(child) &&\n                !fleek_duplication_is_relationship_declaration(child) &&\n                !fleek_duplication_is_micropost_belongs_to(child) \&\&\n                !fleek_duplication_is_micropost_default_scope(child) \&\&\n                !fleek_duplication_is_micropost_attachment(child)) fleek_duplication_partial = 0;",
+  "if (!fleek_duplication_is_callback_declaration(child) &&\n                !fleek_duplication_is_visibility_declaration(child) &&\n                !fleek_duplication_is_include_declaration(child) &&\n                !fleek_duplication_is_primary_abstract_class_declaration(child) &&\n                !fleek_duplication_is_mailer_declaration(child) &&\n                !fleek_duplication_is_relationship_declaration(child) &&\n                !fleek_duplication_is_micropost_belongs_to(child) \&\&\n                !fleek_duplication_is_micropost_default_scope(child) \&\&\n                !fleek_duplication_is_micropost_attachment(child) &&\n                !fleek_duplication_is_micropost_validation(child)) fleek_duplication_partial = 1;",
+  "if (!fleek_duplication_is_callback_declaration(child) &&\n                !fleek_duplication_is_visibility_declaration(child) &&\n                !fleek_duplication_is_include_declaration(child) &&\n                !fleek_duplication_is_primary_abstract_class_declaration(child) &&\n                !fleek_duplication_is_mailer_declaration(child) &&\n                !fleek_duplication_is_relationship_declaration(child) &&\n                !fleek_duplication_is_micropost_belongs_to(child) \&\&\n                !fleek_duplication_is_micropost_default_scope(child) \&\&\n                !fleek_duplication_is_micropost_attachment(child) &&\n                !fleek_duplication_is_micropost_validation(child)) fleek_duplication_partial = 0;",
   "Flay class method partial status",
   "callback blocks were incorrectly accepted as direct declarations")).run
 MutationCase.new(MutationCase::Configuration.new(source,

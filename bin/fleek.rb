@@ -4219,6 +4219,36 @@ class Fleek
       return first_limit.end - first_limit.start == 3 && memcmp(first_limit.start, "500", 3) == 0 &&
         second_limit.end - second_limit.start == 3 && memcmp(second_limit.start, "500", 3) == 0;
     }
+    static bool fleek_duplication_is_presence_option(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_ASSOC_NODE)) return false;
+      const pm_assoc_node_t *presence = (const pm_assoc_node_t *) node;
+      return fleek_duplication_relationship_symbol(presence->key, "presence", 8) && PM_NODE_TYPE_P(presence->value, PM_TRUE_NODE);
+    }
+    static bool fleek_duplication_is_content_length_option(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_ASSOC_NODE)) return false;
+      const pm_assoc_node_t *length = (const pm_assoc_node_t *) node;
+      if (!fleek_duplication_relationship_symbol(length->key, "length", 6) || !PM_NODE_TYPE_P(length->value, PM_HASH_NODE)) return false;
+      const pm_hash_node_t *limits = (const pm_hash_node_t *) length->value;
+      if (limits->elements.size != 1 || !PM_NODE_TYPE_P(limits->elements.nodes[0], PM_ASSOC_NODE)) return false;
+      const pm_assoc_node_t *maximum = (const pm_assoc_node_t *) limits->elements.nodes[0];
+      if (!fleek_duplication_relationship_symbol(maximum->key, "maximum", 7) || !PM_NODE_TYPE_P(maximum->value, PM_INTEGER_NODE)) return false;
+      const pm_location_t value = maximum->value->location;
+      return value.end - value.start == 3 && memcmp(value.start, "140", 3) == 0;
+    }
+    static bool fleek_duplication_is_micropost_validation(const pm_node_t *node) {
+      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return false;
+      const pm_call_node_t *call = (const pm_call_node_t *) node;
+      const uint8_t *name = call->message_loc.start;
+      if (call->receiver != NULL || call->block != NULL || name == NULL || call->arguments == NULL ||
+          call->arguments->arguments.size != 2 || call->message_loc.end - name != 9 || memcmp(name, "validates", 9) != 0 ||
+          !PM_NODE_TYPE_P(call->arguments->arguments.nodes[1], PM_KEYWORD_HASH_NODE)) return false;
+      const pm_node_t *attribute = call->arguments->arguments.nodes[0];
+      const pm_node_list_t *options = &((const pm_keyword_hash_node_t *) call->arguments->arguments.nodes[1])->elements;
+      if (options->size == 0 || !fleek_duplication_is_presence_option(options->nodes[0])) return false;
+      if (fleek_duplication_relationship_symbol(attribute, "user_id", 7)) return options->size == 1;
+      return fleek_duplication_relationship_symbol(attribute, "content", 7) && options->size == 2 &&
+        fleek_duplication_is_content_length_option(options->nodes[1]);
+    }
 
     static bool fleek_duplication_collect_class_methods(const pm_node_t *node, const uint8_t *source, fleek_duplication_class_candidates_t *set, bool collect_nested_sibling_scopes) {
       if (!PM_NODE_TYPE_P(node, PM_CLASS_NODE)) return false;
@@ -4288,7 +4318,8 @@ class Fleek
                   !fleek_duplication_is_relationship_declaration(body->body.nodes[index]) &&
                   !fleek_duplication_is_micropost_belongs_to(body->body.nodes[index]) &&
                   !fleek_duplication_is_micropost_default_scope(body->body.nodes[index]) &&
-                  !fleek_duplication_is_micropost_attachment(body->body.nodes[index])) fleek_duplication_partial = 1;
+                  !fleek_duplication_is_micropost_attachment(body->body.nodes[index]) &&
+                  !fleek_duplication_is_micropost_validation(body->body.nodes[index])) fleek_duplication_partial = 1;
               continue;
             }
             class_child_count++;
@@ -4418,7 +4449,8 @@ class Fleek
                 !fleek_duplication_is_relationship_declaration(child) &&
                 !fleek_duplication_is_micropost_belongs_to(child) &&
                 !fleek_duplication_is_micropost_default_scope(child) &&
-                !fleek_duplication_is_micropost_attachment(child)) fleek_duplication_partial = 1;
+                !fleek_duplication_is_micropost_attachment(child) &&
+                !fleek_duplication_is_micropost_validation(child)) fleek_duplication_partial = 1;
             continue;
           }
           if (!fleek_duplication_reserve_next_class_candidate(set) ||
