@@ -133,8 +133,6 @@ class DefaultArgumentApiContract
       verify_default_detector("UnusedParameters", "test/fixtures/unused_parameters.rb")
     when "UnusedParameters block body traversal", "UnusedParameters block captures"
       verify_unused_parameter_block_shadowing
-    when "missing DuplicateMethodCall finding"
-      verify_default_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb")
     when "ignored DuplicateMethodCall list entry"
       verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_allow.yml")
     when "MissingSafeMethod singleton scope analysis"

@@ -675,6 +675,7 @@ module ReekEngine
     return feature_envy(root, source) if detector == "FeatureEnvy"
     return utility_function(root, source, settings.length > 3 && settings[3] == true) if detector == "UtilityFunction"
     return nil_check(root, source) if detector == "NilCheck"
+    return duplicate_method_call(root, source, maximum, settings[1].to_s.split("\n")) if detector == "DuplicateMethodCall"
     irresponsible_module(root, source)
   end
 
@@ -736,6 +737,53 @@ module ReekEngine
     name = call.child(1).value
     return true if name == ":nil?"
     (name == ":==" || name == ":===") && call.children.any? { |participant| participant.type == "nil" }
+  end
+
+  # Reek::SmellDetectors::DuplicateMethodCall: structurally equal calls and blocks repeated in a method.
+  def self.duplicate_method_call(root, source, maximum, allowed)
+    names = Names.new(source)
+    records = []
+    root.each do |context|
+      next unless context.method_context?
+      next if suppressed?(context, "DuplicateMethodCall")
+      limit = directive_integer(context, "DuplicateMethodCall", "max_calls")
+      limit = maximum if limit.negative?
+      patterns = directive_list(context, "DuplicateMethodCall", "allow_calls", allowed)
+      collect_calls(context.exp).each do |group|
+        call = group[0].format_to_ruby(source)
+        next if group.length <= limit || patterns.any? { |pattern| call.match?(Regexp.new(pattern)) }
+        records << "#{group.map { |node| node.line }.sort.join(", ")}\t#{names.full_name(context)}\t#{call}\t#{group.length}\n"
+      end
+    end
+    records.join
+  end
+
+  # CallCollector#calls: occurrences grouped by node equality, sends before blocks, sorted by call text.
+  def self.collect_calls(exp)
+    groups = {}
+    each_node(exp, ["send"], %w[mlhs class module]).each do |call|
+      next if call.child(1).value == ":new" || (call.child(0).atom? && call.children.length == 2)
+      record_call(groups, call)
+    end
+    each_node(exp, ["block"], %w[class module]).each { |block| record_call(groups, block) }
+    groups.values
+  end
+
+  def self.record_call(groups, node)
+    found = groups[node.key]
+    found = groups[node.key] = [] if found.nil?
+    found << node
+  end
+
+  # A list option from the nearest reek directive for the detector, or the configured list.
+  def self.directive_list(context, detector, key, configured)
+    current = context
+    until current.nil?
+      option = current.full_comment.match(/:reek:#{detector}\b:?\s*\{[^}]*\b#{key}:\s*\[([^\]]*)\]/)
+      return option[1].split(",").map { |item| item.strip.delete("'\"") }.reject { |item| item.empty? } if option
+      current = current.parent
+    end
+    configured
   end
 
   SELF_TYPES = %w[self super zsuper ivar ivasgn send].freeze

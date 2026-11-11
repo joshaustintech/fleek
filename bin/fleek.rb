@@ -123,8 +123,6 @@ class Fleek
     static size_t fleek_unused_parameters_used;
     static char fleek_unused_private_method_buffer[8192];
     static size_t fleek_unused_private_method_used;
-    static char fleek_duplicate_method_call_buffer[8192];
-    static size_t fleek_duplicate_method_call_used;
     static char fleek_manual_dispatch_buffer[4096];
     static size_t fleek_manual_dispatch_used;
     static char fleek_missing_safe_method_buffer[4096];
@@ -1615,74 +1613,6 @@ class Fleek
       return fleek_scan_method_scope(source, length, fleek_method_api_method, &unused_parameter_mode, NULL);
     }
     const char *fleek_unused_parameters_finding(void) { return fleek_unused_parameters_buffer; }
-    typedef struct { const uint8_t *start; size_t length; } fleek_duplicate_call_t;
-    typedef struct { fleek_duplicate_call_t calls[128]; size_t count; bool unsupported; const char *allow_calls; } fleek_duplicate_calls_t;
-    typedef struct { size_t maximum; const char *allow_calls; } fleek_duplicate_options_t;
-    static bool fleek_collect_duplicate_calls(const pm_node_t *node, void *data) {
-      fleek_duplicate_calls_t *calls = (fleek_duplicate_calls_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
-      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) { calls->unsupported = true; return false; }
-      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return true;
-      const pm_call_node_t *call = (const pm_call_node_t *) node;
-      if (call->receiver == NULL && (call->arguments == NULL || call->arguments->arguments.size == 0) && call->block == NULL) return true;
-      size_t call_length = (size_t) (call->base.location.end - call->base.location.start);
-      if (fleek_matches_any_pattern(call->base.location.start, call_length, calls->allow_calls)) return true;
-      if (calls->count >= 128) { calls->unsupported = true; return false; }
-      calls->calls[calls->count].start = call->base.location.start;
-      calls->calls[calls->count].length = (size_t) (call->base.location.end - call->base.location.start);
-      calls->count++;
-      return true;
-    }
-    static int fleek_duplicate_method_call_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
-        size_t class_name_length, const pm_node_t *node, void *data) {
-      fleek_duplicate_options_t *options = (fleek_duplicate_options_t *) data;
-      size_t maximum = options->maximum;
-      const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->body == NULL) return 0;
-      if (!fleek_method_body_supported(method->body)) return -1;
-      fleek_duplicate_calls_t calls = { 0 };
-      calls.allow_calls = options->allow_calls;
-      pm_visit_node(method->body, fleek_collect_duplicate_calls, &calls);
-      if (calls.unsupported) return -1;
-      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
-      int findings = 0;
-      for (size_t index = 0; index < calls.count; index++) {
-        bool already_written = false;
-        size_t count = 0;
-        size_t used = 0;
-        char lines[256] = { 0 };
-        for (size_t earlier = 0; earlier < index; earlier++) {
-          if (calls.calls[index].length == calls.calls[earlier].length &&
-              memcmp(calls.calls[index].start, calls.calls[earlier].start, calls.calls[index].length) == 0) already_written = true;
-        }
-        if (already_written) continue;
-        for (size_t candidate = index; candidate < calls.count; candidate++) {
-          if (calls.calls[index].length != calls.calls[candidate].length ||
-              memcmp(calls.calls[index].start, calls.calls[candidate].start, calls.calls[index].length) != 0) continue;
-          int line = fleek_source_line(source, calls.calls[candidate].start);
-          int written = snprintf(lines + used, sizeof(lines) - used, "%s%d", count == 0 ? "" : ", ", line);
-          if (written < 0 || (size_t) written >= sizeof(lines) - used) return -1;
-          used += (size_t) written;
-          count++;
-        }
-        if (count <= maximum) continue;
-        int written = snprintf(fleek_duplicate_method_call_buffer + fleek_duplicate_method_call_used,
-          sizeof(fleek_duplicate_method_call_buffer) - fleek_duplicate_method_call_used,
-          "%s\\t%.*s#%.*s\\t%.*s\\t%zu\\n", lines, (int) class_name_length, class_name,
-          (int) method_name->length, method_name->start, (int) calls.calls[index].length,
-          calls.calls[index].start, count);
-        if (written < 0 || (size_t) written >= sizeof(fleek_duplicate_method_call_buffer) - fleek_duplicate_method_call_used) return -1;
-        fleek_duplicate_method_call_used += (size_t) written;
-        findings++;
-      }
-      return findings;
-    }
-    int fleek_duplicate_method_call(const char *source, size_t length, size_t maximum, const char *allow_calls) {
-      fleek_duplicate_method_call_buffer[0] = 0; fleek_duplicate_method_call_used = 0;
-      fleek_duplicate_options_t options = { maximum, allow_calls };
-      return fleek_scan_method_scope(source, length, fleek_duplicate_method_call_method, &options, NULL);
-    }
-    const char *fleek_duplicate_method_call_finding(void) { return fleek_duplicate_method_call_buffer; }
     typedef struct { pm_parser_t *parser; const uint8_t *source; int lines[128]; size_t count; bool overflow; } fleek_manual_dispatch_state_t;
     static bool fleek_manual_dispatch_visit(const pm_node_t *node, void *data) {
       fleek_manual_dispatch_state_t *state = (fleek_manual_dispatch_state_t *) data;
@@ -5301,8 +5231,6 @@ class Fleek
     ffi_func :fleek_unused_parameters_finding, [], :str
     ffi_func :fleek_unused_private_method, [:str, :size_t], :int
     ffi_func :fleek_unused_private_method_finding, [], :str
-    ffi_func :fleek_duplicate_method_call, [:str, :size_t, :size_t, :str], :int
-    ffi_func :fleek_duplicate_method_call_finding, [], :str
     ffi_func :fleek_manual_dispatch, [:str, :size_t], :int
     ffi_func :fleek_manual_dispatch_finding, [], :str
     ffi_func :fleek_missing_safe_method, [:str, :size_t], :int
@@ -6541,7 +6469,7 @@ class Fleek
     "UnusedParameters" => ["simple method parameter lists and supported method bodies with one iterator block", "%s has unused parameter '%s'"],
     "UnusedPrivateMethod" => ["one simple class with direct instance methods and bare private/public/protected visibility", "%s has the unused private instance method '%s'"],
     "UtilityFunction" => ["whole files through the ported Reek context engine", "%s doesn't depend on instance state (maybe move it to another class?)"],
-    "DuplicateMethodCall" => ["direct method calls with identical source form", "%s calls '%s' %s times"],
+    "DuplicateMethodCall" => ["whole files through the ported Reek context engine", "%s calls '%s' %s times"],
     "ManualDispatch" => ["simple method bodies containing respond_to?", "%s manually dispatches method call"],
     "NilCheck" => ["whole files through the ported Reek context engine", "%s performs a nil-check"],
     "MissingSafeMethod" => ["direct bang methods without matching non-bang methods", "%s has missing safe method '%s'"],
@@ -6732,8 +6660,6 @@ class Fleek
     when "ControlParameter" then NativePrism.fleek_control_parameter(source, length)
     when "UnusedParameters" then NativePrism.fleek_unused_parameters(source, length)
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method(source, length)
-    when "DuplicateMethodCall"
-      NativePrism.fleek_duplicate_method_call(source, length, maximum, option)
     when "ManualDispatch" then NativePrism.fleek_manual_dispatch(source, length)
     when "MissingSafeMethod" then NativePrism.fleek_missing_safe_method(source, length)
     when "RepeatedConditional" then NativePrism.fleek_repeated_conditional(source, length, maximum)
@@ -6752,7 +6678,7 @@ class Fleek
   REEK_ENGINE_RECORDS = [""]
 
   # Detectors running on the ported Reek context engine.
-  REEK_ENGINE_DETECTORS = %w[FeatureEnvy IrresponsibleModule NestedIterators NilCheck TooManyStatements UtilityFunction].freeze
+  REEK_ENGINE_DETECTORS = %w[DuplicateMethodCall FeatureEnvy IrresponsibleModule NestedIterators NilCheck TooManyStatements UtilityFunction].freeze
 
   # :reek:LongParameterList
   def self.run_reek_engine_detector(detector, source, path, settings)
@@ -6786,7 +6712,6 @@ class Fleek
     when "ControlParameter" then NativePrism.fleek_control_parameter_finding
     when "UnusedParameters" then NativePrism.fleek_unused_parameters_finding
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method_finding
-    when "DuplicateMethodCall" then NativePrism.fleek_duplicate_method_call_finding
     when "ManualDispatch" then NativePrism.fleek_manual_dispatch_finding
     when "MissingSafeMethod" then NativePrism.fleek_missing_safe_method_finding
     when "RepeatedConditional" then NativePrism.fleek_repeated_conditional_finding
