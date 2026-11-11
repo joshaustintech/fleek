@@ -29,6 +29,8 @@ class MutationCase
     "Flay generic source paths" => "test/duplication_contract.rb",
     "Flay generic legacy syntax" => "test/legacy_parser_contract.rb",
     "Flay generic call name identity" => "test/duplication_method_call_contract.rb",
+    "Flay per-file parse continuation" => "test/duplication_contract.rb",
+    "Flay parse failure attribution" => "test/duplication_contract.rb",
     "embedded NUL acceptance" => "test/native_parser_contract.rb",
     "Ruby 4 grammar downgrade" => "test/native_parser_contract.rb",
     "location attribution" => "test/native_parser_contract.rb",
@@ -1379,6 +1381,13 @@ MutationCase.new(MutationCase::Configuration.new(source,
 MutationCase.new(MutationCase::Configuration.new(source,
   "match_name ? fleek_flay_text_atom(ctx, 's', \"=~\") : fleek_flay_symbol(ctx, call->name)", "fleek_flay_text_atom(ctx, 's', \"call\")",
   "Flay generic call name identity", "Fleek call-differing_name kind differed")).run
+
+MutationCase.new(MutationCase::Configuration.new(source,
+  "if (!recorded) goto done;", "goto done;",
+  "Flay per-file parse continuation", "unparseable source hid remaining Flay groups")).run
+MutationCase.new(MutationCase::Configuration.new(source,
+  "apply_duplication_timeout_failures(report, failures) unless failures.empty?", "failures",
+  "Flay parse failure attribution", "unparseable source hid remaining Flay groups")).run
 
 process_id = Process.spawn("make", "build/fleek", out: MutationProcess.temporary_path("fleek-mutation-restore-out"), err: MutationProcess.temporary_path("fleek-mutation-restore-err"))
 _, status = Process.waitpid2(process_id)

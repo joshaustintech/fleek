@@ -615,6 +615,12 @@ partial = DuplicationProcess.run_fleek_pair_with_missing(first_file, second_file
 partial_report = partial[0] == 1 && DuplicationProcess.includes_all?(partial[1], [cross_locations, "test/fixtures/missing_duplication.rb\" scope=failed", "Coverage: 3 selected; 2 analyzed; 1 failed; 0 excluded", "Status: incomplete"])
 DuplicationProcess.verify(partial_report, "failed requested file hid remaining cross-file group")
 
+skipped = DuplicationProcess.run_fleek_sources(first_file, "test/fixtures/bad_syntax.rb", second_file)
+skipped_fields = ["kind=\"identical\" locations=\"#{first_file}:1,#{second_file}:1\" mass=32 score=64", "test/fixtures/bad_syntax.rb\" scope=failed",
+  "Coverage: 3 selected; 2 analyzed; 1 failed; 0 excluded", "Status: incomplete"]
+DuplicationProcess.verify_output(skipped, DuplicationProcess::OutputExpectation.new(1, skipped_fields, "unparseable source hid remaining Flay groups"))
+DuplicationProcess.verify(skipped[2].include?("\"test/fixtures/bad_syntax.rb\":2:") && !skipped[2].include?("duplication_file_a.rb"), "unparseable source diagnostic was misattributed")
+
 nested_path = "test/fixtures/duplication_nested_scope.rb"
 nested = DuplicationProcess.run_fleek_with_nested(first_file, second_file, nested_path)
 nested_reference = DuplicationProcess.run(DuplicationProcess::Input.new(nested_path, "flay", ""))

@@ -4560,6 +4560,29 @@ class Fleek
       }
     }
 
+    /* Per-file parse failures, one "index\\tline\\tcolumn\\toffset\\tmessage" record per line. */
+    static char *fleek_flay_failures;
+    static size_t fleek_flay_failures_used, fleek_flay_failures_capacity;
+    static bool fleek_flay_record_failure(size_t file, pm_parser_t *parser, const char *source, int32_t start_line) {
+      const pm_diagnostic_t *diagnostic = (const pm_diagnostic_t *) parser->error_list.head;
+      pm_line_column_t position = pm_newline_list_line_column(&parser->newline_list, diagnostic->location.start, parser->start_line);
+      char record[1024];
+      int written = snprintf(record, sizeof(record), "%zu\\t%d\\t%u\\t%ld\\t%s\\n", file, (int) (position.line - start_line + 1), (unsigned) position.column + 1,
+        (long) (diagnostic->location.start - (const uint8_t *) source), diagnostic->message);
+      if (written < 0) return false;
+      size_t length = (size_t) written < sizeof(record) ? (size_t) written : sizeof(record) - 1;
+      if (fleek_flay_failures_used + length + 1 > fleek_flay_failures_capacity) {
+        size_t capacity = fleek_flay_failures_capacity == 0 ? 1024 : fleek_flay_failures_capacity * 2;
+        while (fleek_flay_failures_used + length + 1 > capacity) capacity *= 2;
+        char *resized = realloc(fleek_flay_failures, capacity);
+        if (resized == NULL) return false;
+        fleek_flay_failures = resized; fleek_flay_failures_capacity = capacity;
+      }
+      memcpy(fleek_flay_failures + fleek_flay_failures_used, record, length);
+      fleek_flay_failures_used += length;
+      fleek_flay_failures[fleek_flay_failures_used] = 0;
+      return true;
+    }
     static int fleek_flay_generic(const char *source, size_t length, int mass_threshold, int liberal, int fuzzy, int legacy, const char *file_offsets, const char *file_paths) {
       size_t offsets[4096];
       size_t file_count = 0;
@@ -4592,7 +4615,13 @@ class Fleek
         pm_parser_init(&parser, (const uint8_t *) source + start, end - start, &options);
         pm_node_t *root = pm_parse(&parser);
         bool parsed = parser.error_list.head == NULL && PM_NODE_TYPE_P(root, PM_PROGRAM_NODE);
-        if (!parsed) { result = FLEEK_DUPLICATION_PARSE_ERROR; pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); goto done; }
+        if (!parsed) {
+          bool recorded = parser.error_list.head != NULL && fleek_flay_record_failure(file, &parser, source + start, start_line);
+          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
+          if (!recorded) goto done;
+          if (path_cursor != NULL) { const char *next = strchr(path_cursor, '\\n'); path_cursor = next == NULL ? NULL : next + 1; }
+          continue;
+        }
         if (legacy) {
           fleek_legacy_parser_state_t legacy_state = { false };
           pm_visit_node(root, fleek_legacy_parser_syntax_supported, &legacy_state);
@@ -4695,6 +4724,8 @@ class Fleek
     }
 
     int fleek_structural_duplication(const char *source, size_t length, int mass_threshold, int liberal, int fuzzy, int legacy, const char *file_offsets, const char *file_paths) {
+      fleek_flay_failures_used = 0;
+      if (fleek_flay_failures != NULL) fleek_flay_failures[0] = 0;
       if (fleek_duplication_buffer != NULL) fleek_duplication_buffer[0] = 0;
       fleek_duplication_buffer_used = 0;
       fleek_duplication_total_score = 0;
@@ -4704,6 +4735,7 @@ class Fleek
     }
 
     const char *fleek_structural_duplication_finding(void) { return fleek_duplication_buffer == NULL ? "" : fleek_duplication_buffer; }
+    const char *fleek_structural_duplication_failures(void) { return fleek_flay_failures == NULL ? "" : fleek_flay_failures; }
 
     int fleek_parse_ruby4(const char *source, size_t length) {
       fleek_parse_message_buffer[0] = 0;
@@ -4795,6 +4827,7 @@ class Fleek
     ffi_func :fleek_uncommunicative_variable_name_finding, [], :str
     ffi_func :fleek_structural_duplication, [:str, :size_t, :int, :int, :int, :int, :str, :str], :int
     ffi_func :fleek_structural_duplication_finding, [], :str
+    ffi_func :fleek_structural_duplication_failures, [], :str
   end
 
   # Imports the deliberately bounded Reek YAML subset used by this check.
@@ -5667,6 +5700,19 @@ class Fleek
     source = report.source
     source_map = report.source_map
     report.result = NativePrism.fleek_structural_duplication(source, source.bytesize, report.mass_threshold, report.liberal ? 1 : 0, report.fuzzy, report.legacy ? 1 : 0, duplication_file_offsets(source_map), duplication_file_paths(source_map))
+    apply_duplication_parse_failures(report, NativePrism.fleek_structural_duplication_failures)
+  end
+
+  def self.apply_duplication_parse_failures(report, records)
+    failures = records.split("\n").map { |record| duplication_parse_failure(report.source_map, record) }
+    apply_duplication_timeout_failures(report, failures) unless failures.empty?
+  end
+
+  def self.duplication_parse_failure(source_map, record)
+    index, line, column, offset, message = record.split("\t", 5)
+    path = source_map[index.to_i][0]
+    warn_syntax_error(path, [line, column, offset], message)
+    SourceFailure.new(path, "ERROR: Ruby syntax error; source was not analyzed.", :source)
   end
 
 
@@ -6872,8 +6918,12 @@ class Fleek
     prefix = source.byteslice(0, offset)
     line = prefix.count("\n") + 1
     column = offset - (prefix.rindex("\n") || -1)
-    diagnostic = NativePrism.fleek_parse_message
-    warn "#{quote_text(path)}:#{line}:#{column}: #{diagnostic} (byte #{offset})"
+    warn_syntax_error(path, [line, column, offset], NativePrism.fleek_parse_message)
+  end
+
+  def self.warn_syntax_error(path, position, message)
+    line, column, offset = position
+    warn "#{quote_text(path)}:#{line}:#{column}: #{message} (byte #{offset})"
   end
 
   def self.run(arguments)

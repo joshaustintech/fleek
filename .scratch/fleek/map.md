@@ -480,7 +480,7 @@ Every feature child below additionally depends on harness handoff 115; original 
 - [140: Analyze the Rails Micropost attachment declaration for Flay](issues/140-rails-flay-micropost-attachment.md) — resolved; parent 97; blocked by 115 and 139 (resolved).
 - [141: Analyze the Rails Micropost presence and length validations for Flay](issues/141-rails-flay-micropost-basic-validations.md) — resolved; parent 97; blocked by 115 and 140 (resolved).
 - [142: Generic Flay sexp engine for core syntax](issues/142-generic-flay-core-engine.md) — resolved; parent 97. Replaces the candidate engine; Rails Flay 25/25 complete. See ADR 0256.
-- [143: Analyze remaining Flay sources when one source fails to parse](issues/143-flay-skip-unparseable-sources.md) — parent 24; blocked by 142 (resolved).
+- [143: Analyze remaining Flay sources when one source fails to parse](issues/143-flay-skip-unparseable-sources.md) — resolved; parent 24; blocked by 142 (resolved).
 - [128: Preserve per-file results after Flay timeout](issues/128-flay-per-file-timeout-continuation.md) — resolved; parent 23; blocked by 120; 115.
 - [129: Avoid timeout supervisor overhead on untimed Flay runs](issues/129-flay-timeout-supervisor-overhead.md) — parent 23; resolved.
 - [121: Inventory and support Flay presentation controls](issues/121-flay-presentation-controls.md) — resolved; parent 23; blocked by 58 (resolved); 115 (resolved).
