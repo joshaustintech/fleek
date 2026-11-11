@@ -1,3 +1,5 @@
+require_relative "reek_engine"
+
 # Fleek exposes native CLI usage and reference identities.
 # :reek:TooManyConstants
 class Fleek
@@ -109,7 +111,6 @@ class Fleek
     static char fleek_instance_variable_assumption_buffer[4096];
     static char fleek_subclassed_from_core_class_buffer[1024];
     static char fleek_module_initialize_buffer[1024];
-    static char fleek_irresponsible_module_buffer[1024];
     static char fleek_long_parameter_list_buffer[8192];
     static size_t fleek_long_parameter_list_used;
     static char fleek_boolean_parameter_buffer[8192];
@@ -875,144 +876,6 @@ class Fleek
 
     const char *fleek_module_initialize_finding(void) { return fleek_module_initialize_buffer; }
 
-    static int fleek_whitespace_newlines(const uint8_t *start, const uint8_t *end) {
-      int newlines = 0;
-      for (const uint8_t *cursor = start; cursor < end; cursor++) {
-        if (*cursor == '\\n') newlines++;
-        else if (!isspace(*cursor)) return -1;
-      }
-      return newlines;
-    }
-
-    static int fleek_comment_words(const pm_comment_t *comment) {
-      int words = 0;
-      bool in_word = false;
-      for (const uint8_t *cursor = comment->location.start; cursor < comment->location.end; cursor++) {
-        if (comment->location.end - cursor >= 6 && memcmp(cursor, ":reek:", 6) == 0) {
-          while (cursor < comment->location.end && !isspace(*cursor)) cursor++;
-          const uint8_t *options = cursor;
-          while (options < comment->location.end && isspace(*options)) options++;
-          if (options < comment->location.end && *options == '{') {
-            cursor = options;
-            while (cursor < comment->location.end && *cursor != '}') cursor++;
-          }
-          in_word = false;
-        } else if (*cursor == '#' || isspace(*cursor)) {
-          in_word = false;
-        } else if (!in_word) {
-          words++;
-          in_word = true;
-        }
-      }
-      return words;
-    }
-
-    static int fleek_scope_descriptively_commented(pm_parser_t *parser, const uint8_t *keyword) {
-      const pm_comment_t *comments[128];
-      size_t count = 0;
-      bool overflow = false;
-      for (pm_list_node_t *item = parser->comment_list.head; item != NULL; item = item->next) {
-        const pm_comment_t *comment = (const pm_comment_t *) item;
-        if (comment->location.end > keyword) continue;
-        if (count == 128) { overflow = true; continue; }
-        comments[count++] = comment;
-      }
-      if (overflow) return -1;
-      size_t nearest = count;
-      while (nearest > 0) {
-        nearest--;
-        if (fleek_whitespace_newlines(comments[nearest]->location.end, keyword) == 1) break;
-      }
-      if (count == 0 || nearest >= count || fleek_whitespace_newlines(comments[nearest]->location.end, keyword) != 1) return 0;
-      int words = 0;
-      words += fleek_comment_words(comments[nearest]);
-      while (nearest > 0 && fleek_whitespace_newlines(comments[nearest - 1]->location.end, comments[nearest]->location.start) == 1) {
-        nearest--;
-        words += fleek_comment_words(comments[nearest]);
-      }
-      return words >= 2 ? 1 : 0;
-    }
-
-    int fleek_irresponsible_module(const char *source, size_t length) {
-      fleek_irresponsible_module_buffer[0] = 0;
-      fleek_class_count = fleek_module_count = 0;
-      fleek_only_scope = fleek_namespace_scope = NULL;
-      if (memchr(source, 0, length) != NULL) return -2;
-      fleek_source_start = (const uint8_t *) source;
-      pm_options_t options = {0};
-      options.line = 1;
-      options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
-      pm_parser_t parser;
-      pm_parser_init(&parser, (const uint8_t *) source, length, &options);
-      pm_node_t *root = pm_parse(&parser);
-      if (parser.error_list.head != NULL) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1;
-      }
-      pm_visit_node(root, fleek_collect_classes, NULL);
-      fleek_class_new_search_t class_new = fleek_find_class_new_assignment(&parser, root);
-      if (class_new.unsupported) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-      }
-      if (class_new.call != NULL) {
-        bool supported_class_new = class_new.assignment != NULL && class_new.call->block == NULL && class_new.call->arguments != NULL &&
-          class_new.call->arguments->arguments.size == 1 && fleek_class_count == 0 && fleek_module_count == 0 &&
-          PM_NODE_TYPE_P(class_new.call->arguments->arguments.nodes[0], PM_CONSTANT_READ_NODE);
-        if (!supported_class_new) {
-          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-        }
-        const pm_constant_write_node_t *assignment = (const pm_constant_write_node_t *) class_new.assignment;
-        pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, assignment->name);
-        int comment_status = fleek_scope_descriptively_commented(&parser, assignment->name_loc.start);
-        if (comment_status < 0) {
-          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-        }
-        int result = 0;
-        if (comment_status == 0) {
-          int line = fleek_source_line((const uint8_t *) source, assignment->name_loc.start);
-          int written = snprintf(fleek_irresponsible_module_buffer, sizeof(fleek_irresponsible_module_buffer), "%d\\t%.*s\\t\\n", line, (int) class_name->length, class_name->start);
-          result = written < 0 || (size_t) written >= sizeof(fleek_irresponsible_module_buffer) ? -4 : 1;
-        }
-        pm_node_destroy(&parser, root);
-        pm_parser_free(&parser);
-        pm_options_free(&options);
-        return result;
-      }
-      if (fleek_class_count + fleek_module_count == 0) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
-      }
-      if (fleek_class_count + fleek_module_count != 1) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-      }
-      const pm_node_t *constant_path;
-      const uint8_t *keyword;
-      if (PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE)) {
-        const pm_class_node_t *class_node = (const pm_class_node_t *) fleek_only_scope;
-        constant_path = class_node->constant_path;
-        keyword = class_node->class_keyword_loc.start;
-      } else {
-        const pm_module_node_t *module_node = (const pm_module_node_t *) fleek_only_scope;
-        constant_path = module_node->constant_path;
-        keyword = module_node->module_keyword_loc.start;
-      }
-      if (!PM_NODE_TYPE_P(constant_path, PM_CONSTANT_READ_NODE)) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-      }
-      pm_constant_t *context = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) constant_path)->name);
-      int result = 0;
-      int comment_status = fleek_scope_descriptively_commented(&parser, keyword);
-      if (comment_status < 0) result = -4;
-      else if (comment_status == 0) {
-        int line = fleek_source_line((const uint8_t *) source, keyword);
-        int written = snprintf(fleek_irresponsible_module_buffer, sizeof(fleek_irresponsible_module_buffer), "%d\\t%.*s\\t\\n", line, (int) context->length, context->start);
-        result = written < 0 || (size_t) written >= sizeof(fleek_irresponsible_module_buffer) ? -4 : 1;
-      }
-      pm_node_destroy(&parser, root);
-      pm_parser_free(&parser);
-      pm_options_free(&options);
-      return result;
-    }
-
-    const char *fleek_irresponsible_module_finding(void) { return fleek_irresponsible_module_buffer; }
 
     static size_t fleek_parameter_count(const pm_parameters_node_t *parameters) {
       if (parameters == NULL) return 0;
@@ -4739,8 +4602,9 @@ class Fleek
 
     /* Reek AST translation (ADR 0257): Prism -> parser-gem AST as Reek 6.6.0 builds it
        (Parser::CurrentRuby with legacy builder modes and emit_lambda). Emits S-expression text. */
-    typedef struct { char *text; size_t used, capacity; bool failed; bool annotate; bool in_parts; pm_parser_t *parser; const uint8_t *source; const char *path; size_t path_length; int32_t start_line; } fleek_reek_ast_t;
+    typedef struct { char *text; size_t used, capacity; bool failed; bool annotate; bool in_parts; bool heredoc_next; pm_parser_t *parser; const uint8_t *source; const char *path; size_t path_length; int32_t start_line; } fleek_reek_ast_t;
     static char *fleek_reek_ast_buffer;
+    static char *fleek_reek_comments_buffer;
     static void fleek_reek_emit(fleek_reek_ast_t *ast, const char *text, size_t length) {
       if (ast->failed) return;
       if (ast->used + length + 1 > ast->capacity) {
@@ -4762,11 +4626,14 @@ class Fleek
     static void fleek_reek_open_at(fleek_reek_ast_t *ast, const char *type, const uint8_t *start, const uint8_t *end) {
       fleek_reek_text(ast, ast->used == 0 ? "(" : " (");
       fleek_reek_text(ast, type);
+      bool heredoc = ast->heredoc_next;
+      ast->heredoc_next = false;
       if (ast->annotate && start != NULL) {
         char location[64];
         int written = snprintf(location, sizeof(location), "@%d:%ld:%ld", (int) fleek_reek_line(ast, start),
           (long) (start - ast->source), (long) (end - ast->source));
         fleek_reek_emit(ast, location, (size_t) written);
+        if (heredoc) fleek_reek_text(ast, ":h");
       }
     }
     static void fleek_reek_open(fleek_reek_ast_t *ast, const char *type, const pm_node_t *node) {
@@ -5296,6 +5163,7 @@ class Fleek
         }
         case PM_STRING_NODE: {
           const pm_string_node_t *string = (const pm_string_node_t *) node;
+          ast->heredoc_next = !ast->in_parts && string->opening_loc.start != NULL && string->opening_loc.start[0] == '<';
           fleek_reek_string_lines(ast, node, &string->content_loc, &string->unescaped, !ast->in_parts);
           return;
         }
@@ -5334,7 +5202,12 @@ class Fleek
           fleek_reek_close(ast);
           return;
         }
-        case PM_INTERPOLATED_STRING_NODE: fleek_reek_interpolated(ast, "dstr", node, &((const pm_interpolated_string_node_t *) node)->parts); return;
+        case PM_INTERPOLATED_STRING_NODE: {
+          const pm_interpolated_string_node_t *string = (const pm_interpolated_string_node_t *) node;
+          ast->heredoc_next = string->opening_loc.start != NULL && string->opening_loc.start[0] == '<';
+          fleek_reek_interpolated(ast, "dstr", node, &string->parts);
+          return;
+        }
         case PM_INTERPOLATED_SYMBOL_NODE: fleek_reek_interpolated(ast, "dsym", node, &((const pm_interpolated_symbol_node_t *) node)->parts); return;
         case PM_INTERPOLATED_X_STRING_NODE: fleek_reek_interpolated(ast, "xstr", node, &((const pm_interpolated_x_string_node_t *) node)->parts); return;
         case PM_EMBEDDED_STATEMENTS_NODE: {
@@ -5707,6 +5580,8 @@ class Fleek
     int fleek_reek_ast(const char *source, size_t length, const char *path, int annotate) {
       free(fleek_reek_ast_buffer);
       fleek_reek_ast_buffer = NULL;
+      free(fleek_reek_comments_buffer);
+      fleek_reek_comments_buffer = NULL;
       if (memchr(source, 0, length) != NULL) return -2;
       pm_options_t options = {0};
       options.line = 1;
@@ -5717,9 +5592,20 @@ class Fleek
       pm_node_t *root = pm_parse(&parser);
       int result = -1;
       if (parser.error_list.head == NULL) {
-        fleek_reek_ast_t ast = { NULL, 0, 0, false, annotate != 0, false, &parser, (const uint8_t *) source, path, strlen(path), 1 };
+        fleek_reek_ast_t ast = { NULL, 0, 0, false, annotate != 0, false, false, &parser, (const uint8_t *) source, path, strlen(path), 1 };
         const pm_statements_node_t *statements = ((const pm_program_node_t *) root)->statements;
         if (statements != NULL && statements->body.size != 0) fleek_reek_visit(&ast, root);
+        if (!ast.failed) {
+          fleek_reek_ast_t comments = { NULL, 0, 0, false, false, false, false, &parser, (const uint8_t *) source, path, 0, 1 };
+          fleek_reek_text(&comments, "");
+          for (pm_list_node_t *item = parser.comment_list.head; item != NULL; item = item->next) {
+            const pm_comment_t *comment = (const pm_comment_t *) item;
+            char record[64];
+            int written = snprintf(record, sizeof(record), "%ld\\t%ld\\n", (long) (comment->location.start - (const uint8_t *) source), (long) (comment->location.end - (const uint8_t *) source));
+            fleek_reek_emit(&comments, record, (size_t) written);
+          }
+          fleek_reek_comments_buffer = comments.text;
+        }
         if (!ast.failed) { fleek_reek_ast_buffer = ast.text; result = 0; }
         else { free(ast.text); result = -4; }
       }
@@ -5727,6 +5613,7 @@ class Fleek
       return result;
     }
     const char *fleek_reek_ast_text(void) { return fleek_reek_ast_buffer == NULL ? "" : fleek_reek_ast_buffer; }
+    const char *fleek_reek_comments_text(void) { return fleek_reek_comments_buffer == NULL ? "" : fleek_reek_comments_buffer; }
 
     int fleek_parse_ruby4(const char *source, size_t length) {
       fleek_parse_message_buffer[0] = 0;
@@ -5759,6 +5646,7 @@ class Fleek
     ffi_func :fleek_parse_ruby4, [:str, :size_t], :int
     ffi_func :fleek_reek_ast, [:str, :size_t, :str, :int], :int
     ffi_func :fleek_reek_ast_text, [], :str
+    ffi_func :fleek_reek_comments_text, [], :str
     ffi_func :fleek_parse_message, [], :str
     ffi_func :fleek_class_variable, [:str, :size_t], :int
     ffi_func :fleek_class_variable_finding, [], :str
@@ -5770,8 +5658,6 @@ class Fleek
     ffi_func :fleek_subclassed_from_core_class_finding, [], :str
     ffi_func :fleek_module_initialize, [:str, :size_t], :int
     ffi_func :fleek_module_initialize_finding, [], :str
-    ffi_func :fleek_irresponsible_module, [:str, :size_t], :int
-    ffi_func :fleek_irresponsible_module_finding, [], :str
     ffi_func :fleek_long_parameter_list, [:str, :size_t, :size_t, :size_t], :int
     ffi_func :fleek_long_parameter_list_finding, [], :str
     ffi_func :fleek_boolean_parameter, [:str, :size_t], :int
@@ -7022,7 +6908,7 @@ class Fleek
     "InstanceVariableAssumption" => ["direct instance methods in one simple class, including one direct nested class", "%s assumes too much for instance variable '%s'"],
     "SubclassedFromCoreClass" => ["one simple class inheriting directly from Array, Hash, or String", "%s inherits from core class '%s'"],
     "ModuleInitialize" => ["one simple module or one direct nested module with direct instance methods", "%s has initialize method"],
-    "IrresponsibleModule" => ["one simple class or module, or one direct Class.new assignment", "%s has no descriptive comment"],
+    "IrresponsibleModule" => ["whole files through the ported Reek context engine", "%s has no descriptive comment"],
     "LongParameterList" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has %s parameters"],
     "BooleanParameter" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has boolean parameter '%s'"],
     "LongYieldList" => ["one simple class or module with direct instance methods", "%s yields %s parameters"],
@@ -7169,7 +7055,7 @@ class Fleek
     utility_function = detector == "UtilityFunction"
     visibility_setting = utility_function && configuration.detector_setting(detector, "public_methods_only", path) == "true"
     settings << visibility_setting if utility_function
-    result = run_native_reek_detector(detector, source, settings)
+    result = run_native_reek_detector(detector, source, settings, path)
     report_reek_detector_result(path, detector, result, configuration)
   rescue SystemCallError
     warn "ERROR: Cannot read source file: #{quote_text(path)}"
@@ -7206,7 +7092,8 @@ class Fleek
   # :reek:ControlParameter
   # :reek:LongParameterList
   # :reek:TooManyStatements
-  def self.run_native_reek_detector(detector, source, settings)
+  def self.run_native_reek_detector(detector, source, settings, path)
+    return run_reek_engine_detector(source, path) if detector == "IrresponsibleModule"
     length = source.bytesize
     maximum = settings[0]
     option = settings[1]
@@ -7218,7 +7105,6 @@ class Fleek
     when "InstanceVariableAssumption" then NativePrism.fleek_instance_variable_assumption(source, length)
     when "SubclassedFromCoreClass" then NativePrism.fleek_subclassed_from_core_class(source, length)
     when "ModuleInitialize" then NativePrism.fleek_module_initialize(source, length)
-    when "IrresponsibleModule" then NativePrism.fleek_irresponsible_module(source, length)
     when "LongParameterList" then NativePrism.fleek_long_parameter_list(source, length, maximum, detector_option)
     when "BooleanParameter" then NativePrism.fleek_boolean_parameter(source, length)
     when "LongYieldList" then NativePrism.fleek_long_yield_list(source, length, maximum)
@@ -7247,15 +7133,34 @@ class Fleek
     end
   end
 
+  # Records from the last run of a detector on the ported Reek context engine (ADR 0257).
+  REEK_ENGINE_RECORDS = [""]
+
+  def self.run_reek_engine_detector(source, path)
+    status = NativePrism.fleek_reek_ast(source, source.bytesize, path, 1)
+    return status unless status.zero?
+    store_reek_engine_records(ReekEngine.irresponsible_module(reek_engine_contexts(source), source))
+  end
+
+  def self.store_reek_engine_records(records)
+    REEK_ENGINE_RECORDS[0] = records
+    records.empty? ? 0 : 1
+  end
+
+  def self.reek_engine_contexts(source)
+    tree = ReekEngine::Tree.new(NativePrism.fleek_reek_ast_text, NativePrism.fleek_reek_comments_text, source)
+    ReekEngine::ContextBuilder.new(tree).root
+  end
+
   # :reek:ControlParameter
   # :reek:TooManyStatements
   def self.native_reek_findings(detector)
     case detector
+    when "IrresponsibleModule" then REEK_ENGINE_RECORDS[0]
     when "Attribute" then NativePrism.fleek_attribute_finding
     when "InstanceVariableAssumption" then NativePrism.fleek_instance_variable_assumption_finding
     when "SubclassedFromCoreClass" then NativePrism.fleek_subclassed_from_core_class_finding
     when "ModuleInitialize" then NativePrism.fleek_module_initialize_finding
-    when "IrresponsibleModule" then NativePrism.fleek_irresponsible_module_finding
     when "LongParameterList" then NativePrism.fleek_long_parameter_list_finding
     when "BooleanParameter" then NativePrism.fleek_boolean_parameter_finding
     when "LongYieldList" then NativePrism.fleek_long_yield_list_finding

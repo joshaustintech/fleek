@@ -94,7 +94,7 @@ class DefaultObjectScopeContract
     AnalysisRunner.assert_detector_findings(actual, reference, "undocumented Class.new")
     verify_described_class_new_assignment
     verify_class_new_irresponsible_exclusion(source)
-    verify_dynamic_class_new_irresponsible_incomplete
+    verify_dynamic_class_new_irresponsible
   end
 
   # :reek:TooManyStatements
@@ -119,12 +119,14 @@ class DefaultObjectScopeContract
     AnalysisRunner.assert_detector_findings(actual, reference, "Class.new exclusion")
   end
 
-  def self.verify_dynamic_class_new_irresponsible_incomplete
+  # :reek:TooManyStatements
+  def self.verify_dynamic_class_new_irresponsible
     source = "test/fixtures/class_new_dynamic_superclass_assignment.rb"
     reference = run_reek_for("IrresponsibleModule", source)
     actual = run_fleek_check("IrresponsibleModule", source)
     verify(reference[0] == 2, "pinned dynamic Class.new IrresponsibleModule result changed")
-    AnalysisRunner.assert_unsupported(actual, "dynamic Class.new IrresponsibleModule")
+    AnalysisRunner.assert_status(actual, reference, "dynamic Class.new IrresponsibleModule")
+    AnalysisRunner.assert_detector_findings(actual, reference, "dynamic Class.new IrresponsibleModule")
   end
 
   # :reek:TooManyStatements
@@ -333,11 +335,14 @@ class DefaultObjectScopeContract
     AnalysisRunner.assert_unsupported(actual, detector)
   end
 
+  # :reek:TooManyStatements
   def self.verify_comment_overflow
     source = "/tmp/fleek-object-many-comments.rb"
     File.write(source, ("# note\n" * 129) + "class Profile\nend\n")
+    reference = run_reek_for("IrresponsibleModule", source)
     actual = run_fleek_check("IrresponsibleModule", source)
-    verify(actual[0] == 1 && actual[2].include?("unsupported"), "comment overflow appeared clean")
+    verify(actual[0] == reference[0] && actual[2].empty?, "many-comment IrresponsibleModule status differs from Reek")
+    AnalysisRunner.assert_detector_findings(actual, reference, "many-comment IrresponsibleModule")
   ensure
     File.delete(source) if File.file?(source)
   end

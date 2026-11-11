@@ -16,7 +16,7 @@ setup-git:
 	git config user.name "Josh Austin"
 	git config user.email "83935880+joshaustintech@users.noreply.github.com"
 
-$(FLEEK): bin/fleek.rb
+$(FLEEK): bin/fleek.rb bin/reek_engine.rb
 	mkdir -p build
 	CPATH=$(SPINEL_ROOT)/vendor/prism/include $(SPINEL) $< -o $@ --link $(SPINEL_ROOT)/build/libprism.a
 

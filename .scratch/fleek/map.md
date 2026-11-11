@@ -483,7 +483,7 @@ Every feature child below additionally depends on harness handoff 115; original 
 - [143: Analyze remaining Flay sources when one source fails to parse](issues/143-flay-skip-unparseable-sources.md) — resolved; parent 24; blocked by 142 (resolved).
 - [144: Translate Prism trees into Reek's parser-gem AST](issues/144-reek-parser-ast-translation.md) — resolved; parent 24. Matches the pinned parser gem on all 481 accepted sources.
 - [147: Characterize Spinel spawn-redirect and regexp-split defects](issues/147-spinel-runtime-defects.md) — research; blocked by 144 (resolved). See ADR 0257.
-- [145: Port Reek's context builder and IrresponsibleModule](issues/145-reek-context-builder-port.md) — parent 24; blocked by 144.
+- [145: Port Reek's context builder and IrresponsibleModule](issues/145-reek-context-builder-port.md) — resolved; parent 24. IrresponsibleModule 25/25 on Rails via the engine.
 - [146: Migrate the remaining Reek detectors to the context engine](issues/146-reek-detectors-on-context-engine.md) — parent 24; blocked by 145.
 - [128: Preserve per-file results after Flay timeout](issues/128-flay-per-file-timeout-continuation.md) — resolved; parent 23; blocked by 120; 115.
 - [129: Avoid timeout supervisor overhead on untimed Flay runs](issues/129-flay-timeout-supervisor-overhead.md) — parent 23; resolved.

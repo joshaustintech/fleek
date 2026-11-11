@@ -9,7 +9,7 @@ class MutationCase
   # :reek:DuplicateMethodCall
   # :reek:TooManyStatements
   # Carries one behavior mutation and its expected contract failure.
-  Configuration = Struct.new(:source, :target, :replacement, :label, :expected_failure)
+  Configuration = Struct.new(:source, :target, :replacement, :label, :expected_failure, :path)
   COMPILED_CONTRACTS = {}
   CONTRACTS = {
     "Flay generic sexp mass" => "test/duplication_generic_contract.rb",
@@ -31,6 +31,12 @@ class MutationCase
     "Flay generic call name identity" => "test/duplication_method_call_contract.rb",
     "Flay per-file parse continuation" => "test/duplication_contract.rb",
     "Reek AST begin wrapping" => "test/reek_ast_contract.rb",
+    "Reek engine descriptive comment threshold" => "test/reek_engine_contract.rb",
+    "Reek engine namespace modules" => "test/reek_engine_contract.rb",
+    "Reek engine comment suppression" => "test/reek_engine_contract.rb",
+    "Reek engine parent suppression" => "test/reek_engine_contract.rb",
+    "Reek engine Struct modules" => "test/reek_engine_contract.rb",
+    "Reek engine root naming" => "test/reek_engine_contract.rb",
     "Reek AST string lines" => "test/reek_ast_contract.rb",
     "Reek AST pattern guards" => "test/reek_ast_contract.rb",
     "Reek AST regexp match assignment" => "test/reek_ast_contract.rb",
@@ -67,12 +73,7 @@ class MutationCase
     "missing ModuleInitialize finding" => "test/default_object_scope_contract.rb",
     "nested ModuleInitialize scope acceptance" => "test/default_object_scope_contract.rb",
     "nested ModuleInitialize context" => "test/default_object_scope_contract.rb",
-    "missing IrresponsibleModule finding" => "test/default_object_scope_contract.rb",
     "missing Attribute aliased finding" => "test/default_object_scope_contract.rb",
-    "unsupported Class.new assignment" => "test/default_object_scope_contract.rb",
-    "missing undocumented Class.new finding" => "test/default_object_scope_contract.rb",
-    "false-positive described Class.new" => "test/default_object_scope_contract.rb",
-    "comment overflow appeared clean" => "test/default_object_scope_contract.rb",
     "missing LongParameterList finding" => "test/default_argument_api_contract.rb",
     "LongParameterList comment suppression" => "test/default_argument_api_contract.rb",
     "LongParameterList block body support" => "test/default_argument_api_contract.rb",
@@ -129,8 +130,6 @@ class MutationCase
     "missing FeatureEnvy finding" => "test/default_argument_api_contract.rb",
     "FeatureEnvy block scope analysis" => "test/default_argument_api_contract.rb",
     "missing LongYieldList block finding" => "test/default_argument_api_contract.rb",
-    "Reek directive comment parity" => "test/default_object_scope_contract.rb",
-    "Reek directive option parity" => "test/default_object_scope_contract.rb",
     "hidden directory discovery" => "test/analysis_inputs_contract.rb",
     "directory symlink traversal" => "test/analysis_inputs_contract.rb",
     "empty scan success" => "test/analysis_inputs_contract.rb",
@@ -225,6 +224,8 @@ class MutationCase
     @configuration = configuration
     @selected_labels = ENV["FLEEK_MUTATIONS"]
     @source = configuration.source
+    # The mutated file: bin/fleek.rb unless the configuration names another source.
+    @target_path = configuration.path || "bin/fleek.rb"
   end
 
   def run
@@ -234,13 +235,13 @@ class MutationCase
     apply_mutation
     verify_mutation
   ensure
-    File.write("bin/fleek.rb", @source)
+    File.write(@target_path, @source)
   end
 
   def apply_mutation
     mutated = @source.gsub(@configuration.target, @configuration.replacement)
     raise "#{@configuration.label} mutation target missing" if mutated == @source
-    File.write("bin/fleek.rb", mutated)
+    File.write(@target_path, mutated)
   end
 
   # :reek:TooManyStatements
@@ -360,7 +361,7 @@ class MutationCase
     selected_labels = self.selected_labels(ENV["FLEEK_MUTATIONS"])
     contracts = selected_labels ? selected_labels.map { |label| CONTRACTS.fetch(label) }.uniq : CONTRACTS.values.uniq
     dependency_paths = contracts.flat_map { |path| CONTRACT_DEPENDENCIES.fetch(path, []) }
-    source_paths = (contracts + dependency_paths + ["test/analysis_runner.rb", "test/flay_groups.rb"]).uniq
+    source_paths = (contracts + dependency_paths + ["test/analysis_runner.rb", "test/flay_groups.rb", "test/reek_findings.rb"]).uniq
     source_paths.each do |path|
       source = File.read(path)
       mapped_contract = contracts.include?(path) || dependency_paths.include?(path)
@@ -631,11 +632,6 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "nested ModuleInitialize context",
   "nested ModuleInitialize exclusion did not stay complete")).run
 MutationCase.new(MutationCase::Configuration.new(source,
-  "return words >= 2 ? 1 : 0;",
-  "return words >= 20 ? 1 : 0;",
-  "missing IrresponsibleModule finding",
-  "described Class.new was not analyzed cleanly")).run
-MutationCase.new(MutationCase::Configuration.new(source,
   "if (count <= method_maximum) return 0;",
   "if (count > method_maximum) return 0;",
   "missing LongParameterList finding",
@@ -900,36 +896,6 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "attr_writer = false;",
   "missing Attribute aliased finding",
   "Attribute findings differ from Reek")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  'if (!supported_class_new) {',
-  'if (false) {',
-  "unsupported Class.new assignment",
-  "IrresponsibleModule unsupported shape appeared clean")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  'if (comment_status == 0) {',
-  'if (false) {',
-  "missing undocumented Class.new finding",
-  "undocumented Class.new status differs from Reek")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  'int comment_status = fleek_scope_descriptively_commented(&parser, assignment->name_loc.start);',
-  'int comment_status = 0;',
-  "false-positive described Class.new",
-  "described Class.new was not analyzed cleanly")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (overflow) return -1;",
-  "if (false) return -1;",
-  "comment overflow appeared clean",
-  "comment overflow appeared clean")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "while (cursor < comment->location.end && !isspace(*cursor)) cursor++;",
-  "while (cursor < comment->location.end) cursor++;",
-  "Reek directive comment parity",
-  "IrresponsibleModule findings differ from Reek")).run
-MutationCase.new(MutationCase::Configuration.new(source,
-  "if (options < comment->location.end && *options == '{') {",
-  "if (false) {",
-  "Reek directive option parity",
-  "IrresponsibleModule findings differ from Reek")).run
 MutationCase.new(MutationCase::Configuration.new(source,
   "fleek_groups[group_index].name_length != constant->length || memcmp(fleek_groups[group_index].name, constant->start, constant->length) != 0",
   "false",
@@ -1414,6 +1380,19 @@ MutationCase.new(MutationCase::Configuration.new(source,
   "fleek_reek_body(ast, branch->else_clause == NULL ? NULL : (const pm_node_t *) branch->else_clause->statements);\n          fleek_reek_body(ast, (const pm_node_t *) branch->statements);",
   "fleek_reek_body(ast, (const pm_node_t *) branch->statements);\n          fleek_reek_body(ast, branch->else_clause == NULL ? NULL : (const pm_node_t *) branch->else_clause->statements);",
   "Reek AST unless branches", "Reek AST differed")).run
+
+engine_source = File.read("bin/reek_engine.rb")
+[
+  ["sanitized.split(\" \").length >= 2", "sanitized.split(\" \").length >= 1", "Reek engine descriptive comment threshold"],
+  ["!children.empty? && children.all? { |child| CONSTANT_TYPES.include?(child.type) }", "false", "Reek engine namespace modules"],
+  ["return true if directive && (directive[2].nil? || directive[2].include?(\"enabled: false\"))", "", "Reek engine comment suppression"],
+  ["      current = current.parent", "      current = nil", "Reek engine parent suppression"],
+  ["(name == \"new\" && (simple == \"Class\" || simple == \"Struct\"))", "(name == \"new\" && simple == \"Class\")", "Reek engine Struct modules"],
+  ["      return \"\" if context.kind == \"root\"", "", "Reek engine root naming"]
+].each do |target, replacement, label|
+  MutationCase.new(MutationCase::Configuration.new(engine_source, target.to_s, replacement.to_s, label.to_s,
+    "differed from Reek", "bin/reek_engine.rb")).run
+end
 
 process_id = Process.spawn("make", "build/fleek", out: MutationProcess.temporary_path("fleek-mutation-restore-out"), err: MutationProcess.temporary_path("fleek-mutation-restore-err"))
 _, status = Process.waitpid2(process_id)
