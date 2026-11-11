@@ -32,7 +32,7 @@ class DefaultArgumentApiContract
     verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_multiple_allow.yml")
     verify_duplicate_method_call_nested_branches
     verify_default_detector("ManualDispatch", "test/fixtures/manual_dispatch.rb")
-    verify_nil_check_nested_block
+    verify_pinned_nested_cases
     verify_default_detector("NilCheck", "test/fixtures/nil_check.rb")
     verify_default_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb")
     verify_missing_safe_method_singleton_companions
@@ -94,7 +94,6 @@ class DefaultArgumentApiContract
     verify_control_parameter_suppression
     verify_control_parameter_logical_condition
     verify_control_parameter_branch_logical_body
-    verify_nested_control_parameter_loop
     verify_utility_instance_call
     verify_long_parameter_block_limit
     verify_discovered_unused_private_disable
@@ -123,12 +122,6 @@ class DefaultArgumentApiContract
       verify_boolean_parameter
     when "missing LongYieldList finding", "missing LongYieldList block finding"
       verify_long_yield_list
-    when "missing ControlParameter finding", "wrong ControlParameter lines"
-      verify_default_detector("ControlParameter", "test/fixtures/control_parameter.rb")
-    when "nested ControlParameter block traversal"
-      verify_nested_control_parameter_loop
-    when "nested ControlParameter data use suppression"
-      verify_control_parameter_suppression
     when "missing UnusedParameters finding"
       verify_default_detector("UnusedParameters", "test/fixtures/unused_parameters.rb")
     when "UnusedParameters block body traversal", "UnusedParameters block captures"
@@ -580,30 +573,6 @@ class DefaultArgumentApiContract
     verify_configuration_parity(actual, reference, "UnusedParameters")
   end
 
-  # :reek:TooManyStatements
-  def self.verify_nested_control_parameter_loop
-    source = "test/fixtures/control_parameter_nested_loop.rb"
-    reference = run_reek(source, "ControlParameter")
-    actual = run_fleek(source, "", "reek:ControlParameter")
-    reference_output = reference[1]
-    verify(reference[0] == 2 && reference_output.include?("[4]:ControlParameter: Parcel#choose is controlled by argument 'flag'") && !reference_output.include?("choose_with_data"), "pinned nested ControlParameter finding or suppression changed")
-    verify(actual[1].include?("Scope limits: simple methods with direct conditionals and one iterator block"), "ControlParameter scope limit was not reported")
-    AnalysisRunner.assert_status(actual, reference, "nested ControlParameter loop")
-    AnalysisRunner.assert_detector_findings(actual, reference, "nested ControlParameter loop")
-    verify_nested_control_parameter_exclusion(source)
-    AnalysisRunner.assert_unsupported(run_fleek("test/fixtures/control_parameter_multiple_blocks.rb", "", "reek:ControlParameter"), "multiple iterator blocks")
-  end
-
-  # :reek:TooManyStatements
-  def self.verify_nested_control_parameter_exclusion(source)
-    config = "test/fixtures/config_control_parameter_nested_exclusion.yml"
-    reference = run_reek(source, "ControlParameter", config)
-    actual = run_fleek(source, config, "reek:ControlParameter")
-    reference_output = reference[1]
-    verify(reference[0] == 0 && !reference_output.include?("ControlParameter:"), "pinned nested ControlParameter exclusion changed")
-    verify_configuration_parity(actual, reference, "ControlParameter")
-  end
-
   def self.verify_utility_instance_call
     verify_default_detector("UtilityFunction", "test/fixtures/utility_instance_method_call.rb")
   end
@@ -653,30 +622,6 @@ class DefaultArgumentApiContract
     verify(reference[0] == 0 && AnalysisRunner.detector_warnings(reference, "ManualDispatch").empty?, "pinned ManualDispatch context exclusion changed")
     verify(actual[0] == 0 && actual[1].include?("Status: complete"), "ManualDispatch context exclusion was not complete and clean")
     AnalysisRunner.assert_detector_findings(actual, reference, "ManualDispatch")
-  end
-
-  # :reek:TooManyStatements
-  def self.verify_nil_check_nested_block
-    source = "test/fixtures/nil_check_nested_block.rb"
-    reference = run_reek(source, "NilCheck")
-    actual = run_fleek(source, "", "reek:NilCheck")
-    reference_output = reference[1]
-    verify(reference[0] == 2 && reference_output.include?("[4, 5]:NilCheck: Parcel#retrieve performs a nil-check") &&
-      !reference_output.include?("value&.save"), "pinned nested NilCheck lines or safe-navigation control changed")
-    AnalysisRunner.assert_status(actual, reference, "nested NilCheck block")
-    AnalysisRunner.assert_detector_findings(actual, reference, "NilCheck")
-    verify_nil_check_block_exclusion(source)
-    verify_clean_parity("test/fixtures/control_parameter_multiple_blocks.rb", "NilCheck")
-  end
-
-  # :reek:TooManyStatements
-  def self.verify_nil_check_block_exclusion(source)
-    config = "test/fixtures/config_nil_check_nested_exclusion.yml"
-    reference = run_reek(source, "NilCheck", config)
-    actual = run_fleek(source, config, "reek:NilCheck")
-    verify(reference[0] == 0 && AnalysisRunner.detector_warnings(reference, "NilCheck").empty?, "pinned NilCheck block exclusion changed")
-    verify(actual[0] == 0 && actual[1].include?("Status: complete"), "NilCheck block exclusion was not clean and complete")
-    AnalysisRunner.assert_detector_findings(actual, reference, "NilCheck")
   end
 
   # :reek:TooManyStatements
@@ -744,16 +689,41 @@ class DefaultArgumentApiContract
     AnalysisRunner.assert_status(actual, reference, "FeatureEnvy block receiver")
     AnalysisRunner.assert_detector_findings(actual, reference, "FeatureEnvy")
     verify_configured_detector("FeatureEnvy", source, "test/fixtures/config_feature_envy_block_exclude.yml")
-    verify_clean_parity("test/fixtures/feature_envy_multiple_blocks.rb", "FeatureEnvy")
+    verify_findings_parity("test/fixtures/feature_envy_multiple_blocks.rb", "FeatureEnvy", "")
   end
 
-  # Reek and Fleek both report the source complete and clean for the detector.
-  def self.verify_clean_parity(source, detector)
-    reference = run_reek(source, detector)
-    actual = run_fleek(source, "", "reek:#{detector}")
-    verify(AnalysisRunner.detector_warnings(reference, detector).empty?, "pinned clean #{detector} source #{source} changed")
-    verify(actual[0] == 0 && actual[1].include?("Status: complete"), "#{detector} was not complete and clean for #{source}")
+  # Nested-scope sources whose pinned Reek finding (present text, absent text) and exclusion config Fleek must match.
+  PINNED_NESTED_CASES = [
+    ["ControlParameter", "test/fixtures/control_parameter_nested_loop.rb", "[4]:ControlParameter: Parcel#choose is controlled by argument 'flag'",
+      "choose_with_data", "test/fixtures/config_control_parameter_nested_exclusion.yml"],
+    ["NilCheck", "test/fixtures/nil_check_nested_block.rb", "[4, 5]:NilCheck: Parcel#retrieve performs a nil-check",
+      "value&.save", "test/fixtures/config_nil_check_nested_exclusion.yml"]
+  ].freeze
+
+  def self.verify_pinned_nested_cases
+    PINNED_NESTED_CASES.each { |item| verify_pinned_case(item) }
+  end
+
+  # :reek:TooManyStatements
+  def self.verify_pinned_case(item)
+    # to_s: Spinel 2026.09.12 leaves untyped nested-array elements untyped.
+    detector, source, present, absent, config = item.map { |value| value.to_s }
+    output = run_reek(source, detector)[1]
+    verify(output.include?(present) && !output.include?(absent), "pinned #{detector} findings for #{source} changed")
+    [[source, ""], [source, config], ["test/fixtures/control_parameter_multiple_blocks.rb", ""]].each { |pair| verify_findings_parity(pair[0], detector, pair[1]) }
+  end
+
+  # Reek and Fleek give the same status and findings for the detector, and Fleek analyzes the source completely.
+  def self.verify_findings_parity(source, detector, config)
+    reference = run_reek(source, detector, config)
+    actual = run_fleek(source, config, "reek:#{detector}")
+    verify_complete_status(actual, reference[0], "#{detector} #{source}")
     AnalysisRunner.assert_detector_findings(actual, reference, detector)
+  end
+
+  # :reek:ControlParameter
+  def self.verify_complete_status(actual, status, label)
+    verify(actual[0] == status && actual[1].include?("Status: #{status == 2 ? "findings" : "complete"}"), "#{label} status differs from Reek")
   end
 
   # :reek:TooManyStatements

@@ -117,8 +117,6 @@ class Fleek
     static size_t fleek_boolean_parameter_used;
     static char fleek_long_yield_list_buffer[8192];
     static size_t fleek_long_yield_list_used;
-    static char fleek_control_parameter_buffer[8192];
-    static size_t fleek_control_parameter_used;
     static char fleek_unused_parameters_buffer[8192];
     static size_t fleek_unused_parameters_used;
     static char fleek_unused_private_method_buffer[8192];
@@ -1392,152 +1390,6 @@ class Fleek
       }
       return false;
     }
-    static bool fleek_control_condition(const pm_node_t *node, pm_constant_id_t name, pm_parser_t *parser, bool conditional) {
-      if (node == NULL) return false;
-      if (PM_NODE_TYPE_P(node, PM_IF_NODE)) {
-        const pm_if_node_t *branch = (const pm_if_node_t *) node;
-        return fleek_control_condition(branch->predicate, name, parser, true) || fleek_control_condition((const pm_node_t *) branch->statements, name, parser, conditional) || fleek_control_condition(branch->subsequent, name, parser, conditional);
-      }
-      if (PM_NODE_TYPE_P(node, PM_UNLESS_NODE)) {
-        const pm_unless_node_t *branch = (const pm_unless_node_t *) node;
-        return fleek_control_condition(branch->predicate, name, parser, true) || fleek_control_condition((const pm_node_t *) branch->statements, name, parser, conditional) || fleek_control_condition((const pm_node_t *) branch->else_clause, name, parser, conditional);
-      }
-      if (PM_NODE_TYPE_P(node, PM_CASE_NODE)) {
-        const pm_case_node_t *branch = (const pm_case_node_t *) node;
-        if (fleek_control_condition(branch->predicate, name, parser, true)) return true;
-        for (size_t index = 0; index < branch->conditions.size; index++) if (fleek_control_condition(branch->conditions.nodes[index], name, parser, true)) return true;
-        return fleek_control_condition((const pm_node_t *) branch->else_clause, name, parser, conditional);
-      }
-      if (PM_NODE_TYPE_P(node, PM_WHEN_NODE)) {
-        const pm_when_node_t *branch = (const pm_when_node_t *) node;
-        for (size_t index = 0; index < branch->conditions.size; index++) if (fleek_control_condition(branch->conditions.nodes[index], name, parser, true)) return true;
-        return fleek_control_condition((const pm_node_t *) branch->statements, name, parser, conditional);
-      }
-      if (PM_NODE_TYPE_P(node, PM_ELSE_NODE)) return fleek_control_condition((const pm_node_t *) ((const pm_else_node_t *) node)->statements, name, parser, conditional);
-      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {
-        const pm_statements_node_t *items = (const pm_statements_node_t *) node;
-        for (size_t index = 0; index < items->body.size; index++) if (fleek_control_condition(items->body.nodes[index], name, parser, conditional)) return true;
-        return false;
-      }
-      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return fleek_control_condition(((const pm_block_node_t *) node)->body, name, parser, conditional);
-      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
-        const pm_call_node_t *call = (const pm_call_node_t *) node;
-        return call->block != NULL && fleek_control_condition((const pm_node_t *) call->block, name, parser, conditional);
-      }
-      if (PM_NODE_TYPE_P(node, PM_LOCAL_VARIABLE_READ_NODE)) return conditional && fleek_constants_equal(parser, ((const pm_local_variable_read_node_t *) node)->name, name);
-      if (PM_NODE_TYPE_P(node, PM_AND_NODE)) {
-        const pm_and_node_t *logical = (const pm_and_node_t *) node;
-        return fleek_control_condition(logical->left, name, parser, true) || fleek_control_condition(logical->right, name, parser, true);
-      }
-      if (PM_NODE_TYPE_P(node, PM_OR_NODE)) {
-        const pm_or_node_t *logical = (const pm_or_node_t *) node;
-        return fleek_control_condition(logical->left, name, parser, true) || fleek_control_condition(logical->right, name, parser, true);
-      }
-      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
-        const pm_call_node_t *call = (const pm_call_node_t *) node;
-        if (!conditional) return false;
-        return fleek_body_uses_name(parser, call->receiver, name) || fleek_body_uses_name(parser, (const pm_node_t *) call->arguments, name);
-      }
-      return false;
-    }
-    static bool fleek_record_control_line(const uint8_t *source, const pm_node_t *node, int *lines, size_t *count) {
-      int line = fleek_source_line(source, node->location.start);
-      for (size_t index = 0; index < *count; index++) if (lines[index] == line) return true;
-      if (*count >= 128) return false;
-      lines[(*count)++] = line;
-      return true;
-    }
-    static bool fleek_control_condition_lines(const pm_node_t *node, pm_constant_id_t name, pm_parser_t *parser,
-        const uint8_t *source, int *lines, size_t *count) {
-      if (node == NULL) return true;
-      if (PM_NODE_TYPE_P(node, PM_IF_NODE)) {
-        const pm_if_node_t *branch = (const pm_if_node_t *) node;
-        if (fleek_control_condition(branch->predicate, name, parser, true) && !fleek_record_control_line(source, (const pm_node_t *) branch->predicate, lines, count)) return false;
-        return fleek_control_condition_lines((const pm_node_t *) branch->statements, name, parser, source, lines, count) &&
-          fleek_control_condition_lines(branch->subsequent, name, parser, source, lines, count);
-      }
-      if (PM_NODE_TYPE_P(node, PM_UNLESS_NODE)) {
-        const pm_unless_node_t *branch = (const pm_unless_node_t *) node;
-        if (fleek_control_condition(branch->predicate, name, parser, true) && !fleek_record_control_line(source, (const pm_node_t *) branch->predicate, lines, count)) return false;
-        return fleek_control_condition_lines((const pm_node_t *) branch->statements, name, parser, source, lines, count) &&
-          fleek_control_condition_lines((const pm_node_t *) branch->else_clause, name, parser, source, lines, count);
-      }
-      if (PM_NODE_TYPE_P(node, PM_CASE_NODE)) {
-        const pm_case_node_t *branch = (const pm_case_node_t *) node;
-        if (fleek_control_condition(branch->predicate, name, parser, true) && !fleek_record_control_line(source, (const pm_node_t *) branch->predicate, lines, count)) return false;
-        for (size_t index = 0; index < branch->conditions.size; index++) {
-          const pm_node_t *condition = branch->conditions.nodes[index];
-          if (fleek_control_condition(condition, name, parser, true) && !fleek_record_control_line(source, condition, lines, count)) return false;
-        }
-        return fleek_control_condition_lines((const pm_node_t *) branch->else_clause, name, parser, source, lines, count);
-      }
-      if (PM_NODE_TYPE_P(node, PM_WHEN_NODE)) {
-        const pm_when_node_t *branch = (const pm_when_node_t *) node;
-        for (size_t index = 0; index < branch->conditions.size; index++) {
-          const pm_node_t *condition = branch->conditions.nodes[index];
-          if (fleek_control_condition(condition, name, parser, true) && !fleek_record_control_line(source, condition, lines, count)) return false;
-        }
-        return fleek_control_condition_lines((const pm_node_t *) branch->statements, name, parser, source, lines, count);
-      }
-      if (PM_NODE_TYPE_P(node, PM_ELSE_NODE)) return fleek_control_condition_lines((const pm_node_t *) ((const pm_else_node_t *) node)->statements, name, parser, source, lines, count);
-      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {
-        const pm_statements_node_t *items = (const pm_statements_node_t *) node;
-        for (size_t index = 0; index < items->body.size; index++) if (!fleek_control_condition_lines(items->body.nodes[index], name, parser, source, lines, count)) return false;
-        return true;
-      }
-      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return fleek_control_condition_lines(((const pm_block_node_t *) node)->body, name, parser, source, lines, count);
-      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
-        const pm_call_node_t *call = (const pm_call_node_t *) node;
-        return call->block == NULL || fleek_control_condition_lines((const pm_node_t *) call->block, name, parser, source, lines, count);
-      }
-      if ((PM_NODE_TYPE_P(node, PM_AND_NODE) || PM_NODE_TYPE_P(node, PM_OR_NODE)) &&
-          fleek_control_condition(node, name, parser, true)) return fleek_record_control_line(source, node, lines, count);
-      return true;
-    }
-    static bool fleek_parameter_used_outside_condition(pm_parser_t *parser, const pm_node_t *node, pm_constant_id_t name) {
-      if (node == NULL) return false;
-      if (PM_NODE_TYPE_P(node, PM_IF_NODE)) {
-        const pm_if_node_t *branch = (const pm_if_node_t *) node;
-        return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) branch->statements, name) || fleek_parameter_used_outside_condition(parser, branch->subsequent, name);
-      }
-      if (PM_NODE_TYPE_P(node, PM_UNLESS_NODE)) {
-        const pm_unless_node_t *branch = (const pm_unless_node_t *) node;
-        return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) branch->statements, name) || fleek_parameter_used_outside_condition(parser, (const pm_node_t *) branch->else_clause, name);
-      }
-      if (PM_NODE_TYPE_P(node, PM_CASE_NODE)) {
-        const pm_case_node_t *branch = (const pm_case_node_t *) node;
-        return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) branch->else_clause, name);
-      }
-      if (PM_NODE_TYPE_P(node, PM_AND_NODE)) {
-        return false;
-      }
-      if (PM_NODE_TYPE_P(node, PM_OR_NODE)) {
-        return false;
-      }
-      if (PM_NODE_TYPE_P(node, PM_WHEN_NODE)) return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) ((const pm_when_node_t *) node)->statements, name);
-      if (PM_NODE_TYPE_P(node, PM_ELSE_NODE)) return fleek_parameter_used_outside_condition(parser, (const pm_node_t *) ((const pm_else_node_t *) node)->statements, name);
-      if (PM_NODE_TYPE_P(node, PM_STATEMENTS_NODE)) {
-        const pm_statements_node_t *items = (const pm_statements_node_t *) node;
-        for (size_t index = 0; index < items->body.size; index++) if (fleek_parameter_used_outside_condition(parser, items->body.nodes[index], name)) return true;
-        return false;
-      }
-      if (PM_NODE_TYPE_P(node, PM_BLOCK_NODE)) return fleek_parameter_used_outside_condition(parser, ((const pm_block_node_t *) node)->body, name);
-      if (PM_NODE_TYPE_P(node, PM_CALL_NODE)) {
-        const pm_call_node_t *call = (const pm_call_node_t *) node;
-        return fleek_body_uses_name(parser, (const pm_node_t *) call->arguments, name) ||
-          (call->block != NULL && fleek_parameter_used_outside_condition(parser, (const pm_node_t *) call->block, name));
-      }
-      return fleek_body_uses_name(parser, node, name);
-    }
-    static bool fleek_any_parameter_used(pm_parser_t *parser, const pm_node_t *body, const pm_parameters_node_t *parameters) {
-      if (parameters == NULL) return false;
-      const pm_node_list_t *lists[] = { &parameters->requireds, &parameters->optionals, &parameters->posts, &parameters->keywords };
-      for (size_t list = 0; list < 4; list++) for (size_t index = 0; index < lists[list]->size; index++) {
-        pm_constant_id_t name = fleek_parameter_name(lists[list]->nodes[index]);
-        if (name != 0 && fleek_body_uses_name(parser, body, name)) return true;
-      }
-      return false;
-    }
     static int fleek_method_api_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
         size_t class_name_length, const pm_node_t *node, void *data) {
       const pm_def_node_t *method = (const pm_def_node_t *) node;
@@ -1569,44 +1421,8 @@ class Fleek
           findings++;
         }
       }
-      bool has_control = false;
-      for (size_t list = 0; list < 4; list++) {
-        const pm_node_list_t *items = list == 0 ? &parameters->requireds : list == 1 ? &parameters->optionals : list == 2 ? &parameters->posts : &parameters->keywords;
-        for (size_t index = 0; index < items->size; index++) {
-          pm_constant_id_t name_id = fleek_parameter_name(items->nodes[index]);
-          if (name_id == 0) return -1;
-          int control_lines[128] = { 0 };
-          size_t control_line_count = 0;
-          if (!fleek_control_condition_lines(method->body, name_id, parser, source, control_lines, &control_line_count)) return -1;
-          if (control_line_count > 0 && !fleek_parameter_used_outside_condition(parser, method->body, name_id)) {
-            char line_list[512] = { 0 };
-            size_t line_used = 0;
-            for (size_t line_index = 0; line_index < control_line_count; line_index++) {
-              int line_written = snprintf(line_list + line_used, sizeof(line_list) - line_used, "%s%d", line_index == 0 ? "" : ", ", control_lines[line_index]);
-              if (line_written < 0 || (size_t) line_written >= sizeof(line_list) - line_used) return -1;
-              line_used += (size_t) line_written;
-            }
-            pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, name_id);
-            int written = snprintf(fleek_control_parameter_buffer + fleek_control_parameter_used,
-              sizeof(fleek_control_parameter_buffer) - fleek_control_parameter_used,
-              "%s\\t%.*s#%.*s\\t%.*s\\n", line_list, (int) class_name_length, class_name,
-              (int) method_name->length, method_name->start, (int) name->length, name->start);
-            if (written < 0 || (size_t) written >= sizeof(fleek_control_parameter_buffer) - fleek_control_parameter_used) return -1;
-            fleek_control_parameter_used += (size_t) written;
-            findings++;
-            has_control = true;
-          }
-        }
-      }
-      (void) has_control;
       return findings;
     }
-    int fleek_control_parameter(const char *source, size_t length) {
-      fleek_control_parameter_buffer[0] = 0; fleek_control_parameter_used = 0;
-      int control_parameter_mode = 1;
-      return fleek_scan_method_scope(source, length, fleek_method_api_method, &control_parameter_mode, NULL);
-    }
-    const char *fleek_control_parameter_finding(void) { return fleek_control_parameter_buffer; }
     int fleek_unused_parameters(const char *source, size_t length) {
       fleek_unused_parameters_buffer[0] = 0; fleek_unused_parameters_used = 0;
       int unused_parameter_mode = 2;
@@ -5225,8 +5041,6 @@ class Fleek
     ffi_func :fleek_boolean_parameter_finding, [], :str
     ffi_func :fleek_long_yield_list, [:str, :size_t, :size_t], :int
     ffi_func :fleek_long_yield_list_finding, [], :str
-    ffi_func :fleek_control_parameter, [:str, :size_t], :int
-    ffi_func :fleek_control_parameter_finding, [], :str
     ffi_func :fleek_unused_parameters, [:str, :size_t], :int
     ffi_func :fleek_unused_parameters_finding, [], :str
     ffi_func :fleek_unused_private_method, [:str, :size_t], :int
@@ -6465,7 +6279,7 @@ class Fleek
     "LongParameterList" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has %s parameters"],
     "BooleanParameter" => ["one simple class or module with direct instance methods and supported parameter lists", "%s has boolean parameter '%s'"],
     "LongYieldList" => ["one simple class or module with direct instance methods", "%s yields %s parameters"],
-    "ControlParameter" => ["simple methods with direct conditionals and one iterator block", "%s is controlled by argument '%s'"],
+    "ControlParameter" => ["whole files through the ported Reek context engine", "%s is controlled by argument '%s'"],
     "UnusedParameters" => ["simple method parameter lists and supported method bodies with one iterator block", "%s has unused parameter '%s'"],
     "UnusedPrivateMethod" => ["one simple class with direct instance methods and bare private/public/protected visibility", "%s has the unused private instance method '%s'"],
     "UtilityFunction" => ["whole files through the ported Reek context engine", "%s doesn't depend on instance state (maybe move it to another class?)"],
@@ -6523,10 +6337,6 @@ class Fleek
 
   def self.run_long_yield_list(inputs)
     run_reek_detector(inputs, "LongYieldList", :single)
-  end
-
-  def self.run_control_parameter(inputs)
-    run_reek_detector(inputs, "ControlParameter", :single)
   end
 
   def self.run_unused_parameters(inputs)
@@ -6657,7 +6467,6 @@ class Fleek
     when "LongParameterList" then NativePrism.fleek_long_parameter_list(source, length, maximum, detector_option)
     when "BooleanParameter" then NativePrism.fleek_boolean_parameter(source, length)
     when "LongYieldList" then NativePrism.fleek_long_yield_list(source, length, maximum)
-    when "ControlParameter" then NativePrism.fleek_control_parameter(source, length)
     when "UnusedParameters" then NativePrism.fleek_unused_parameters(source, length)
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method(source, length)
     when "ManualDispatch" then NativePrism.fleek_manual_dispatch(source, length)
@@ -6678,7 +6487,7 @@ class Fleek
   REEK_ENGINE_RECORDS = [""]
 
   # Detectors running on the ported Reek context engine.
-  REEK_ENGINE_DETECTORS = %w[DuplicateMethodCall FeatureEnvy IrresponsibleModule NestedIterators NilCheck TooManyStatements UtilityFunction].freeze
+  REEK_ENGINE_DETECTORS = %w[ControlParameter DuplicateMethodCall FeatureEnvy IrresponsibleModule NestedIterators NilCheck TooManyStatements UtilityFunction].freeze
 
   # :reek:LongParameterList
   def self.run_reek_engine_detector(detector, source, path, settings)
@@ -6709,7 +6518,6 @@ class Fleek
     when "LongParameterList" then NativePrism.fleek_long_parameter_list_finding
     when "BooleanParameter" then NativePrism.fleek_boolean_parameter_finding
     when "LongYieldList" then NativePrism.fleek_long_yield_list_finding
-    when "ControlParameter" then NativePrism.fleek_control_parameter_finding
     when "UnusedParameters" then NativePrism.fleek_unused_parameters_finding
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method_finding
     when "ManualDispatch" then NativePrism.fleek_manual_dispatch_finding
@@ -7688,7 +7496,6 @@ class Fleek
     return run_long_parameter_list(inputs) if check == "reek:LongParameterList"
     return run_boolean_parameter(inputs) if check == "reek:BooleanParameter"
     return run_long_yield_list(inputs) if check == "reek:LongYieldList"
-    return run_control_parameter(inputs) if check == "reek:ControlParameter"
     return run_unused_parameters(inputs) if check == "reek:UnusedParameters"
     return run_reek_detector(inputs, detector, :single) if check.start_with?("reek:") && REEK_DETECTORS.key?(detector)
     return run_module_initialize(inputs) if check == "reek:ModuleInitialize"

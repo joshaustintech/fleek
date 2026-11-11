@@ -676,6 +676,7 @@ module ReekEngine
     return utility_function(root, source, settings.length > 3 && settings[3] == true) if detector == "UtilityFunction"
     return nil_check(root, source) if detector == "NilCheck"
     return duplicate_method_call(root, source, maximum, settings[1].to_s.split("\n")) if detector == "DuplicateMethodCall"
+    return control_parameter(root, source) if detector == "ControlParameter"
     irresponsible_module(root, source)
   end
 
@@ -793,12 +794,95 @@ module ReekEngine
     each_node(exp, SELF_TYPES, []).any? { |node| node.type != "send" || node.child(0).atom? }
   end
 
-  # Reek::AST::Node#each_node: matching nodes in pre-order, not descending into ignored types.
+  CONDITIONAL_TYPES = %w[if case and or].freeze
+  COMPARISON_CALLS = %w[:== :!= :=~].freeze
+
+  # Reek::SmellDetectors::ControlParameter: parameters only used to choose a conditional branch.
+  def self.control_parameter(root, source)
+    names = Names.new(source)
+    records = []
+    root.each do |context|
+      next unless context.method_context?
+      next if suppressed?(context, "ControlParameter")
+      exp = context.exp
+      parameter_names(exp).each do |parameter|
+        lines = control_matches(exp, parameter).map { |node| node.line }
+        records << "#{lines.sort.join(", ")}\t#{names.full_name(context)}\t#{parameter[1, parameter.length - 1]}\n" unless lines.empty?
+      end
+    end
+    records.join
+  end
+
+  # MethodNodeBase#parameter_names: each argument's name atom, block arguments included.
+  def self.parameter_names(exp)
+    exp.child(exp.type == "defs" ? 2 : 1).nodes.map { |argument| argument.child(0) }.select { |name| !name.nil? && name.atom? && name.value.start_with?(":") }.map { |name| name.value }
+  end
+
+  # ControlParameterFinder#find_matches.
+  def self.control_matches(node, parameter)
+    return [] if legitimate_uses?(node, parameter)
+    matches = conditional_nodes(node).flat_map { |nested| control_matches(nested, parameter) }
+    condition = condition_of(node)
+    condition.nil? ? matches : matches + each_node(condition, ["lvar"], []).select { |lvar| lvar.child(0).value == parameter }
+  end
+
+  # ControlParameterFinder#legitimate_uses?
+  def self.legitimate_uses?(node, parameter)
+    return true if call_in_condition?(node, parameter)
+    return true if body_nodes(node, ["lvar"], CONDITIONAL_TYPES).any? { |lvar| lvar.child(0).value == parameter }
+    conditional_nodes(node).any? { |nested| legitimate_uses?(nested, parameter) }
+  end
+
+  def self.conditional_nodes(node)
+    body_nodes(node, CONDITIONAL_TYPES, [])
+  end
+
+  # CallInConditionFinder: a non-comparison call in the condition involving the parameter.
+  def self.call_in_condition?(node, parameter)
+    condition = condition_of(node)
+    return false if condition.nil?
+    each_node(condition, ["send"], []).any? do |call|
+      !COMPARISON_CALLS.include?(call.child(1).value) && each_node(call, ["lvar"], []).any? { |lvar| lvar.child(0).value == parameter }
+    end
+  end
+
+  # IfNode, CaseNode and LogicOperatorBase#condition; methods have none.
+  def self.condition_of(node)
+    return nil unless CONDITIONAL_TYPES.include?(node.type)
+    condition = node.child(0)
+    condition.nil? || condition.atom? ? nil : condition
+  end
+
+  # #body_nodes for method, if, case and logical-operator nodes.
+  def self.body_nodes(node, types, ignoring)
+    scope = ignoring | types
+    case node.type
+    when "def", "defs"
+      body = node.children.last
+      return [] if body.atom? || ignoring.include?(body.type)
+      each_node(body, types, scope)
+    when "if" then node.children[1, 2].reject { |child| child.atom? || ignoring.include?(child.type) }.flat_map { |child| each_node(child, types, scope) }
+    when "case" then node.children[1, node.children.length - 1].reject { |child| child.atom? }.flat_map { |child| each_node(child, types, scope) }
+    else
+      branch = node.child(1)
+      branch.atom? ? [] : each_node(branch, types, scope)
+    end
+  end
+
+  # Reek::AST::Node#each_node (look_for): an ignored root is only left unsearched when it matches.
   def self.each_node(exp, types, ignoring, found = [])
-    found << exp if types.include?(exp.type)
-    return found if ignoring.include?(exp.type)
-    exp.children.each { |child| each_node(child, types, ignoring, found) unless child.atom? }
+    matched = types.include?(exp.type)
+    found << exp if matched
+    return found if matched && ignoring.include?(exp.type)
+    exp.children.each { |child| look_for(child, types, ignoring, found) unless child.atom? }
     found
+  end
+
+  # Reek::AST::Node#look_for_recurse: matching nodes below, never entering ignored types.
+  def self.look_for(exp, types, ignoring, found)
+    found << exp if types.include?(exp.type)
+    return if ignoring.include?(exp.type)
+    exp.children.each { |child| look_for(child, types, ignoring, found) unless child.atom? }
   end
 
   # Reek::SmellDetectors::NestedIterators: one warning per nesting depth beyond the limit.
