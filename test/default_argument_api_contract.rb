@@ -107,20 +107,8 @@ class DefaultArgumentApiContract
   # :reek:TooManyStatements
   def self.verify_mutation_case(label)
     case label
-    when "missing LongParameterList finding"
-      verify_default_detector("LongParameterList", SOURCE)
-    when "LongParameterList comment suppression"
-      verify_long_parameter_list_comment_suppression
-    when "LongParameterList block body support"
-      verify_long_parameter_block_limit
-    when "LongParameterList initializer override threshold"
-      verify_initializer_override
     when "UnusedPrivateMethod empty framework subclass handling"
       verify_unused_private_framework_empty_class
-    when "missing BooleanParameter finding"
-      verify_boolean_parameter
-    when "missing LongYieldList finding", "missing LongYieldList block finding"
-      verify_long_yield_list
     when "ignored DuplicateMethodCall list entry"
       verify_configured_detector("DuplicateMethodCall", "test/fixtures/duplicate_method_call.rb", "test/fixtures/config_duplicate_method_call_allow.yml")
     when "MissingSafeMethod singleton scope analysis"

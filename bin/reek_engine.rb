@@ -657,15 +657,9 @@ module ReekEngine
     records.join
   end
 
-  # CodeContext#config_for: a reek directive naming the detector (bare or enabled: false) on a context or any parent disables it.
+  # CodeContext#config_for: the nearest context whose directive options set enabled decides; a bare directive disables.
   def self.suppressed?(context, detector)
-    current = context
-    until current.nil?
-      directive = current.full_comment.match(/:reek:#{detector}\b(:?\s*)(\{.*?\})?/)
-      return true if directive && (directive[2].nil? || directive[2].include?("enabled: false"))
-      current = current.parent
-    end
-    false
+    directive_value(context, detector, "enabled") == "false"
   end
 
   # Runs one migrated detector over the context tree, returning finding records.
@@ -679,6 +673,9 @@ module ReekEngine
     return duplicate_method_call(root, source, maximum, settings[1].to_s.split("\n")) if detector == "DuplicateMethodCall"
     return control_parameter(root, source) if detector == "ControlParameter"
     return unused_parameters(root, source) if detector == "UnusedParameters"
+    return boolean_parameter(root, source) if detector == "BooleanParameter"
+    return long_parameter_list(root, source, maximum, settings[3].to_s.to_i) if detector == "LongParameterList"
+    return long_yield_list(root, source, maximum) if detector == "LongYieldList"
     irresponsible_module(root, source)
   end
 
@@ -782,11 +779,62 @@ module ReekEngine
   def self.directive_list(context, detector, key, configured)
     current = context
     until current.nil?
-      option = current.full_comment.match(/:reek:#{detector}\b:?\s*\{[^}]*\b#{key}:\s*\[([^\]]*)\]/)
+      option = directive_options(current, detector).match(/\b#{key}:\s*\[([^\]]*)\]/)
       return option[1].split(",").map { |item| item.strip.delete("'\"") }.reject { |item| item.empty? } if option
       current = current.parent
     end
     configured
+  end
+
+  OPTIONAL_ARGUMENTS = %w[optarg kwoptarg].freeze
+
+  # Reek::SmellDetectors::BooleanParameter: optional parameters defaulting to true or false.
+  def self.boolean_parameter(root, source)
+    names = Names.new(source)
+    records = []
+    method_contexts(root, "BooleanParameter").each do |context|
+      parameters(context.exp).each do |parameter|
+        next unless OPTIONAL_ARGUMENTS.include?(parameter.type) && %w[true false].include?(parameter.child(1).type)
+        records << "#{context.exp.line}\t#{names.full_name(context)}\t#{parameter.child(0).symbol_name}\n"
+      end
+    end
+    records.join
+  end
+
+  # Reek::SmellDetectors::LongParameterList: more arguments than max_params, with the initialize override.
+  def self.long_parameter_list(root, source, maximum, initialize_maximum)
+    names = Names.new(source)
+    records = []
+    method_contexts(root, "LongParameterList").each do |context|
+      name = names.full_name(context)
+      count = parameters(context.exp).reject { |parameter| parameter.type == "blockarg" }.length
+      limit = directive_integer(context, "LongParameterList", "max_params")
+      limit = name.include?("initialize") ? initialize_maximum : maximum if limit.negative?
+      records << "#{context.exp.line}\t#{name}\t#{count}\n" if count > limit
+    end
+    records.join
+  end
+
+  # Reek::SmellDetectors::LongYieldList: each yield passing more than max_params arguments.
+  def self.long_yield_list(root, source, maximum)
+    names = Names.new(source)
+    records = []
+    method_contexts(root, "LongYieldList").each do |context|
+      limit = directive_integer(context, "LongYieldList", "max_params")
+      limit = maximum if limit.negative?
+      each_node(context.exp, ["yield"], %w[class module]).each do |found|
+        count = found.children.length
+        records << "#{found.line}\t#{names.full_name(context)}\t#{count}\n" if count > limit
+      end
+    end
+    records.join
+  end
+
+  # Method and singleton method contexts where the detector is not suppressed.
+  def self.method_contexts(root, detector)
+    found = []
+    root.each { |context| found << context if context.method_context? && !suppressed?(context, detector) }
+    found
   end
 
   SELF_TYPES = %w[self super zsuper ivar ivasgn send].freeze
@@ -991,11 +1039,23 @@ module ReekEngine
   def self.directive_value(context, detector, key)
     current = context
     until current.nil?
-      option = current.full_comment.match(/:reek:#{detector}\b:?\s*\{[^}]*\b#{key}:\s*(\w+)/)
+      option = directive_options(current, detector).match(/\b#{key}:\s*(\w+)/)
       return option[1] if option
       current = current.parent
     end
     ""
+  end
+
+  # CodeComment#config for one context: the last directive naming the detector wins whole, and a bare one means enabled: false.
+  def self.directive_options(context, detector)
+    options = ""
+    # Plain string split: pinned Spinel regexp splits are unreliable (ticket 147).
+    context.full_comment.split(":reek:").drop(1).each do |segment|
+      found = segment.match(/\A(\w+):?\s*(\{.*?\})?/)
+      next unless found && found[1] == detector
+      options = found[2].nil? ? "{ enabled: false }" : found[2]
+    end
+    options
   end
 
   # An integer option from the nearest reek directive for the detector, or -1.
