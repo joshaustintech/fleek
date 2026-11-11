@@ -569,14 +569,7 @@ class DefaultArgumentApiContract
   # Reek and Fleek give the same status and findings for the detector, and Fleek analyzes the source completely.
   def self.verify_findings_parity(source, detector, config)
     reference = run_reek(source, detector, config)
-    actual = run_fleek(source, config, "reek:#{detector}")
-    verify_complete_status(actual, reference[0], "#{detector} #{source}")
-    AnalysisRunner.assert_detector_findings(actual, reference, detector)
-  end
-
-  # :reek:ControlParameter
-  def self.verify_complete_status(actual, status, label)
-    verify(actual[0] == status && actual[1].include?("Status: #{status == 2 ? "findings" : "complete"}"), "#{label} status differs from Reek")
+    AnalysisRunner.assert_complete_parity(run_fleek(source, config, "reek:#{detector}"), reference, detector)
   end
 
   # :reek:TooManyStatements

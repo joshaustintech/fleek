@@ -590,6 +590,7 @@ module ReekEngine
       return outer if exp.nil?
       case exp.type
       when "def" then [outer, exp.child(0).symbol_name].reject { |part| part.empty? }.join("#")
+      when "sym" then "#{outer}##{exp.child(0).symbol_name}"
       when "defs" then "#{outer.empty? ? "" : "#{outer}#"}#{receiver_name(exp.child(0))}.#{exp.child(1).symbol_name}"
       else joined(outer, local_name(exp))
       end
@@ -664,6 +665,11 @@ module ReekEngine
     return long_yield_list(root, source, maximum) if detector == "LongYieldList"
     return module_size(root, source, detector, maximum) if SIZE_DETECTORS.key?(detector)
     return module_initialize(root, source) if detector == "ModuleInitialize"
+    return attribute(root, source) if detector == "Attribute"
+    return instance_variable_assumption(root, source) if detector == "InstanceVariableAssumption"
+    return subclassed_from_core_class(root, source) if detector == "SubclassedFromCoreClass"
+    return missing_safe_method(root, source) if detector == "MissingSafeMethod"
+    return manual_dispatch(root, source) if detector == "ManualDispatch"
     irresponsible_module(root, source)
   end
 
@@ -782,7 +788,7 @@ module ReekEngine
     method_contexts(root, "BooleanParameter").each do |context|
       parameters(context.exp).each do |parameter|
         next unless OPTIONAL_ARGUMENTS.include?(parameter.type) && %w[true false].include?(parameter.child(1).type)
-        records << "#{context.exp.line}\t#{names.full_name(context)}\t#{parameter.child(0).symbol_name}\n"
+        records << context_record(names, context, parameter.child(0).symbol_name)
       end
     end
     records.join
@@ -871,7 +877,7 @@ module ReekEngine
     records = []
     module_contexts(root, ["module"], "ModuleInitialize").each do |context|
       next unless context.children.any? { |child| child.instance_method? && child.name == ":initialize" }
-      records << "#{context.exp.line}\t#{names.full_name(context)}\t\n"
+      records << context_record(names, context, "")
     end
     records.join
   end
@@ -881,6 +887,96 @@ module ReekEngine
     found = []
     root.each { |context| found << context if context.module_context? && types.include?(context.exp.type) && !suppressed?(context, detector) }
     found
+  end
+
+  # Reek::SmellDetectors::Attribute: public attribute writers declared with symbol names.
+  def self.attribute(root, source)
+    names = Names.new(source)
+    records = []
+    root.each do |context|
+      exp = context.exp
+      next unless context.kind.end_with?("attribute") && exp.type == "sym" && context.visibility == "public"
+      next if suppressed?(context, "Attribute")
+      records << "#{exp.line}\t#{names.full_name(context)}\t\n"
+    end
+    records.join
+  end
+
+  # Reek::SmellDetectors::InstanceVariableAssumption: instance variables read in a class that no initialize assigns.
+  def self.instance_variable_assumption(root, source)
+    names = Names.new(source)
+    records = []
+    module_contexts(root, ["class"], "InstanceVariableAssumption").each do |context|
+      methods = each_node(context.exp, ["def"], %w[class module])
+      initializers = methods.select { |method| method.child(0).value == ":initialize" }
+      assigned = initializers.flat_map { |method| variable_names(method, "ivasgn", []) }
+      assumed = methods.flat_map { |method| variable_names(method, "ivar", ["or_asgn"]) }
+      (assumed - assigned).uniq.each { |name| records << context_record(names, context, name) }
+    end
+    records.join
+  end
+
+  def self.variable_names(exp, type, ignoring)
+    each_node(exp, [type], ignoring).map { |node| node.child(0).symbol_name }
+  end
+
+  CORE_CLASSES = %w[Array Hash String].freeze
+
+  # Reek::SmellDetectors::SubclassedFromCoreClass: classes, or Class.new constants, inheriting from Array, Hash or String.
+  def self.subclassed_from_core_class(root, source)
+    names = Names.new(source)
+    records = []
+    module_contexts(root, %w[class casgn], "SubclassedFromCoreClass").each do |context|
+      exp = context.exp
+      ancestor = const_name(exp.type == "class" ? exp.child(1) : casgn_superclass(exp, source), source)
+      records << "#{exp.line}\t#{names.full_name(context)}\t#{ancestor}\n" if CORE_CLASSES.include?(ancestor)
+    end
+    records.join
+  end
+
+  # CasgnNode#superclass: the first argument of Class.new, with or without a block.
+  def self.casgn_superclass(exp, source)
+    value = exp.child(2)
+    call = value.type == "block" ? value.child(0) : value
+    receiver = call.child(0)
+    return nil unless const_name(receiver, source) == "Class"
+    call.child(2)
+  end
+
+  # ConstNode#name: the namespace's source text joined to the simple name; other nodes have no constant name.
+  def self.const_name(exp, source)
+    return "" if exp.nil? || exp.atom? || exp.type != "const"
+    namespace = exp.child(0)
+    simple = exp.child(1).symbol_name
+    namespace.atom? ? simple : "#{namespace.format_to_ruby(source)}::#{simple}"
+  end
+
+  # Reek::SmellDetectors::MissingSafeMethod: bang methods in a class without a same-named method lacking the bang.
+  def self.missing_safe_method(root, source)
+    names = Names.new(source)
+    records = []
+    module_contexts(root, ["class"], "MissingSafeMethod").each do |context|
+      methods = each_node(context.exp, ["def"], %w[class module])
+      method_names = methods.map { |method| method.child(0).symbol_name }
+      ignored = directive_list(context, "MissingSafeMethod", "exclude", [])
+      methods.each do |method|
+        name = method.child(0).symbol_name
+        next unless name.end_with?("!") && !ignored.include?(name) && !method_names.include?(name.chop)
+        records << "#{method.line}\t#{names.full_name(context)}\t#{name}\n"
+      end
+    end
+    records.join
+  end
+
+  # Reek::SmellDetectors::ManualDispatch: respond_to? calls in a method.
+  def self.manual_dispatch(root, source)
+    names = Names.new(source)
+    records = []
+    method_contexts(root, "ManualDispatch").each do |context|
+      lines = each_node(context.exp, ["send"], %w[class module]).select { |call| call.child(1).value == ":respond_to?" }.map { |call| call.line }
+      records << "#{lines.join(", ")}\t#{names.full_name(context)}\t\n" unless lines.empty?
+    end
+    records.join
   end
 
   SELF_TYPES = %w[self super zsuper ivar ivasgn send].freeze
@@ -1074,7 +1170,7 @@ module ReekEngine
       next if suppressed?(context, "TooManyStatements")
       limit = configured_limit(context, "TooManyStatements", "max_statements", maximum)
       count = context.statements
-      records << "#{context.exp.line}\t#{names.full_name(context)}\t#{count}\t\n" if count > limit
+      records << context_record(names, context, "#{count}\t") if count > limit
     end
     records.join
   end
@@ -1100,6 +1196,11 @@ module ReekEngine
       options = found[2].nil? ? "{ enabled: false }" : found[2]
     end
     options
+  end
+
+  # A finding record on the context's own line.
+  def self.context_record(names, context, value)
+    "#{context.exp.line}\t#{names.full_name(context)}\t#{value}\n"
   end
 
   # A "line, context, count" finding record when the count exceeds the limit, else nothing.

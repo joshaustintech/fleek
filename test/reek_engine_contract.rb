@@ -20,7 +20,12 @@ class ReekEngineContract
     ["ModuleInitialize", "#{ROOT}/module_sizes.rb"],
     ["TooManyConstants", "#{ROOT}/module_sizes.rb"],
     ["TooManyInstanceVariables", "#{ROOT}/module_sizes.rb"],
-    ["TooManyMethods", "#{ROOT}/module_sizes.rb"]
+    ["TooManyMethods", "#{ROOT}/module_sizes.rb"],
+    ["Attribute", "#{ROOT}/class_api.rb"],
+    ["InstanceVariableAssumption", "#{ROOT}/class_api.rb"],
+    ["SubclassedFromCoreClass", "#{ROOT}/class_api.rb"],
+    ["MissingSafeMethod", "#{ROOT}/class_api.rb"],
+    ["ManualDispatch", "#{ROOT}/class_api.rb"]
   ].freeze
   OUTPUT = "/tmp/fleek-reek-engine"
   # Runs "$0" with the remaining arguments, writing stdout to $1 and stderr to $1.err.

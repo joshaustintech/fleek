@@ -89,6 +89,15 @@ class AnalysisRunner
     warning_lines(result[1]).select { |warning| warning.include?(":#{detector}:") }
   end
 
+  # Fleek analyzes the source completely and gives Reek's exit status and findings for the detector.
+  # :reek:ControlParameter
+  def self.assert_complete_parity(actual, reference, detector)
+    status = reference[0]
+    expected = status == 2 ? "findings" : "complete"
+    raise "#{detector} status differs from Reek" unless actual[0] == status && actual[1].include?("Status: #{expected}")
+    assert_detector_findings(actual, reference, detector)
+  end
+
   def self.assert_status(actual, reference, label)
     actual_status = actual[0]
     raise "#{label} status differs from Reek" unless actual_status == reference[0] && actual_status == 2

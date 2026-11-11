@@ -104,18 +104,8 @@ class Fleek
     static size_t fleek_duplication_buffer_capacity;
     static size_t fleek_duplication_buffer_used;
     static int fleek_duplication_total_score;
-    static char fleek_attribute_buffer[4096];
-    static size_t fleek_attribute_buffer_used;
-    static int fleek_attribute_unsupported;
-    static int fleek_attribute_public;
-    static char fleek_instance_variable_assumption_buffer[4096];
-    static char fleek_subclassed_from_core_class_buffer[1024];
     static char fleek_unused_private_method_buffer[8192];
     static size_t fleek_unused_private_method_used;
-    static char fleek_manual_dispatch_buffer[4096];
-    static size_t fleek_manual_dispatch_used;
-    static char fleek_missing_safe_method_buffer[4096];
-    static size_t fleek_missing_safe_method_used;
     static char fleek_repeated_conditional_buffer[8192];
     static size_t fleek_repeated_conditional_used;
     static char fleek_data_clump_buffer[8192];
@@ -355,29 +345,6 @@ class Fleek
       return line;
     }
 
-    typedef struct {
-      size_t class_count;
-      size_t module_count;
-      const pm_node_t *scope;
-      const pm_node_t *outer_class;
-      const pm_node_t *nested_class;
-    } fleek_attribute_scopes_t;
-
-    static bool fleek_collect_attribute_scopes(const pm_node_t *node, void *data) {
-      fleek_attribute_scopes_t *scopes = (fleek_attribute_scopes_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE)) {
-        scopes->class_count++;
-        if (scopes->class_count == 1) scopes->outer_class = node;
-        if (scopes->class_count == 2) scopes->nested_class = node;
-        if (scopes->scope == NULL) scopes->scope = node;
-      }
-      if (PM_NODE_TYPE_P(node, PM_MODULE_NODE)) {
-        scopes->module_count++;
-        if (scopes->scope == NULL) scopes->scope = node;
-      }
-      return true;
-    }
-
     static bool fleek_class_has_direct_child(const pm_node_t *class_scope, const pm_node_t *child) {
       const pm_node_t *body = ((const pm_class_node_t *) class_scope)->body;
       if (!PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) return false;
@@ -388,398 +355,6 @@ class Fleek
       return false;
     }
 
-    static bool fleek_attribute_calls(const pm_node_t *node, void *data) {
-      fleek_class_t *scope = (fleek_class_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE) || PM_NODE_TYPE_P(node, PM_MODULE_NODE) || PM_NODE_TYPE_P(node, PM_DEF_NODE) || PM_NODE_TYPE_P(node, PM_SINGLETON_CLASS_NODE)) return false;
-      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return true;
-      const pm_call_node_t *call = (const pm_call_node_t *) node;
-      if (call->receiver != NULL || call->block != NULL) return true;
-      if (fleek_name_is(scope->parser, call->name, "private") || fleek_name_is(scope->parser, call->name, "protected") || fleek_name_is(scope->parser, call->name, "public")) {
-        if (call->arguments != NULL && call->arguments->arguments.size > 0) fleek_attribute_unsupported = 1;
-        else fleek_attribute_public = fleek_name_is(scope->parser, call->name, "public");
-        return true;
-      }
-      bool attr_call = fleek_name_is(scope->parser, call->name, "attr");
-      bool attr_writer = false;
-      if (attr_call && call->arguments != NULL) {
-        const pm_node_list_t *arguments = &call->arguments->arguments;
-        if (arguments->size == 1) return true;
-        if (arguments->size != 2 || (!PM_NODE_TYPE_P(arguments->nodes[1], PM_TRUE_NODE) && !PM_NODE_TYPE_P(arguments->nodes[1], PM_FALSE_NODE))) { fleek_attribute_unsupported = 1; return true; }
-        if (PM_NODE_TYPE_P(arguments->nodes[1], PM_FALSE_NODE)) return true;
-        attr_writer = true;
-      }
-      bool writer = attr_writer || fleek_name_is(scope->parser, call->name, "attr_accessor") || fleek_name_is(scope->parser, call->name, "attr_writer");
-      if (!writer || !fleek_attribute_public || call->arguments == NULL) return true;
-      const pm_node_list_t *arguments = &call->arguments->arguments;
-      size_t argument_count = arguments->size - (attr_writer ? 1 : 0);
-      for (size_t index = 0; index < argument_count; index++) {
-        const pm_node_t *argument = arguments->nodes[index];
-        if (!PM_NODE_TYPE_P(argument, PM_SYMBOL_NODE)) { fleek_attribute_unsupported = 1; continue; }
-        const pm_symbol_node_t *symbol = (const pm_symbol_node_t *) argument;
-        const uint8_t *name = pm_string_source(&symbol->unescaped);
-        size_t length = pm_string_length(&symbol->unescaped);
-        int line = fleek_source_line(fleek_source_start, symbol->value_loc.start);
-        int written = snprintf(fleek_attribute_buffer + fleek_attribute_buffer_used, sizeof(fleek_attribute_buffer) - fleek_attribute_buffer_used, "%d\\t%.*s#%.*s\\t%.*s\\n", line, (int) scope->class_name_length, scope->class_name, (int) length, name, (int) length, name);
-        if (written < 0 || (size_t) written >= sizeof(fleek_attribute_buffer) - fleek_attribute_buffer_used) { fleek_attribute_unsupported = 1; return true; }
-        fleek_attribute_buffer_used += (size_t) written;
-      }
-      return true;
-    }
-
-    typedef struct { pm_parser_t *parser; bool found; } fleek_attribute_search_t;
-
-    static bool fleek_has_attribute_writer(const pm_node_t *node, void *data) {
-      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return true;
-      const pm_call_node_t *call = (const pm_call_node_t *) node;
-      fleek_attribute_search_t *search = (fleek_attribute_search_t *) data;
-      bool writable_attr = false;
-      if (fleek_name_is(search->parser, call->name, "attr") && call->arguments != NULL && call->arguments->arguments.size > 1) {
-        const pm_node_t *flag = call->arguments->arguments.nodes[1];
-        writable_attr = PM_NODE_TYPE_P(flag, PM_TRUE_NODE) || !PM_NODE_TYPE_P(flag, PM_FALSE_NODE);
-      }
-      if (fleek_name_is(search->parser, call->name, "attr_accessor") || fleek_name_is(search->parser, call->name, "attr_writer") || writable_attr) {
-        search->found = true;
-        return false;
-      }
-      return true;
-    }
-
-    int fleek_attribute(const char *source, size_t length) {
-      fleek_attribute_buffer[0] = 0;
-      fleek_attribute_buffer_used = 0;
-      fleek_attribute_unsupported = 0;
-      fleek_attribute_public = 1;
-      fleek_class_count = fleek_module_count = 0;
-      fleek_only_scope = fleek_namespace_scope = NULL;
-      if (memchr(source, 0, length) != NULL) return -2;
-      fleek_source_start = (const uint8_t *) source;
-      pm_options_t options = {0};
-      options.line = 1;
-      options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
-      pm_parser_t parser;
-      pm_parser_init(&parser, (const uint8_t *) source, length, &options);
-      pm_node_t *root = pm_parse(&parser);
-      if (parser.error_list.head != NULL) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1;
-      }
-      fleek_attribute_scopes_t scopes = {0, 0, NULL, NULL, NULL};
-      pm_visit_node(root, fleek_collect_attribute_scopes, &scopes);
-      bool simple_scope = scopes.class_count + scopes.module_count == 1 && scopes.scope != NULL;
-      bool nested_class_scope = scopes.class_count == 2 && scopes.module_count == 0 &&
-        fleek_class_has_direct_child(scopes.outer_class, scopes.nested_class);
-      if (!simple_scope && !nested_class_scope) {
-        fleek_attribute_search_t search = { &parser, false };
-        pm_visit_node(root, fleek_has_attribute_writer, &search);
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options);
-        return search.found ? -4 : 0;
-      }
-      const pm_node_t *constant_path;
-      const pm_node_t *body;
-      const pm_node_t *scope_node = nested_class_scope ? scopes.outer_class : scopes.scope;
-      if (PM_NODE_TYPE_P(scope_node, PM_CLASS_NODE)) {
-        const pm_class_node_t *class_node = (const pm_class_node_t *) scope_node;
-        constant_path = class_node->constant_path;
-        body = class_node->body;
-      } else {
-        const pm_module_node_t *module_node = (const pm_module_node_t *) scope_node;
-        constant_path = module_node->constant_path;
-        body = module_node->body;
-      }
-      if (!PM_NODE_TYPE_P(constant_path, PM_CONSTANT_READ_NODE)) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-      }
-      pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) constant_path)->name);
-      char nested_class_name[512];
-      size_t nested_class_name_length = class_name->length;
-      const char *scope_name = (const char *) class_name->start;
-      if (nested_class_scope) {
-        const pm_class_node_t *nested = (const pm_class_node_t *) scopes.nested_class;
-        if (!PM_NODE_TYPE_P(nested->constant_path, PM_CONSTANT_READ_NODE)) {
-          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-        }
-        pm_constant_t *nested_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) nested->constant_path)->name);
-        int written = snprintf(nested_class_name, sizeof(nested_class_name), "%.*s::%.*s", (int) class_name->length, class_name->start, (int) nested_name->length, nested_name->start);
-        if (written < 0 || (size_t) written >= sizeof(nested_class_name)) {
-          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-        }
-        scope_name = nested_class_name;
-        nested_class_name_length = (size_t) written;
-      }
-      fleek_class_t scope = { &parser, (const char *) class_name->start, class_name->length, 0 };
-      if (body != NULL) pm_visit_node(body, fleek_attribute_calls, &scope);
-      if (nested_class_scope) {
-        const pm_class_node_t *nested = (const pm_class_node_t *) scopes.nested_class;
-        fleek_class_t nested_scope = { &parser, scope_name, nested_class_name_length, 0 };
-        fleek_attribute_public = true;
-        if (nested->body != NULL) pm_visit_node(nested->body, fleek_attribute_calls, &nested_scope);
-      }
-      pm_node_destroy(&parser, root);
-      pm_parser_free(&parser);
-      pm_options_free(&options);
-      return fleek_attribute_unsupported ? -4 : fleek_attribute_buffer_used > 0 ? 1 : 0;
-    }
-
-    const char *fleek_attribute_finding(void) { return fleek_attribute_buffer; }
-
-    typedef struct {
-      pm_parser_t *parser;
-      pm_constant_id_t assumptions[128];
-      size_t assumption_count;
-      pm_constant_id_t initialized[128];
-      size_t initialized_count;
-      int initializer;
-      int unsupported;
-    } fleek_instance_variables_t;
-
-    static bool fleek_id_in_list(const pm_constant_id_t *items, size_t count, pm_constant_id_t id) {
-      for (size_t index = 0; index < count; index++) if (items[index] == id) return true;
-      return false;
-    }
-
-    static bool fleek_collect_instance_variables(const pm_node_t *node, void *data) {
-      fleek_instance_variables_t *variables = (fleek_instance_variables_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE) || PM_NODE_TYPE_P(node, PM_MODULE_NODE) || PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
-      if (PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_READ_NODE)) {
-        pm_constant_id_t name = ((const pm_instance_variable_read_node_t *) node)->name;
-        if (!fleek_id_in_list(variables->assumptions, variables->assumption_count, name)) {
-          if (variables->assumption_count == 128) variables->unsupported = 1;
-          else variables->assumptions[variables->assumption_count++] = name;
-        }
-      }
-      if (variables->initializer && PM_NODE_TYPE_P(node, PM_INSTANCE_VARIABLE_WRITE_NODE)) {
-        pm_constant_id_t name = ((const pm_instance_variable_write_node_t *) node)->name;
-        if (!fleek_id_in_list(variables->initialized, variables->initialized_count, name)) {
-          if (variables->initialized_count == 128) variables->unsupported = 1;
-          else variables->initialized[variables->initialized_count++] = name;
-        }
-      }
-      return true;
-    }
-
-    static bool fleek_instance_methods(const pm_node_t *node, void *data) {
-      fleek_instance_variables_t *variables = (fleek_instance_variables_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE) || PM_NODE_TYPE_P(node, PM_MODULE_NODE)) return false;
-      if (!PM_NODE_TYPE_P(node, PM_DEF_NODE)) return true;
-      const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver == NULL && method->body != NULL) {
-        variables->initializer = fleek_name_is(variables->parser, method->name, "initialize");
-        pm_visit_node(method->body, fleek_collect_instance_variables, variables);
-      }
-      return false;
-    }
-
-    typedef struct {
-      size_t class_count;
-      size_t module_count;
-      const pm_node_t *outer_class;
-      const pm_node_t *nested_class;
-    } fleek_instance_variable_scopes_t;
-
-    static bool fleek_collect_instance_variable_scopes(const pm_node_t *node, void *data) {
-      fleek_instance_variable_scopes_t *scopes = (fleek_instance_variable_scopes_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_CLASS_NODE)) {
-        scopes->class_count++;
-        if (scopes->class_count == 1) scopes->outer_class = node;
-        if (scopes->class_count == 2) scopes->nested_class = node;
-      }
-      if (PM_NODE_TYPE_P(node, PM_MODULE_NODE)) scopes->module_count++;
-      return true;
-    }
-
-    static bool fleek_instance_variable_nested_class_scope(const fleek_instance_variable_scopes_t *scopes) {
-      return scopes->class_count == 2 && scopes->module_count == 0 &&
-        fleek_class_has_direct_child(scopes->outer_class, scopes->nested_class);
-    }
-
-    static int fleek_instance_variable_assumptions_for_class(pm_parser_t *parser, const uint8_t *source_start, const pm_node_t *node, const char *class_name, size_t class_name_length, char *output_buffer, size_t output_capacity, size_t *used) {
-      const pm_class_node_t *class_node = (const pm_class_node_t *) node;
-      fleek_instance_variables_t variables = { parser, {0}, 0, {0}, 0, 0, 0 };
-      if (class_node->body != NULL) pm_visit_node(class_node->body, fleek_instance_methods, &variables);
-      int line = fleek_source_line(source_start, class_node->class_keyword_loc.start);
-      for (size_t index = 0; index < variables.assumption_count; index++) {
-        pm_constant_id_t name = variables.assumptions[index];
-        if (fleek_id_in_list(variables.initialized, variables.initialized_count, name)) continue;
-        pm_constant_t *variable = pm_constant_pool_id_to_constant(&parser->constant_pool, name);
-        if (*used >= output_capacity) { variables.unsupported = 1; break; }
-        int written = snprintf(output_buffer + *used, output_capacity - *used, "%d\\t%.*s\\t%.*s\\n", line, (int) class_name_length, class_name, (int) variable->length, variable->start);
-        if (written < 0 || (size_t) written >= output_capacity - *used) { variables.unsupported = 1; break; }
-        *used += (size_t) written;
-      }
-      return variables.unsupported ? -4 : 0;
-    }
-
-    int fleek_instance_variable_assumption(const char *source, size_t length) {
-      fleek_instance_variable_assumption_buffer[0] = 0;
-      fleek_class_count = fleek_module_count = 0;
-      fleek_only_scope = fleek_namespace_scope = NULL;
-      if (memchr(source, 0, length) != NULL) return -2;
-      fleek_source_start = (const uint8_t *) source;
-      pm_options_t options = {0};
-      options.line = 1;
-      options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
-      pm_parser_t parser;
-      pm_parser_init(&parser, (const uint8_t *) source, length, &options);
-      pm_node_t *root = pm_parse(&parser);
-      if (parser.error_list.head != NULL) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1;
-      }
-      fleek_instance_variable_scopes_t scopes = {0, 0, NULL, NULL};
-      pm_visit_node(root, fleek_collect_instance_variable_scopes, &scopes);
-      if (scopes.class_count == 0) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
-      }
-      bool simple_scope = scopes.class_count == 1 && scopes.module_count == 0;
-      bool nested_class_scope = fleek_instance_variable_nested_class_scope(&scopes);
-      if (!simple_scope && !nested_class_scope) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-      }
-      const pm_node_t *outer_node = scopes.outer_class;
-      const pm_class_node_t *class_node = (const pm_class_node_t *) outer_node;
-      if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE)) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-      }
-      pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) class_node->constant_path)->name);
-      size_t used = 0;
-      if (fleek_instance_variable_assumptions_for_class(&parser, (const uint8_t *) source, outer_node, (const char *) class_name->start, class_name->length, fleek_instance_variable_assumption_buffer, sizeof(fleek_instance_variable_assumption_buffer), &used) != 0) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-      }
-      if (nested_class_scope) {
-        const pm_class_node_t *nested = (const pm_class_node_t *) scopes.nested_class;
-        if (!PM_NODE_TYPE_P(nested->constant_path, PM_CONSTANT_READ_NODE)) {
-          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-        }
-        pm_constant_t *nested_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) nested->constant_path)->name);
-        char nested_class_name[512];
-        int written = snprintf(nested_class_name, sizeof(nested_class_name), "%.*s::%.*s", (int) class_name->length, class_name->start, (int) nested_name->length, nested_name->start);
-        if (written < 0 || (size_t) written >= sizeof(nested_class_name) ||
-            fleek_instance_variable_assumptions_for_class(&parser, (const uint8_t *) source, scopes.nested_class, nested_class_name, (size_t) written, fleek_instance_variable_assumption_buffer, sizeof(fleek_instance_variable_assumption_buffer), &used) != 0) {
-          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-        }
-      }
-      pm_node_destroy(&parser, root);
-      pm_parser_free(&parser);
-      pm_options_free(&options);
-      return used > 0 ? 1 : 0;
-    }
-
-    const char *fleek_instance_variable_assumption_finding(void) { return fleek_instance_variable_assumption_buffer; }
-
-    typedef struct { pm_parser_t *parser; const pm_node_t *assignment; const pm_call_node_t *call; bool unsupported; } fleek_class_new_search_t;
-
-    static const pm_call_node_t *fleek_class_new_expression(pm_parser_t *parser, const pm_node_t *node) {
-      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return NULL;
-      const pm_call_node_t *call = (const pm_call_node_t *) node;
-      if (call->receiver == NULL || !PM_NODE_TYPE_P(call->receiver, PM_CONSTANT_READ_NODE) || !fleek_name_is(parser, call->name, "new") || !fleek_name_is(parser, ((const pm_constant_read_node_t *) call->receiver)->name, "Class")) return NULL;
-      return call;
-    }
-
-    static bool fleek_class_new_assignment_visit(const pm_node_t *node, void *data) {
-      fleek_class_new_search_t *search = (fleek_class_new_search_t *) data;
-      const pm_node_t *value = NULL;
-      if (PM_NODE_TYPE_P(node, PM_CONSTANT_WRITE_NODE)) value = ((const pm_constant_write_node_t *) node)->value;
-      else if (PM_NODE_TYPE_P(node, PM_CONSTANT_PATH_WRITE_NODE)) value = ((const pm_constant_path_write_node_t *) node)->value;
-      else if (PM_NODE_TYPE_P(node, PM_CONSTANT_AND_WRITE_NODE)) value = ((const pm_constant_and_write_node_t *) node)->value;
-      else if (PM_NODE_TYPE_P(node, PM_CONSTANT_OR_WRITE_NODE)) value = ((const pm_constant_or_write_node_t *) node)->value;
-      else if (PM_NODE_TYPE_P(node, PM_CONSTANT_OPERATOR_WRITE_NODE)) value = ((const pm_constant_operator_write_node_t *) node)->value;
-      const pm_call_node_t *call = value == NULL ? NULL : fleek_class_new_expression(search->parser, value);
-      if (call != NULL) {
-        if (search->call != NULL || !PM_NODE_TYPE_P(node, PM_CONSTANT_WRITE_NODE)) { search->unsupported = true; return false; }
-        search->assignment = node;
-        search->call = call;
-        return true;
-      }
-      return true;
-    }
-
-    static fleek_class_new_search_t fleek_find_class_new_assignment(pm_parser_t *parser, pm_node_t *root) {
-      fleek_class_new_search_t search = { parser, NULL, NULL, false };
-      pm_visit_node(root, fleek_class_new_assignment_visit, &search);
-      return search;
-    }
-
-    static bool fleek_has_class_new(pm_parser_t *parser, pm_node_t *root) {
-      fleek_class_new_search_t search = fleek_find_class_new_assignment(parser, root);
-      return search.call != NULL || search.unsupported;
-    }
-
-    int fleek_subclassed_from_core_class(const char *source, size_t length) {
-      fleek_subclassed_from_core_class_buffer[0] = 0;
-      fleek_class_count = fleek_module_count = 0;
-      fleek_only_scope = fleek_namespace_scope = NULL;
-      if (memchr(source, 0, length) != NULL) return -2;
-      fleek_source_start = (const uint8_t *) source;
-      pm_options_t options = {0};
-      options.line = 1;
-      options.version = PM_OPTIONS_VERSION_CRUBY_4_0;
-      pm_parser_t parser;
-      pm_parser_init(&parser, (const uint8_t *) source, length, &options);
-      pm_node_t *root = pm_parse(&parser);
-      if (parser.error_list.head != NULL) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -1;
-      }
-      pm_visit_node(root, fleek_collect_classes, NULL);
-      fleek_class_new_search_t class_new = fleek_find_class_new_assignment(&parser, root);
-      if (class_new.call != NULL || class_new.unsupported) {
-        if (class_new.unsupported || class_new.assignment == NULL || class_new.call->block != NULL || class_new.call->arguments == NULL || class_new.call->arguments->arguments.size != 1) {
-          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-        }
-        const pm_node_t *argument = class_new.call->arguments->arguments.nodes[0];
-        if (!PM_NODE_TYPE_P(argument, PM_CONSTANT_READ_NODE) || fleek_class_count != 0 || fleek_module_count != 0) {
-          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-        }
-        pm_constant_id_t superclass_id = ((const pm_constant_read_node_t *) argument)->name;
-        if (fleek_core_subclass(&parser, superclass_id)) {
-          const pm_constant_write_node_t *assignment = (const pm_constant_write_node_t *) class_new.assignment;
-          pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, assignment->name);
-          pm_constant_t *superclass_name = pm_constant_pool_id_to_constant(&parser.constant_pool, superclass_id);
-          int line = fleek_source_line((const uint8_t *) source, assignment->name_loc.start);
-          int written = snprintf(fleek_subclassed_from_core_class_buffer, sizeof(fleek_subclassed_from_core_class_buffer), "%d\\t%.*s\\t%.*s\\n", line, (int) class_name->length, class_name->start, (int) superclass_name->length, superclass_name->start);
-          if (written < 0 || (size_t) written >= sizeof(fleek_subclassed_from_core_class_buffer)) {
-            pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-          }
-          pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 1;
-        }
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
-      }
-      if (fleek_class_count == 0) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
-      }
-      if (fleek_class_count != 1 || fleek_module_count != 0 || !PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE)) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-      }
-      const pm_class_node_t *class_node = (const pm_class_node_t *) fleek_only_scope;
-      if (class_node->superclass == NULL) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return 0;
-      }
-      if (!PM_NODE_TYPE_P(class_node->constant_path, PM_CONSTANT_READ_NODE) || !PM_NODE_TYPE_P(class_node->superclass, PM_CONSTANT_READ_NODE)) {
-        pm_node_destroy(&parser, root); pm_parser_free(&parser); pm_options_free(&options); return -4;
-      }
-      pm_constant_t *class_name = pm_constant_pool_id_to_constant(&parser.constant_pool, ((const pm_constant_read_node_t *) class_node->constant_path)->name);
-      pm_constant_id_t superclass_id = ((const pm_constant_read_node_t *) class_node->superclass)->name;
-      pm_constant_t *superclass_name = pm_constant_pool_id_to_constant(&parser.constant_pool, superclass_id);
-      bool core = fleek_core_subclass(&parser, superclass_id);
-      int result = 0;
-      if (core) {
-        int line = fleek_source_line((const uint8_t *) source, class_node->class_keyword_loc.start);
-        int written = snprintf(fleek_subclassed_from_core_class_buffer, sizeof(fleek_subclassed_from_core_class_buffer), "%d\\t%.*s\\t%.*s\\n", line, (int) class_name->length, class_name->start, (int) superclass_name->length, superclass_name->start);
-        result = written < 0 || (size_t) written >= sizeof(fleek_subclassed_from_core_class_buffer) ? -4 : 1;
-      }
-      pm_node_destroy(&parser, root);
-      pm_parser_free(&parser);
-      pm_options_free(&options);
-      return result;
-    }
-
-    const char *fleek_subclassed_from_core_class_finding(void) { return fleek_subclassed_from_core_class_buffer; }
-
-
-
-    static size_t fleek_parameter_count(const pm_parameters_node_t *parameters) {
-      if (parameters == NULL) return 0;
-      return parameters->requireds.size + parameters->optionals.size + parameters->posts.size +
-        parameters->keywords.size + (parameters->rest != NULL) + (parameters->keyword_rest != NULL) +
-        (parameters->block != NULL);
-    }
 
     typedef int (*fleek_method_analyzer_t)(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     typedef struct { bool found; } fleek_nested_method_state_t;
@@ -788,7 +363,6 @@ class Fleek
       if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) { state->found = true; return false; }
       return !PM_NODE_TYPE_P(node, PM_CLASS_NODE) && !PM_NODE_TYPE_P(node, PM_MODULE_NODE);
     }
-    static int fleek_missing_safe_method_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
     static int fleek_uncommunicative_method_name_method(pm_parser_t *, const uint8_t *, const char *, size_t, const pm_node_t *, void *);
 
     static int fleek_scan_method_scope(const char *source, size_t length, fleek_method_analyzer_t analyze, void *state,
@@ -884,20 +458,6 @@ class Fleek
         if (statements->body.size > 128) findings = -1;
         for (size_t index = 0; findings >= 0 && index < statements->body.size; index++) {
           const pm_node_t *statement = statements->body.nodes[index];
-          if (analyze == fleek_missing_safe_method_method && PM_NODE_TYPE_P(statement, PM_SINGLETON_CLASS_NODE)) {
-            const pm_node_t *singleton_body = ((const pm_singleton_class_node_t *) statement)->body;
-            if (!PM_NODE_TYPE_P(singleton_body, PM_STATEMENTS_NODE)) { findings = -1; break; }
-            const pm_statements_node_t *singleton_statements = (const pm_statements_node_t *) singleton_body;
-            for (size_t method_index = 0; method_index < singleton_statements->body.size; method_index++) {
-              const pm_node_t *singleton_method = singleton_statements->body.nodes[method_index];
-              if (!PM_NODE_TYPE_P(singleton_method, PM_DEF_NODE)) continue;
-              int result = analyze(&parser, (const uint8_t *) source, class_name_text,
-                class_name_length, singleton_method, (void *) statement);
-              if (result < 0) findings = -1;
-              else findings += result;
-            }
-            continue;
-          }
           if (!PM_NODE_TYPE_P(statement, PM_DEF_NODE)) continue;
           int result = analyze(&parser, (const uint8_t *) source, class_name_text,
             class_name_length, statement, state);
@@ -1134,89 +694,6 @@ class Fleek
       if (PM_NODE_TYPE_P(parameter, PM_OPTIONAL_KEYWORD_PARAMETER_NODE)) return ((const pm_optional_keyword_parameter_node_t *) parameter)->name;
       return 0;
     }
-    typedef struct { pm_parser_t *parser; const uint8_t *source; int lines[128]; size_t count; bool overflow; } fleek_manual_dispatch_state_t;
-    static bool fleek_manual_dispatch_visit(const pm_node_t *node, void *data) {
-      fleek_manual_dispatch_state_t *state = (fleek_manual_dispatch_state_t *) data;
-      if (PM_NODE_TYPE_P(node, PM_DEF_NODE)) return false;
-      if (!PM_NODE_TYPE_P(node, PM_CALL_NODE)) return true;
-      const pm_call_node_t *call = (const pm_call_node_t *) node;
-      if (!fleek_name_is(state->parser, call->name, "respond_to?")) return true;
-      int line = fleek_source_line(state->source, call->base.location.start);
-      for (size_t index = 0; index < state->count; index++) if (state->lines[index] == line) return true;
-      if (state->count >= 128) { state->overflow = true; return false; }
-      state->lines[state->count++] = line;
-      return true;
-    }
-    static int fleek_manual_dispatch_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
-        size_t class_name_length, const pm_node_t *node, void *data) {
-      (void) data;
-      const pm_def_node_t *method = (const pm_def_node_t *) node;
-      if (method->receiver != NULL || method->body == NULL) return 0;
-      if (!fleek_method_body_supported(method->body)) return -1;
-      fleek_manual_dispatch_state_t state = { parser, source, { 0 }, 0, false };
-      pm_visit_node(method->body, fleek_manual_dispatch_visit, &state);
-      if (state.overflow) return -1;
-      if (state.count == 0) return 0;
-      char lines[512] = { 0 };
-      size_t used = 0;
-      for (size_t index = 0; index < state.count; index++) {
-        int written = snprintf(lines + used, sizeof(lines) - used, "%s%d", index == 0 ? "" : ", ", state.lines[index]);
-        if (written < 0 || (size_t) written >= sizeof(lines) - used) return -1;
-        used += (size_t) written;
-      }
-      pm_constant_t *method_name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
-      int written = snprintf(fleek_manual_dispatch_buffer + fleek_manual_dispatch_used, sizeof(fleek_manual_dispatch_buffer) - fleek_manual_dispatch_used, "%s\\t%.*s#%.*s\\t\\n",
-        lines, (int) class_name_length, class_name, (int) method_name->length, method_name->start);
-      if (written < 0 || (size_t) written >= sizeof(fleek_manual_dispatch_buffer) - fleek_manual_dispatch_used) return -1;
-      fleek_manual_dispatch_used += (size_t) written;
-      return 1;
-    }
-    int fleek_manual_dispatch(const char *source, size_t length) {
-      fleek_manual_dispatch_buffer[0] = 0; fleek_manual_dispatch_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_manual_dispatch_method, NULL, NULL);
-    }
-    const char *fleek_manual_dispatch_finding(void) { return fleek_manual_dispatch_buffer; }
-    static bool fleek_missing_safe_version_exists(pm_parser_t *parser, const pm_def_node_t *method,
-        const pm_constant_t *name, const pm_node_t *singleton_scope) {
-      if (fleek_only_scope == NULL || name->length < 2 || name->start[name->length - 1] != '!') return false;
-      const pm_node_t *body = singleton_scope != NULL ? ((const pm_singleton_class_node_t *) singleton_scope)->body :
-        (PM_NODE_TYPE_P(fleek_only_scope, PM_CLASS_NODE) ?
-          ((const pm_class_node_t *) fleek_only_scope)->body : ((const pm_module_node_t *) fleek_only_scope)->body);
-      if (!PM_NODE_TYPE_P(body, PM_STATEMENTS_NODE)) return false;
-      const pm_statements_node_t *statements = (const pm_statements_node_t *) body;
-      for (size_t index = 0; index < statements->body.size; index++) {
-        const pm_node_t *candidate_node = statements->body.nodes[index];
-        if (!PM_NODE_TYPE_P(candidate_node, PM_DEF_NODE)) continue;
-        const pm_def_node_t *candidate = (const pm_def_node_t *) candidate_node;
-        pm_constant_t *candidate_name = pm_constant_pool_id_to_constant(&parser->constant_pool, candidate->name);
-        if (candidate_name->length == name->length - 1 && memcmp(candidate_name->start, name->start, candidate_name->length) == 0) return true;
-      }
-      (void) method;
-      return false;
-    }
-    static int fleek_missing_safe_method_method(pm_parser_t *parser, const uint8_t *source, const char *class_name,
-        size_t class_name_length, const pm_node_t *node, void *data) {
-      const pm_def_node_t *method = (const pm_def_node_t *) node;
-      const pm_node_t *singleton_scope = data;
-      if ((method->receiver != NULL && singleton_scope == NULL) || fleek_only_scope == NULL) return 0;
-      pm_constant_t *name = pm_constant_pool_id_to_constant(&parser->constant_pool, method->name);
-      if (!fleek_missing_safe_version_exists(parser, method, name, singleton_scope)) {
-        if (name->length < 2 || name->start[name->length - 1] != '!') return 0;
-        int written = snprintf(fleek_missing_safe_method_buffer + fleek_missing_safe_method_used,
-          sizeof(fleek_missing_safe_method_buffer) - fleek_missing_safe_method_used,
-          "%d\\t%.*s\\t%.*s\\n", fleek_source_line(source, method->def_keyword_loc.start),
-          (int) class_name_length, class_name, (int) name->length, name->start);
-        if (written < 0 || (size_t) written >= sizeof(fleek_missing_safe_method_buffer) - fleek_missing_safe_method_used) return -1;
-        fleek_missing_safe_method_used += (size_t) written;
-        return 1;
-      }
-      return 0;
-    }
-    int fleek_missing_safe_method(const char *source, size_t length) {
-      fleek_missing_safe_method_buffer[0] = 0; fleek_missing_safe_method_used = 0;
-      return fleek_scan_method_scope(source, length, fleek_missing_safe_method_method, NULL, NULL);
-    }
-    const char *fleek_missing_safe_method_finding(void) { return fleek_missing_safe_method_buffer; }
     typedef struct { const uint8_t *expression; size_t length; int lines[64]; size_t count; } fleek_conditional_group_t;
     typedef struct { pm_parser_t *parser; const uint8_t *source; const char *class_name; size_t class_name_length; size_t maximum; fleek_conditional_group_t groups[128]; size_t count; bool unsupported; } fleek_repeated_conditional_state_t;
     static bool fleek_conditional_is_block_given(pm_parser_t *parser, const pm_node_t *condition) {
@@ -4528,18 +4005,8 @@ class Fleek
     ffi_func :fleek_parse_message, [], :str
     ffi_func :fleek_class_variable, [:str, :size_t], :int
     ffi_func :fleek_class_variable_finding, [], :str
-    ffi_func :fleek_attribute, [:str, :size_t], :int
-    ffi_func :fleek_attribute_finding, [], :str
-    ffi_func :fleek_instance_variable_assumption, [:str, :size_t], :int
-    ffi_func :fleek_instance_variable_assumption_finding, [], :str
-    ffi_func :fleek_subclassed_from_core_class, [:str, :size_t], :int
-    ffi_func :fleek_subclassed_from_core_class_finding, [], :str
     ffi_func :fleek_unused_private_method, [:str, :size_t], :int
     ffi_func :fleek_unused_private_method_finding, [], :str
-    ffi_func :fleek_manual_dispatch, [:str, :size_t], :int
-    ffi_func :fleek_manual_dispatch_finding, [], :str
-    ffi_func :fleek_missing_safe_method, [:str, :size_t], :int
-    ffi_func :fleek_missing_safe_method_finding, [], :str
     ffi_func :fleek_repeated_conditional, [:str, :size_t, :size_t], :int
     ffi_func :fleek_repeated_conditional_finding, [], :str
     ffi_func :fleek_data_clump, [:str, :size_t, :size_t, :size_t], :int
@@ -5756,9 +5223,9 @@ class Fleek
   end
 
   REEK_DETECTORS = {
-    "Attribute" => ["public literal attr_accessor and attr_writer declarations in one simple class or module, including one direct nested class", "%s is a writable attribute"],
-    "InstanceVariableAssumption" => ["direct instance methods in one simple class, including one direct nested class", "%s assumes too much for instance variable '%s'"],
-    "SubclassedFromCoreClass" => ["one simple class inheriting directly from Array, Hash, or String", "%s inherits from core class '%s'"],
+    "Attribute" => ["whole files through the ported Reek context engine", "%s is a writable attribute"],
+    "InstanceVariableAssumption" => ["whole files through the ported Reek context engine", "%s assumes too much for instance variable '%s'"],
+    "SubclassedFromCoreClass" => ["whole files through the ported Reek context engine", "%s inherits from core class '%s'"],
     "ModuleInitialize" => ["whole files through the ported Reek context engine", "%s has initialize method"],
     "IrresponsibleModule" => ["whole files through the ported Reek context engine", "%s has no descriptive comment"],
     "LongParameterList" => ["whole files through the ported Reek context engine", "%s has %s parameters"],
@@ -5769,9 +5236,9 @@ class Fleek
     "UnusedPrivateMethod" => ["one simple class with direct instance methods and bare private/public/protected visibility", "%s has the unused private instance method '%s'"],
     "UtilityFunction" => ["whole files through the ported Reek context engine", "%s doesn't depend on instance state (maybe move it to another class?)"],
     "DuplicateMethodCall" => ["whole files through the ported Reek context engine", "%s calls '%s' %s times"],
-    "ManualDispatch" => ["simple method bodies containing respond_to?", "%s manually dispatches method call"],
+    "ManualDispatch" => ["whole files through the ported Reek context engine", "%s manually dispatches method call"],
     "NilCheck" => ["whole files through the ported Reek context engine", "%s performs a nil-check"],
-    "MissingSafeMethod" => ["direct bang methods without matching non-bang methods", "%s has missing safe method '%s'"],
+    "MissingSafeMethod" => ["whole files through the ported Reek context engine", "%s has missing safe method '%s'"],
     "RepeatedConditional" => ["simple method conditions compared within direct top-level classes", "%s tests '%s' at least %s times"],
     "NestedIterators" => ["whole files through the ported Reek context engine", "%s contains iterators nested %s deep"],
     "FeatureEnvy" => ["whole files through the ported Reek context engine", "%s refers to '%s' more than self (maybe move it to another class?)"],
@@ -5791,18 +5258,6 @@ class Fleek
     "UncommunicativeParameterName" => ["^.$\n[0-9]$\n[A-Z]\n^_", ""],
     "UncommunicativeVariableName" => ["^.$\n[0-9]$\n[A-Z]", "^_$"]
   }.freeze
-
-  def self.run_attribute(inputs)
-    run_reek_detector(inputs, "Attribute", :single)
-  end
-
-  def self.run_instance_variable_assumption(inputs)
-    run_reek_detector(inputs, "InstanceVariableAssumption", :single)
-  end
-
-  def self.run_subclassed_from_core_class(inputs)
-    run_reek_detector(inputs, "SubclassedFromCoreClass", :single)
-  end
 
   def self.run_irresponsible_module(inputs)
     run_reek_detector(inputs, "IrresponsibleModule", :single)
@@ -5924,12 +5379,7 @@ class Fleek
     accepted_names = settings[2]
     minimum = Integer(option, 10) if detector == "DataClump"
     case detector
-    when "Attribute" then NativePrism.fleek_attribute(source, length)
-    when "InstanceVariableAssumption" then NativePrism.fleek_instance_variable_assumption(source, length)
-    when "SubclassedFromCoreClass" then NativePrism.fleek_subclassed_from_core_class(source, length)
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method(source, length)
-    when "ManualDispatch" then NativePrism.fleek_manual_dispatch(source, length)
-    when "MissingSafeMethod" then NativePrism.fleek_missing_safe_method(source, length)
     when "RepeatedConditional" then NativePrism.fleek_repeated_conditional(source, length, maximum)
     when "DataClump" then NativePrism.fleek_data_clump(source, length, maximum, minimum)
     when "UncommunicativeMethodName" then NativePrism.fleek_uncommunicative_method_name(source, length, option, accepted_names)
@@ -5943,7 +5393,7 @@ class Fleek
   REEK_ENGINE_RECORDS = [""]
 
   # Detectors running on the ported Reek context engine.
-  REEK_ENGINE_DETECTORS = %w[BooleanParameter ControlParameter DuplicateMethodCall FeatureEnvy IrresponsibleModule LongParameterList LongYieldList ModuleInitialize NestedIterators NilCheck TooManyConstants TooManyInstanceVariables TooManyMethods TooManyStatements UnusedParameters UtilityFunction].freeze
+  REEK_ENGINE_DETECTORS = %w[Attribute BooleanParameter ControlParameter DuplicateMethodCall FeatureEnvy InstanceVariableAssumption IrresponsibleModule LongParameterList LongYieldList ManualDispatch MissingSafeMethod ModuleInitialize NestedIterators NilCheck SubclassedFromCoreClass TooManyConstants TooManyInstanceVariables TooManyMethods TooManyStatements UnusedParameters UtilityFunction].freeze
 
   # :reek:LongParameterList
   def self.run_reek_engine_detector(detector, source, path, settings)
@@ -5967,12 +5417,7 @@ class Fleek
   def self.native_reek_findings(detector)
     return REEK_ENGINE_RECORDS[0] if REEK_ENGINE_DETECTORS.include?(detector)
     case detector
-    when "Attribute" then NativePrism.fleek_attribute_finding
-    when "InstanceVariableAssumption" then NativePrism.fleek_instance_variable_assumption_finding
-    when "SubclassedFromCoreClass" then NativePrism.fleek_subclassed_from_core_class_finding
     when "UnusedPrivateMethod" then NativePrism.fleek_unused_private_method_finding
-    when "ManualDispatch" then NativePrism.fleek_manual_dispatch_finding
-    when "MissingSafeMethod" then NativePrism.fleek_missing_safe_method_finding
     when "RepeatedConditional" then NativePrism.fleek_repeated_conditional_finding
     when "DataClump" then NativePrism.fleek_data_clump_finding
     when "UncommunicativeMethodName" then NativePrism.fleek_uncommunicative_method_name_finding
@@ -6938,11 +6383,8 @@ class Fleek
     detector = check.delete_prefix("reek:")
     return run_selected_opt_in_detector(inputs, "UnusedPrivateMethod") if check == "reek:UnusedPrivateMethod"
     return run_class_variable(inputs) if check == "reek:ClassVariable"
-    return run_attribute(inputs) if check == "reek:Attribute"
-    return run_instance_variable_assumption(inputs) if check == "reek:InstanceVariableAssumption"
     return run_irresponsible_module(inputs) if check == "reek:IrresponsibleModule"
     return run_reek_detector(inputs, detector, :single) if check.start_with?("reek:") && REEK_DETECTORS.key?(detector)
-    return run_subclassed_from_core_class(inputs) if check == "reek:SubclassedFromCoreClass"
     return run_structural_duplication(inputs) if check == FLAY_CHECK
     return run_combined_checks(inputs) if check == "flay:StructuralDuplication,reek:ClassVariable" || check == "reek:ClassVariable,flay:StructuralDuplication"
     print_usage_error(input_error(arguments))

@@ -148,11 +148,8 @@ class DefaultObjectScopeContract
 
     dynamic_source = "test/fixtures/class_new_dynamic_superclass_assignment.rb"
     dynamic_reference = run_reek_for("SubclassedFromCoreClass", dynamic_source)
-    dynamic_actual = run_fleek_check("SubclassedFromCoreClass", dynamic_source)
-    dynamic_output = dynamic_actual[1]
     verify(dynamic_reference[0] == 0, "pinned dynamic Class.new superclass control changed")
-    verify(dynamic_actual[0] == 1 && dynamic_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded") && dynamic_output.include?("Status: incomplete"), "dynamic Class.new superclass was not reported as incomplete")
-    AnalysisRunner.assert_detector_findings(dynamic_actual, dynamic_reference, "dynamic Class.new superclass")
+    AnalysisRunner.assert_complete_parity(run_fleek_check("SubclassedFromCoreClass", dynamic_source), dynamic_reference, "SubclassedFromCoreClass")
 
     config = "test/fixtures/config_subclassed_from_core_class_exclusion.yml"
     excluded_reference = run_reek_config_for("SubclassedFromCoreClass", source, config)
@@ -192,26 +189,15 @@ class DefaultObjectScopeContract
   end
 
   def self.verify_attribute_incomplete_scope(source, expected_findings)
-    verify_attribute_reference_incomplete(run_reek_for("Attribute", source), expected_findings, source)
-    verify_attribute_report_incomplete(run_fleek_check("Attribute", source), source)
-  end
-
-  def self.verify_attribute_reference_incomplete(reference, expected_findings, source)
-    reference_output = reference[1]
-    verify(reference[0] == 2 && attribute_reference_matches(reference_output, expected_findings), "pinned Reek nested/wrapped Attribute findings changed for #{source}")
+    reference = run_reek_for("Attribute", source)
+    verify(reference[0] == 2 && attribute_reference_matches(reference[1], expected_findings), "pinned Reek nested/wrapped Attribute findings changed for #{source}")
+    AnalysisRunner.assert_complete_parity(run_fleek_check("Attribute", source), reference, "Attribute")
   end
 
   def self.attribute_reference_matches(output, expected_findings)
     matches = expected_findings.all? { |finding| output.include?(finding) }
     finding_count = output.lines.count { |line| line.include?(":Attribute:") }
     matches && finding_count == expected_findings.length
-  end
-
-  def self.verify_attribute_report_incomplete(actual, source)
-    output = actual[1]
-    coverage = output.include?("Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded")
-    incomplete = output.include?("Status: incomplete")
-    verify(actual[0] == 1 && coverage && incomplete && actual[2].include?("Attribute supports"), "unsupported Attribute scope was not reported incomplete for #{source}")
   end
 
   def self.verify_nested_attribute_findings(reference, actual)
@@ -283,14 +269,14 @@ class DefaultObjectScopeContract
     reference = run_reek_for("InstanceVariableAssumption", source)
     actual = run_fleek_check("InstanceVariableAssumption", source)
     verify(reference[0] == 2 && reference[1].include?(expected_finding), "pinned deeper InstanceVariableAssumption finding changed for #{source}")
-    verify_instance_variable_incomplete_report(actual, source)
+    AnalysisRunner.assert_complete_parity(actual, reference, "InstanceVariableAssumption")
   end
 
   def self.verify_instance_variable_clean_reference(source)
     reference = run_reek_for("InstanceVariableAssumption", source)
     actual = run_fleek_check("InstanceVariableAssumption", source)
     verify(reference[0] == 0 && reference[1].empty?, "pinned initialized InstanceVariableAssumption control changed")
-    verify_instance_variable_incomplete_report(actual, source)
+    AnalysisRunner.assert_complete_parity(actual, reference, "InstanceVariableAssumption")
   end
 
   def self.verify_instance_variable_excluded_scope(source)
@@ -298,14 +284,7 @@ class DefaultObjectScopeContract
     reference = run_reek_config_for("InstanceVariableAssumption", source, config)
     actual = run_fleek_check_config("InstanceVariableAssumption", source, config)
     verify(reference[0] == 0 && reference[1].empty?, "pinned deeper InstanceVariableAssumption exclusion changed for #{source}")
-    verify_instance_variable_incomplete_report(actual, source)
-  end
-
-  def self.verify_instance_variable_incomplete_report(actual, source)
-    status, output, = actual
-    coverage = "Coverage: 1 selected; 0 analyzed; 1 failed; 0 excluded"
-    verify(status == 1 && output.include?(coverage) && output.include?("Status: incomplete"),
-      "unsupported InstanceVariableAssumption scope was not reported incomplete for #{source}")
+    AnalysisRunner.assert_complete_parity(actual, reference, "InstanceVariableAssumption")
   end
 
   def self.verify_expected_finding(detector, source, line)
@@ -326,13 +305,6 @@ class DefaultObjectScopeContract
     actual = run_fleek_check(detector, source)
     verify(reference[0] == 0, "pinned Reek #{detector} clean fixture changed")
     verify(actual[0] == 0 && actual[2].empty?, "#{detector} clean syntax became unsupported")
-  end
-
-  def self.verify_unsupported_detector(detector, source, reference_finding)
-    reference = run_reek_for(detector, source)
-    actual = run_fleek_check(detector, source)
-    verify_reek_finding(reference, reference_finding, "pinned Reek #{detector} unsupported-shape behavior changed")
-    AnalysisRunner.assert_unsupported(actual, detector)
   end
 
   # :reek:TooManyStatements

@@ -52,3 +52,11 @@ Start with the largest census gaps: TooManyStatements (7 missing), NestedIterato
   - ModuleInitialize looks for an instance-method child (method or attribute) named `initialize`.
 
   The three size detectors share one table-driven `module_size`, and the engine now has shared `configured_limit` and `count_record` helpers, which keeps bin Flay at zero. On the Rails manifest all four are complete on 25/25 sources (previously 23/25) and are clean like Reek. The bounded C size scanner, the ModuleInitialize scanner and 11 mutations were removed. The nested size contracts became rows in the pinned nested-case table, which drops the test Flay score from 1007 to 818. Eleven engine mutations are caught, including the updated limit-helper targets.
+- **Attribute, InstanceVariableAssumption, SubclassedFromCoreClass, MissingSafeMethod and ManualDispatch.** Migrated together:
+  - Attribute reports public attribute contexts whose argument is a symbol, named `Outer#attr` through a new `sym` naming case.
+  - InstanceVariableAssumption subtracts names assigned in `initialize` from instance variables read outside `||=` across the class's `def` nodes.
+  - SubclassedFromCoreClass reads a class's superclass, or the first argument of a bare `Class.new` constant, by const name, so namespaced `::Hash` does not match.
+  - MissingSafeMethod checks the class's bang `def`s for a same-named companion without the bang, honoring a directive `exclude` list.
+  - ManualDispatch collects `respond_to?` send lines per method.
+
+  On the Rails manifest all five are complete on 25/25 sources (Attribute was already complete; the rest were previously 19 to 23 of 25) and match Reek, including Attribute 3/3 and InstanceVariableAssumption 4/4. The bounded C scanners, the MissingSafeMethod singleton branch in the shared method scanner, the dead `fleek_parameter_count` and 13 mutations were removed. Object-scope contracts that expected incomplete coverage now assert complete Reek parity through a shared `AnalysisRunner.assert_complete_parity`. Nine engine mutations are caught.
