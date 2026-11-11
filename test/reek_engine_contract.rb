@@ -27,7 +27,11 @@ class ReekEngineContract
     ["MissingSafeMethod", "#{ROOT}/class_api.rb"],
     ["ManualDispatch", "#{ROOT}/class_api.rb"],
     ["RepeatedConditional", "#{ROOT}/conditionals_and_clumps.rb"],
-    ["DataClump", "#{ROOT}/conditionals_and_clumps.rb"]
+    ["DataClump", "#{ROOT}/conditionals_and_clumps.rb"],
+    ["UncommunicativeMethodName", "#{ROOT}/names.rb"],
+    ["UncommunicativeModuleName", "#{ROOT}/names.rb"],
+    ["UncommunicativeParameterName", "#{ROOT}/names.rb"],
+    ["UncommunicativeVariableName", "#{ROOT}/names.rb"]
   ].freeze
   OUTPUT = "/tmp/fleek-reek-engine"
   # Runs "$0" with the remaining arguments, writing stdout to $1 and stderr to $1.err.

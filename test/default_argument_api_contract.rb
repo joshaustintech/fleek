@@ -113,20 +113,6 @@ class DefaultArgumentApiContract
       verify_configured_detector("MissingSafeMethod", "test/fixtures/missing_safe_method.rb", "test/fixtures/config_missing_safe_method_exclude.yml")
     when "ignored NestedIterators list entry"
       verify_nested_iterator_ignored_name
-    when "missing UncommunicativeMethodName finding"
-      verify_supported_default_detector("UncommunicativeMethodName", "test/fixtures/uncommunicative_method_name.rb")
-    when "UncommunicativeMethodName nested singleton context"
-      verify_uncommunicative_method_name_nested_singleton
-    when "missing UncommunicativeModuleName finding"
-      verify_supported_default_detector("UncommunicativeModuleName", "test/fixtures/uncommunicative_module_name.rb")
-    when "UncommunicativeModuleName qualified context"
-      verify_uncommunicative_module_name_qualified
-    when "missing UncommunicativeParameterName finding"
-      verify_supported_default_detector("UncommunicativeParameterName", "test/fixtures/uncommunicative_parameter_name.rb")
-    when "missing UncommunicativeVariableName finding"
-      verify_supported_default_detector("UncommunicativeVariableName", "test/fixtures/uncommunicative_variable_name.rb")
-    when "UncommunicativeVariableName block parameters"
-      verify_uncommunicative_variable_name_blocks
     when "UnusedPrivateMethod private visibility"
       verify_unused_private_visibility_cases
     when "UnusedPrivateMethod named visibility"
@@ -677,11 +663,7 @@ class DefaultArgumentApiContract
     AnalysisRunner.assert_status(configured_actual, configured_reference, "nested singleton UncommunicativeMethodName configured patterns")
     AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "nested singleton UncommunicativeMethodName configured patterns")
 
-    unsupported = run_fleek("test/fixtures/uncommunicative_method_name_deep_singleton.rb", "", "reek:UncommunicativeMethodName")
-    unsupported_output = unsupported[1]
-    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
-      unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
-      "unsupported deeply nested singleton method-name scope was not reported incomplete")
+    verify_findings_parity("test/fixtures/uncommunicative_method_name_deep_singleton.rb", "UncommunicativeMethodName", "")
   end
 
   # :reek:TooManyStatements
@@ -710,11 +692,7 @@ class DefaultArgumentApiContract
     AnalysisRunner.assert_status(configured_actual, configured_reference, "qualified UncommunicativeModuleName configured patterns")
     AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "qualified UncommunicativeModuleName configured patterns")
 
-    unsupported = run_fleek("test/fixtures/uncommunicative_module_name_deep_qualified.rb", "", "reek:UncommunicativeModuleName")
-    unsupported_output = unsupported[1]
-    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
-      unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
-      "unsupported deeply qualified module-name scope was not reported incomplete")
+    verify_findings_parity("test/fixtures/uncommunicative_module_name_deep_qualified.rb", "UncommunicativeModuleName", "")
   end
 
   # :reek:TooManyStatements
@@ -768,19 +746,11 @@ class DefaultArgumentApiContract
     AnalysisRunner.assert_status(configured_actual, configured_reference, "block variable-name configured patterns")
     AnalysisRunner.assert_detector_findings(configured_actual, configured_reference, "UncommunicativeVariableName")
 
-    unsupported = run_fleek("test/fixtures/uncommunicative_variable_name_class_block.rb", "", "reek:UncommunicativeVariableName")
-    unsupported_output = unsupported[1]
-    verify(unsupported[0] == 1 && unsupported_output.include?("Status: incomplete") &&
-      unsupported_output.include?("Coverage: 1 selected; 0 analyzed; 1 failed"),
-      "unsupported class-level block parameter scope was not reported incomplete")
+    verify_findings_parity("test/fixtures/uncommunicative_variable_name_class_block.rb", "UncommunicativeVariableName", "")
   end
 
   def self.verify_unsupported_names(source)
-    %w[UncommunicativeMethodName UncommunicativeModuleName UncommunicativeParameterName].each do |detector|
-      AnalysisRunner.assert_unsupported(run_fleek(source, "", "reek:#{detector}"), detector)
-    end
-    module_result = run_fleek(source, "", "reek:UncommunicativeModuleName")
-    verify(AnalysisRunner.detector_warnings(module_result, "UncommunicativeModuleName").none? { |finding| finding.include?("'B'") || finding.include?("'C'") }, "UncommunicativeModuleName reported an unqualified nested finding")
+    %w[UncommunicativeMethodName UncommunicativeModuleName UncommunicativeParameterName].each { |detector| verify_findings_parity(source, detector, "") }
   end
 
   def self.verify_too_many_statements_class_method

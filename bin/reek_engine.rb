@@ -672,6 +672,7 @@ module ReekEngine
     return manual_dispatch(root, source) if detector == "ManualDispatch"
     return repeated_conditional(root, source, maximum) if detector == "RepeatedConditional"
     return data_clump(root, source, maximum, settings[1].to_s.to_i) if detector == "DataClump"
+    return uncommunicative(detector, root, source, settings[1].to_s.split("\n"), settings[2].to_s.split("\n")) if detector.start_with?("Uncommunicative")
     irresponsible_module(root, source)
   end
 
@@ -1045,6 +1046,119 @@ module ReekEngine
       (position + 1...size).each { |later| indexes[later] = indexes[later - 1] + 1 }
     end
     found
+  end
+
+  # Dispatches the Uncommunicative*Name detectors with [reject, accept] pattern lists.
+  def self.uncommunicative(detector, root, source, reject, accept)
+    case detector
+    when "UncommunicativeMethodName" then uncommunicative_method_name(root, source, reject, accept)
+    when "UncommunicativeModuleName" then uncommunicative_module_name(root, source, reject, accept)
+    when "UncommunicativeParameterName" then uncommunicative_parameter_name(root, source, reject, accept)
+    else uncommunicative_variable_name(root, source, reject, accept)
+    end
+  end
+
+  # Reek's Uncommunicative*Name acceptable_name?: an accept pattern matches the accepted text, or no reject pattern matches the name.
+  def self.acceptable_name?(context, detector, reject, accept, texts)
+    accept = directive_list(context, detector, "accept", accept)
+    reject = directive_list(context, detector, "reject", reject)
+    accept.any? { |pattern| texts[1].match?(Regexp.new(pattern)) } || reject.none? { |pattern| texts[0].match?(Regexp.new(pattern)) }
+  end
+
+  # Reek::SmellDetectors::UncommunicativeMethodName over method contexts.
+  def self.uncommunicative_method_name(root, source, reject, accept)
+    names = Names.new(source)
+    records = []
+    method_contexts(root, "UncommunicativeMethodName").each do |context|
+      name = context.exp.child(context.exp.type == "defs" ? 1 : 0).symbol_name
+      records << context_record(names, context, name) unless acceptable_name?(context, "UncommunicativeMethodName", reject, accept, [name, name])
+    end
+    records.join
+  end
+
+  # Reek::SmellDetectors::UncommunicativeModuleName: the simple name is rejected unless the full name is accepted.
+  def self.uncommunicative_module_name(root, source, reject, accept)
+    names = Names.new(source)
+    records = []
+    module_contexts(root, %w[module class], "UncommunicativeModuleName").each do |context|
+      simple = context.exp.child(0).format_to_ruby(source).split("::").last.to_s
+      next if acceptable_name?(context, "UncommunicativeModuleName", reject, accept, [simple, names.full_name(context)])
+      records << context_record(names, context, simple)
+    end
+    records.join
+  end
+
+  # Reek::SmellDetectors::UncommunicativeParameterName: rejected parameter names that are used or not marked unused.
+  def self.uncommunicative_parameter_name(root, source, reject, accept)
+    names = Names.new(source)
+    records = []
+    method_contexts(root, "UncommunicativeParameterName").each do |context|
+      used = each_node(context.exp, %w[lvar lvasgn], %w[class module]).map { |node| node.child(0).value }
+      parameters(context.exp).each do |parameter|
+        first = parameter.child(0)
+        value = first.nil? || !first.atom? || first.nil_atom? ? "" : first.value
+        name = value.empty? ? "" : value[1, value.length - 1]
+        next if acceptable_name?(context, "UncommunicativeParameterName", reject, accept, [name, name])
+        records << context_record(names, context, name) if used.include?(value) || !name.start_with?("_")
+      end
+    end
+    records.join
+  end
+
+  VARIABLE_SCOPES = %w[class module defs def].freeze
+
+  # Reek::SmellDetectors::UncommunicativeVariableName over module, class and method contexts.
+  def self.uncommunicative_variable_name(root, source, reject, accept)
+    names = Names.new(source)
+    records = []
+    root.each do |context|
+      exp = context.exp
+      next unless (context.module_context? || context.method_context?) && VARIABLE_SCOPES.include?(exp.type)
+      next if suppressed?(context, "UncommunicativeVariableName")
+      variable_lines(exp).each do |name, lines|
+        sanitized = strip_markers(name, "@*&")
+        next if acceptable_name?(context, "UncommunicativeVariableName", reject, accept, [sanitized, sanitized])
+        records << "#{lines.join(", ")}\t#{names.full_name(context)}\t#{name}\n"
+      end
+    end
+    records.join
+  end
+
+  # UncommunicativeVariableName#variable_names: assignments (and module instance variables), then block argument names.
+  def self.variable_lines(exp)
+    found = {}
+    assignments = each_node(exp, ["lvasgn"], VARIABLE_SCOPES)
+    assignments += each_node(exp, ["ivasgn"], %w[class module]) if %w[class module].include?(exp.type)
+    assignments.each { |node| record_line(found, node.child(0).symbol_name, node.line) }
+    search = %w[class module].include?(exp.type) ? exp : exp.children.last
+    each_node(search, ["args"], VARIABLE_SCOPES).each { |args| record_argument_names(found, args) } unless search.atom?
+    found
+  end
+
+  # #recursively_record_variable_names: argument names on the args (or mlhs) line, splat markers removed.
+  def self.record_argument_names(found, exp)
+    exp.nodes.each do |argument|
+      if argument.type == "mlhs"
+        record_argument_names(found, argument)
+      else
+        first = argument.child(0)
+        name = first.nil? || !first.atom? || first.nil_atom? ? "" : strip_markers(first.symbol_name, "*")
+        record_line(found, name, exp.line) unless name.empty?
+      end
+    end
+  end
+
+  # Removes leading marker characters (the /^[@*&]*/ and /^\*/ substitutions) without a regexp.
+  def self.strip_markers(name, markers)
+    start = 0
+    start += 1 while start < name.length && markers.include?(name[start])
+    name[start, name.length - start]
+  end
+
+  def self.record_line(found, name, line)
+    lines = found[name]
+    lines = found[name] = [] if lines.nil?
+    lines << line
   end
 
   SELF_TYPES = %w[self super zsuper ivar ivasgn send].freeze

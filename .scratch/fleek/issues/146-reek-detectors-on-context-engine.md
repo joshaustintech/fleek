@@ -65,3 +65,10 @@ Start with the largest census gaps: TooManyStatements (7 missing), NestedIterato
   - DataClump ports `candidate_clumps`: every `combination(max_copies + 1)` of the class's or module's `def` nodes is intersected on named non-block arguments, kept when sorted and at least `min_clump_size` long, de-duplicated, and reported against every method containing it. `combinations` reimplements `Array#combination` order for Spinel.
 
   On the Rails manifest both are complete on 25/25 sources (previously 19 and 23) and are clean like Reek. The bounded C detectors, the dead `fleek_parameter_names_t`, seven mutations and five dead mutation-label dispatches were removed. Five engine mutations are caught.
+- **UncommunicativeMethodName, UncommunicativeModuleName, UncommunicativeParameterName and UncommunicativeVariableName.** Migrated as ports of each detector's `acceptable_name?`, with reject and accept patterns from configuration or the nearest directive list:
+  - Method names come from `def`/`defs`.
+  - Module names reject on the simple name and accept on the full name.
+  - Parameter names are reported unless unused and `_`-marked.
+  - Variable names collect `lvasgn` (plus `ivasgn` for classes and modules) and block/lambda `args` names, including destructured `mlhs`, with leading `@*&` markers stripped before matching.
+
+  On the Rails manifest all four are complete on 25/25 sources (previously 21 to 23) and are clean like Reek. The bounded C detectors were removed, along with the now-dead shared C method-scope scanner and its helpers (`fleek_scan_method_scope`, `fleek_matches_any_pattern`, body and parameter search helpers) and 7 mutations. Old "incomplete" contract expectations now assert complete Reek parity. Six engine mutations are caught.
